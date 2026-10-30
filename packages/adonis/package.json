@@ -57,6 +57,16 @@
       "types": "./dist/src/integrations/media.d.ts",
       "import": "./dist/src/integrations/media.js",
       "default": "./dist/src/integrations/media.js"
+    },
+    "./authkit": {
+      "types": "./dist/src/integrations/authkit.d.ts",
+      "import": "./dist/src/integrations/authkit.js",
+      "default": "./dist/src/integrations/authkit.js"
+    },
+    "./authz": {
+      "types": "./dist/src/integrations/authz.d.ts",
+      "import": "./dist/src/integrations/authz.js",
+      "default": "./dist/src/integrations/authz.js"
     }
   },
   "files": [

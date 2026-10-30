@@ -8,9 +8,9 @@ Part of the [Agora](https://github.com/DavideCarvalho) ecosystem, alongside
 [`@adonis-agora/filter`](https://github.com/DavideCarvalho/adonis-agora-filter),
 `@adonis-agora/authkit` and `@adonis-agora/authz`.
 
-> **Status:** the CMS core is shipped — schema, Local API, REST, versioning, i18n and the admin
-> schema endpoint, plus the media adapter. Remaining: the React admin SPA and the authkit/authz/
-> telescope/durable adapters. See the
+> **Status:** the full surface is implemented — schema/DDL, Local API, REST, versioning, i18n,
+> tenancy, admin schema endpoint, media/authkit/authz adapters, the React building blocks and the
+> admin SPA. telescope/durable adapters are the remaining wiring. See the
 > [architecture spec](./docs/specs/2026-10-30-adonis-cms-design.md).
 
 ## The idea
@@ -112,6 +112,17 @@ tenancy: { strategy: 'database', connection: (t) => `tenant_${t}` }
 
 No `tenancy` key = single instance. Per-tenant overrides in `row` mode are limited to
 admin/labels/visibility because the DDL is shared. Read the spec, §23.
+
+## Admin panel
+
+```bash
+node ace configure @adonis-agora/cms
+node ace configure @adonis-agora/cms-admin   # registers the provider that serves the SPA
+```
+
+The panel is served at `admin.path` (`/admin` by default) and renders itself from
+`GET /api/cms/schema` — list, edit, publish, versions. To build your own, compose the exported
+pieces: `AdminClient`, the TanStack hooks, `FieldRegistry`, `DataTable` and `EditForm`.
 
 ## Testing
 

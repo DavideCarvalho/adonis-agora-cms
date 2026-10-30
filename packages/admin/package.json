@@ -1,0 +1,58 @@
+{
+  "name": "@adonis-agora/cms-admin",
+  "version": "0.0.0",
+  "description": "Admin SPA for @adonis-agora/cms — schema-driven list and edit views, TanStack Query, atomic UI. Ships embedded in a thin AdonisJS provider. Part of the Agora ecosystem.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./cms_admin_provider": {
+      "types": "./dist/provider/cms_admin_provider.d.ts",
+      "import": "./dist/provider/cms_admin_provider.js",
+      "default": "./dist/provider/cms_admin_provider.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.server.json",
+    "prepack": "pnpm run build",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.spa.json --noEmit"
+  },
+  "peerDependencies": {
+    "@adonisjs/core": "^7.3.0"
+  },
+  "dependencies": {
+    "@adonis-agora/cms-react": "workspace:*",
+    "@tanstack/react-query": "5.102.8",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "@adonis-agora/cms": "workspace:*"
+  },
+  "devDependencies": {
+    "@adonisjs/core": "7.5.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "^6.1.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.5",
+    "@types/node": "^26.4.0"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  }
+}
