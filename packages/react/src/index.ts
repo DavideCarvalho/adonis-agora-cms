@@ -15,9 +15,12 @@ export { ArrayBuilder, BlocksBuilder } from './organisms/structured.js';
 export type { VersionsPanelProps } from './organisms/versions-panel.js';
 export { VersionsPanel } from './organisms/versions-panel.js';
 export {
+  editable,
+  editableBlock,
   PREVIEW_BRIDGE_SOURCE,
   PREVIEW_EDIT_MESSAGE,
   PREVIEW_FIELD_ATTRIBUTE,
+  parseBlockPath,
   previewBridge,
 } from './preview.js';
 export {

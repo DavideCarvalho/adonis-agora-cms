@@ -313,6 +313,19 @@ export function previewBridge(): () => void {
   };
 }
 
+/**
+ * Props for a JSX element bound to a field: `<h1 {...editable('layout[0]', 'heading')}>`.
+ * Same attribute the string renderers write by hand.
+ */
+export function editable(path: string, field?: string): { 'data-cms-field': string } {
+  return { 'data-cms-field': field ? `${path}.${field}` : path };
+}
+
+/** Props for the wrapper of a block: `<div {...editableBlock('layout', index)}>`. */
+export function editableBlock(path: string, index: number): { 'data-cms-block': string } {
+  return { 'data-cms-block': `${path}[${index}]` };
+}
+
 /** Parses `layout[2]` into the array field and the row index. */
 export function parseBlockPath(path: string): { field: string; index: number } | null {
   const match = /^(.*)\[(\d+)\]$/.exec(path);

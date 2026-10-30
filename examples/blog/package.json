@@ -27,6 +27,7 @@
   "imports": {
     "#start/*": "./start/*.js",
     "#config/*": "./config/*.js",
-    "#controllers/*": "./app/controllers/*.js"
+    "#controllers/*": "./app/controllers/*.js",
+    "#services/*": "./app/services/*.js"
   }
 }

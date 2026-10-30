@@ -1,0 +1,14 @@
+import type { Cms } from '@adonis-agora/cms';
+import service from '@adonis-agora/cms/services/main';
+import type cmsConfig from '#config/cms';
+
+/**
+ * Typed handle to the CMS.
+ *
+ * `Cms<typeof cmsConfig>` is what makes `cms.collection('pages')` return the document type of
+ * that collection — no cast at the call site. The instance itself is the singleton the provider
+ * created at boot.
+ */
+const cms = service as Cms<typeof cmsConfig>;
+
+export default cms;

@@ -46,6 +46,29 @@ describe('local API — create', () => {
     expect(post.createdAt).toBeInstanceOf(Date);
   });
 
+  test('resolves relations declared inside blocks', async () => {
+    const { cms } = await setup();
+
+    const page = await cms.collection('pages').create({ title: 'Linked page' });
+
+    const post = await cms.collection('posts').create({
+      title: 'Hero with link',
+      layout: [
+        {
+          type: 'hero',
+          heading: 'Hi',
+          gallery: [{ caption: 'one', link: page.id }],
+        },
+      ],
+    });
+
+    const read = await cms.collection('posts').findByID(post.id);
+    const gallery = (read?.layout as { gallery: { link: unknown }[] }[])[0]?.gallery ?? [];
+
+    // The block stores the id; reading it back with depth resolves the document.
+    expect(gallery[0]?.link).toMatchObject({ id: page.id, title: 'Linked page' });
+  });
+
   test('rejects invalid documents with field errors', async () => {
     const { cms } = await setup();
 

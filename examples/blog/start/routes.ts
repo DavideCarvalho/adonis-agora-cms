@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { verifyPreviewToken } from '@adonis-agora/cms';
-import cms from '@adonis-agora/cms/services/main';
 import app from '@adonisjs/core/services/app';
 import router from '@adonisjs/core/services/router';
+import cms from '#services/cms';
 import { renderPage, renderPost } from '../app/pages/render.js';
 
 const PREVIEW_SECRET = 'local-preview-secret';
@@ -12,15 +12,11 @@ router.get('/', async () => ({ hello: 'blog example' }));
 
 /** A published page, rendered through the `slug → block` map. */
 router.get('/p/:slug', async ({ params, response }) => {
-  const { docs } = await cms.collection('pages').find({
-    where: { slug: { equals: params.slug } },
-  });
-
-  const page = docs[0];
+  const page = await cms.collection('pages').findOne({ where: { slug: params.slug } });
   if (!page) return response.status(404).send('page not found');
 
   response.type('html');
-  return renderPage(page);
+  return renderPage(page as Record<string, unknown>);
 });
 
 /**

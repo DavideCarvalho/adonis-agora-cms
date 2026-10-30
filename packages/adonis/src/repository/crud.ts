@@ -504,6 +504,7 @@ async function decorateRows(
 
   if ((options.depth ?? 1) > 0) {
     await populateRelations(ctx, table, docs, options);
+    await populateNestedRelations(ctx, table, docs, options);
   }
 
   for (const doc of docs) {
@@ -558,6 +559,107 @@ async function populateRelations(
       );
     }
   }
+}
+
+/**
+ * Relations declared inside arrays and blocks.
+ *
+ * Those rows live in child tables, so `populateRelations` (which walks the root table columns) never
+ * sees them. The column path already says where the value sits (`layout.acao`), so this walks the
+ * document along that path — through arrays — and swaps each id for the stored document.
+ */
+async function populateNestedRelations(
+  ctx: RepoContext,
+  table: TableSpec,
+  docs: Record<string, unknown>[],
+  options: DocumentOptions,
+): Promise<void> {
+  const children = ctx.spec.tables.filter(
+    (item) => item.kind === 'child' && item.rootTable === table.name,
+  );
+
+  for (const child of children) {
+    for (const column of child.columns) {
+      if (!column.references || !column.path || column.locale) continue;
+
+      const segments = column.path.split('.');
+      const holders = collectRelationHolders(docs, segments);
+      if (holders.length === 0) continue;
+
+      const field = segments.at(-1) as string;
+      const targetSlug = ctx.spec.tables.find(
+        (item) => item.name === column.references?.table,
+      )?.slug;
+      if (!targetSlug) continue;
+
+      const ids = [
+        ...new Set(
+          holders
+            .map((holder) => toRelationId(holder[field]))
+            .filter((value): value is string => typeof value === 'string'),
+        ),
+      ];
+      if (ids.length === 0) continue;
+
+      const targetTable = documentTable(ctx.spec, targetSlug);
+      const rows = await selectRows(
+        ctx.client,
+        `select * from ${ident(targetTable.name, ctx.engine)} where ${ident('id', ctx.engine)} in (${placeholders(ids.length)})`,
+        ids,
+      );
+      const byId = new Map(rows.map((row) => [String(row.id), row]));
+
+      for (const holder of holders) {
+        const id = toRelationId(holder[field]);
+        const targetRow = id ? byId.get(id) : undefined;
+        if (!targetRow) continue;
+        holder[field] = rowToDocument(ctx, targetTable, targetRow, new Map(), {
+          depth: 0,
+          locale: options.locale,
+        });
+      }
+    }
+  }
+}
+
+/** Every object that holds the last segment of `segments`, walking arrays on the way. */
+function collectRelationHolders(
+  docs: Record<string, unknown>[],
+  segments: readonly string[],
+): Record<string, unknown>[] {
+  const last = segments.at(-1);
+  if (!last) return [];
+
+  const holders: Record<string, unknown>[] = [];
+
+  const walk = (value: unknown, depth: number) => {
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item, depth);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+
+    const record = value as Record<string, unknown>;
+    if (depth === segments.length - 1) {
+      if (last in record) holders.push(record);
+      return;
+    }
+
+    const segment = segments[depth] as string;
+    if (segment in record) walk(record[segment], depth + 1);
+  };
+
+  for (const doc of docs) walk(doc, 0);
+  return holders;
+}
+
+function toRelationId(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    const id = (value as { id?: unknown }).id;
+    if (typeof id === 'string') return id;
+  }
+  return undefined;
 }
 
 async function populateUploads(

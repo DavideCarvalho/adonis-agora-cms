@@ -61,6 +61,8 @@ export type CmsCollectionApi<C, S extends string> = {
     hasNextPage: boolean;
     hasPrevPage: boolean;
   }>;
+  /** First document matching the query, or `null` — the common "page by slug" case. */
+  findOne(query?: FindQuery, options?: OperationOptions): Promise<CmsDocument<C, S> | null>;
   findByID(id: string, options?: OperationOptions): Promise<CmsDocument<C, S> | null>;
   update(
     id: string,
@@ -174,6 +176,11 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
           async find(query, operation) {
             const result = await findDocuments(ctx, slug, query, operation);
             return result as unknown as Awaited<ReturnType<CmsCollectionApi<C, S>['find']>>;
+          },
+
+          async findOne(query, operation) {
+            const result = await findDocuments(ctx, slug, { ...query, limit: 1 }, operation);
+            return (result.docs[0] as CmsDocument<C, S> | undefined) ?? null;
           },
 
           async findByID(id, operation) {
