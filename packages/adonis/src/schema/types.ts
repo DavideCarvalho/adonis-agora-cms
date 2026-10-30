@@ -107,6 +107,8 @@ export type SchemaSpec = {
   locales: readonly string[];
   defaultLocale: string;
   tenancy: SchemaTenancy;
+  /** `db.renames`, carried so `cms:sync` and `cms:generate` see them without the config. */
+  renames: Record<string, string>;
   tables: TableSpec[];
   /** Maps a logical field path (`layout.gallery.caption`) to where it physically lives. */
   queryPlan: Record<string, QueryPlanEntry>;

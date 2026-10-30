@@ -84,6 +84,7 @@ export function compileSchema(config: CmsConfig, options: CompileOptions = {}): 
     locales: ctx.locales,
     defaultLocale: ctx.defaultLocale,
     tenancy: ctx.tenancy,
+    renames: db.renames,
     tables: ctx.tables,
     queryPlan,
   };
