@@ -76,6 +76,14 @@ export default class CmsProvider {
     const spec = compileSchema(config, { engine });
     const cms = createCms({ config, client, engine });
 
+    // Server-side entry point for app code (routes, jobs, server components):
+    // `await app.container.make('cms')` returns the same instance, with hooks and access applied.
+    (
+      this.app.container as unknown as {
+        singleton(name: string, factory: () => unknown): void;
+      }
+    ).singleton('cms', () => cms);
+
     if (config.rest?.enabled !== false) {
       await this.registerRoutes(config, cms);
     }

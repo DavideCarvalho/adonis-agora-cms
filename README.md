@@ -124,6 +124,36 @@ The panel is served at `admin.path` (`/admin` by default) and renders itself fro
 `GET /api/cms/schema` — list, edit, publish, versions. To build your own, compose the exported
 pieces: `AdminClient`, the TanStack hooks, `FieldRegistry`, `DataTable` and `EditForm`.
 
+## Pages, blocks and live preview
+
+A page is a document whose `layout` is an ordered list of blocks; the site owns the
+`slug -> component` map and marks the editable regions with `data-cms-field`:
+
+```ts
+// config/cms.ts
+fields.blocks('layout', {
+  blocks: [
+    { slug: 'hero', fields: [fields.text('heading'), fields.textarea('subheading')] },
+    { slug: 'features', fields: [fields.array('items', { fields: [fields.text('title')] })] },
+  ],
+}),
+```
+
+```ts
+// the site
+const { docs } = await cms.collection('pages').find({ where: { slug: { equals: slug } } });
+return renderPage(docs[0]); // blocks -> components
+```
+
+`access.read`/`update` receive the stored `doc`, so access can be decided per document
+(`doc.visibility === 'private'`). In live preview the admin outlines every `data-cms-field`
+region and a click focuses that field. The example app renders a full landing page:
+
+```bash
+cd examples/blog && node ace.js serve --no-watch
+node seed-landing.mjs          # seeds /p/landing
+```
+
 ## Testing
 
 ```ts

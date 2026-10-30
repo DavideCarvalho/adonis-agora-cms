@@ -1,47 +1,80 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { verifyPreviewToken } from '@adonis-agora/cms';
+import app from '@adonisjs/core/services/app';
 import router from '@adonisjs/core/services/router';
+import { renderPage, renderPost } from '../app/pages/render.js';
+
+const PREVIEW_SECRET = 'local-preview-secret';
+
+type ServerCms = {
+  collection(slug: string): {
+    find(query: Record<string, unknown>): Promise<{ docs: Record<string, unknown>[] }>;
+    findByID(id: string, options: Record<string, unknown>): Promise<Record<string, unknown> | null>;
+  };
+  forTenant(tenant: string | null): ServerCms;
+};
+
+/** The CMS instance the provider created at boot; hooks and access run exactly as over REST. */
+async function cms(): Promise<ServerCms> {
+  return (await app.container.make('cms')) as unknown as ServerCms;
+}
 
 router.get('/', async () => ({ hello: 'blog example' }));
 
-/**
- * A stand-in for a real frontend page. Each region the editor may change carries
- * `data-cms-field` with the CMS field name; the live-preview bridge outlines it and a click
- * jumps to that field in the admin.
- */
-router.get('/preview/post', async ({ response }) => {
-  response.type('text/html');
-  return `<!doctype html>
-<html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Preview</title>
-    <style>
-      :root { color-scheme: dark; }
-      body { margin: 0; padding: 40px; background: #09090b; color: #e7e7ea;
-             font-family: ui-sans-serif, system-ui, sans-serif; line-height: 1.6; }
-      article { max-width: 640px; margin: 0 auto; }
-      h1 { font-size: 34px; margin: 0 0 8px; }
-      h1, h2, p, img { padding: 4px 6px; border-radius: 6px; }
-      h2 { font-size: 18px; color: #c084fc; margin: 28px 0 4px; }
-      img { width: 100%; border-radius: 8px; }
-      .muted { color: #76767f; font-size: 13px; }
-    </style>
-  </head>
-  <body>
-    <article>
-      <div class="muted" data-cms-field="slug">hello-world</div>
-      <h1 data-cms-field="title">Hello world</h1>
-      <p data-cms-field="subtitle">Primeiro post</p>
-      <div data-cms-field="banner"><img alt="" src="/placeholder.png" /></div>
-      <div class="muted" data-cms-field="body">Hello body</div>
-      <section data-cms-field="sections.0.heading">
-        <h2>Abertura</h2>
-      </section>
-    </article>
-    <script>
-      // The admin injects the bridge for same-origin previews; a real site imports
-      // previewBridge() from @adonis-agora/cms-react/preview instead.
-    </script>
-  </body>
-</html>`;
+/** A published page, rendered through the `slug → block` map. */
+router.get('/p/:slug', async ({ params, response }) => {
+  const client = await cms();
+  const { docs } = await client.collection('pages').find({
+    where: { slug: { equals: params.slug } },
+  });
+
+  const page = docs[0];
+  if (!page) return response.status(404).send('page not found');
+
+  response.type('html');
+  return renderPage(page);
 });
+
+/**
+ * Live preview: the admin signs a short-lived token for the document being edited, the site
+ * verifies it here and renders the draft — no session, no public draft URL.
+ */
+router.get('/preview', async ({ request, response }) => {
+  const token = String(request.qs().token ?? '');
+  const claims = verifyPreviewToken(token, PREVIEW_SECRET);
+  if (!claims) return response.status(401).send('invalid or expired preview token');
+
+  const client = await cms();
+  const scoped = client.forTenant(claims.tenant);
+  const doc = await scoped.collection(claims.collection).findByID(claims.documentId, {
+    draft: true,
+    overrideAccess: true,
+  });
+
+  if (!doc) return response.status(404).send('document not found');
+
+  response.type('html');
+  return claims.collection === 'pages' ? renderPage(doc) : renderPost(doc);
+});
+
+/** Files the upload handler wrote; the example has no CDN. */
+router.get('/uploads/*', async ({ params, response }) => {
+  const path = String((params as Record<string, unknown>)['*'] ?? '');
+  if (!path || path.includes('..')) return response.status(400).send('bad path');
+
+  const file = await readFile(join(app.makePath('storage/uploads'), path)).catch(() => null);
+  if (!file) return response.status(404).send('not found');
+
+  response.header('content-type', mimeFor(path));
+  return response.send(file);
+});
+
+function mimeFor(path: string): string {
+  const extension = path.split('.').pop()?.toLowerCase();
+  if (extension === 'png') return 'image/png';
+  if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg';
+  if (extension === 'webp') return 'image/webp';
+  if (extension === 'pdf') return 'application/pdf';
+  return 'application/octet-stream';
+}

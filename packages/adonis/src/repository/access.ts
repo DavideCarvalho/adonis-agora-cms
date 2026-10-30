@@ -9,6 +9,7 @@ export type AccessArgsInternal = {
   user: unknown;
   id?: string;
   data?: Record<string, unknown>;
+  doc?: Record<string, unknown>;
   locale?: string;
   tenant: string | null;
 };
@@ -38,6 +39,7 @@ export function decideAccess(
     user: args.user,
     ...(args.id !== undefined ? { id: args.id } : {}),
     ...(args.data !== undefined ? { data: args.data } : {}),
+    ...(args.doc !== undefined ? { doc: args.doc } : {}),
     ...(args.locale !== undefined ? { locale: args.locale } : {}),
   });
 

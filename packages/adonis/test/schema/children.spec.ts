@@ -118,6 +118,33 @@ describe('compileSchema — child tables', () => {
     expect(child.path?.split('.')).toHaveLength(2);
   });
 
+  test('blocks that share a field name compile to one column', () => {
+    const config = {
+      ...blogConfig,
+      collections: [
+        {
+          slug: 'pages',
+          fields: [
+            {
+              type: 'blocks' as const,
+              name: 'layout',
+              blocks: [
+                { slug: 'hero', fields: [{ type: 'text' as const, name: 'heading' }] },
+                { slug: 'list', fields: [{ type: 'text' as const, name: 'heading' }] },
+              ],
+            },
+          ],
+        },
+      ],
+      globals: [],
+    };
+
+    const spec = compileSchema(config, { engine: 'sqlite' });
+    const child = spec.tables.find((item) => item.name === 'cms_pages__layout');
+    expect(child).toBeDefined();
+    expect(child?.columns.filter((column) => column.name === 'heading')).toHaveLength(1);
+  });
+
   test('incompatible block columns are rejected', () => {
     const config = {
       ...blogConfig,

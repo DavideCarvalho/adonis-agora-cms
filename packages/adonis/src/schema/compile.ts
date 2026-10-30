@@ -337,6 +337,11 @@ function compileBlocks(
       }
       // A column absent in one block must be nullable in the union.
       existing.nullable = existing.nullable || added.nullable;
+
+      // Two blocks may declare the same field name: they share one column, so the duplicate that
+      // `compileFields` just pushed has to leave the table (the union is by name).
+      const duplicate = child.columns.indexOf(added);
+      if (duplicate >= 0) child.columns.splice(duplicate, 1);
     }
   }
 

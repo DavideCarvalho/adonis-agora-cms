@@ -112,15 +112,38 @@ function RowFields({
 }) {
   return (
     <div className="row-fields">
-      {fields.map((field) => (
-        <ScalarInput
-          key={field.name}
-          field={field}
-          value={row[field.name]}
-          path={`${prefix}.${field.name}`}
-          onChange={(next) => onChange({ ...row, [field.name]: next })}
-        />
-      ))}
+      {fields.map((field) => {
+        const value = row[field.name];
+        const update = (next: unknown) => onChange({ ...row, [field.name]: next });
+
+        // Nested containers keep their real builder: a block with an array of items renders rows,
+        // not `[object Object]` from the scalar fallback.
+        if (field.type === 'array') {
+          return (
+            <div key={field.name} className="row-fields__wide">
+              <ArrayBuilder field={field} value={value} onChange={update} />
+            </div>
+          );
+        }
+
+        if (field.type === 'blocks') {
+          return (
+            <div key={field.name} className="row-fields__wide">
+              <BlocksBuilder field={field} value={value} onChange={update} />
+            </div>
+          );
+        }
+
+        return (
+          <ScalarInput
+            key={field.name}
+            field={field}
+            value={value}
+            path={`${prefix}.${field.name}`}
+            onChange={update}
+          />
+        );
+      })}
     </div>
   );
 }

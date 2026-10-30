@@ -733,6 +733,9 @@ th,
 .row-fields > * {
   min-width: 0;
 }
+.row-fields__wide {
+  grid-column: 1 / -1;
+}
 @media (max-width: 820px) {
   .row-fields {
     grid-template-columns: 1fr;

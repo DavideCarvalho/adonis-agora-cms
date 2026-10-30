@@ -22,6 +22,14 @@ delight of the first.
 Operate. Admin panel at `admin.path` (`/admin`). Design is not the product here — clarity is,
 with brand living in precise details (type, rhythm, a single accent).
 
+## Pages are documents
+
+A page is a document in a `pages` collection whose `layout` is an ordered list of blocks. The site
+owns the `slug → component` map, so only block types the frontend implements are editable, and the
+renderer emits the same column paths the form uses (`layout[0].heading`). Access can be decided
+per document — `access.read`/`update` receive the stored `doc`, so a page marked private is
+invisible by id and a locked page rejects writes.
+
 ## Marking what is editable
 
 A page marks its editable regions with `data-cms-field="<field name>"` (the field name in the

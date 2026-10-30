@@ -209,17 +209,11 @@ export async function findDocumentByID(
   options: OperationOptions = {},
 ): Promise<Record<string, unknown> | null> {
   const table = documentTable(ctx.spec, slug);
-  const access = decideAccess(
-    collectionAccess(ctx, slug)?.read,
-    accessArgs(ctx, { id }),
-    options.overrideAccess,
-  );
-  if (!access.allowed) return null;
-
   const versions = versionsFor(ctx.config, slug);
   const includeDrafts = options.draft === true;
   assertDraftAccess(ctx, versions.drafts, includeDrafts, options.overrideAccess);
 
+  // The document is loaded before the access decision so `read` can see it (Payload's `doc`).
   const doc = await loadDocument(ctx, slug, id, {
     depth: options.depth ?? 1,
     locale: options.locale,
@@ -227,6 +221,13 @@ export async function findDocumentByID(
   });
 
   if (!doc) return null;
+
+  const access = decideAccess(
+    collectionAccess(ctx, slug)?.read,
+    accessArgs(ctx, { id, doc }),
+    options.overrideAccess,
+  );
+  if (!access.allowed) return null;
 
   if (versions.drafts && !includeDrafts && !options.overrideAccess && doc._status !== 'published') {
     return null;
@@ -261,7 +262,7 @@ export async function updateDocument(
 
   const access = decideAccess(
     collectionAccess(ctx, slug)?.update,
-    accessArgs(ctx, { id, data }),
+    accessArgs(ctx, { id, data, doc: previous }),
     options.overrideAccess,
   );
   if (!access.allowed) throw denied(ctx, `update "${slug}" is not allowed`);
@@ -329,7 +330,7 @@ export async function deleteDocument(
 
   const access = decideAccess(
     collectionAccess(ctx, slug)?.delete,
-    accessArgs(ctx, { id }),
+    accessArgs(ctx, { id, doc }),
     options.overrideAccess,
   );
   if (!access.allowed) throw denied(ctx, `delete "${slug}" is not allowed`);
@@ -977,13 +978,21 @@ function collectionAccess(ctx: RepoContext, slug: string) {
   return (ctx.config.collections ?? []).find((item) => item.slug === slug)?.access;
 }
 
-function accessArgs(ctx: RepoContext, extra: { id?: string; data?: Record<string, unknown> } = {}) {
+function accessArgs(
+  ctx: RepoContext,
+  extra: {
+    id?: string;
+    data?: Record<string, unknown>;
+    doc?: Record<string, unknown>;
+  } = {},
+) {
   return {
     req: ctx.req,
     user: ctx.user,
     tenant: ctx.tenant,
     ...(extra.id !== undefined ? { id: extra.id } : {}),
     ...(extra.data !== undefined ? { data: extra.data } : {}),
+    ...(extra.doc !== undefined ? { doc: extra.doc } : {}),
     locale: ctx.locale,
   };
 }

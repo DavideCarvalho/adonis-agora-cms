@@ -294,6 +294,11 @@ export type AccessArgs = {
   user: unknown;
   id?: string;
   data?: Record<string, unknown>;
+  /**
+   * The stored document for `read`/`update`/`delete` by id, so access can be decided per document
+   * (`doc.visibility === 'private'`), the way Payload's access functions receive `doc`.
+   */
+  doc?: Record<string, unknown>;
   locale?: LocaleCode;
 };
 
