@@ -180,6 +180,17 @@ const COMMANDS: CommandMetaData[] = [
     options: { startApp: true },
     filePath: 'status.js',
   },
+  {
+    commandName: 'cms:mcp',
+    description: 'Start the CMS MCP server (stdio) for an AI client',
+    help: '',
+    namespace: 'cms',
+    aliases: [],
+    flags: [],
+    args: [],
+    options: { startApp: true },
+    filePath: 'mcp.js',
+  },
 ];
 
 export async function getMetaData(): Promise<CommandMetaData[]> {

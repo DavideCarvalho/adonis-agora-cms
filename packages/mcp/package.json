@@ -1,0 +1,44 @@
+{
+  "name": "@adonis-agora/cms-mcp",
+  "version": "0.0.0",
+  "description": "Model Context Protocol server for @adonis-agora/cms — let an AI read, create, publish and restore content with the same access rules as the admin.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "pnpm run build",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  },
+  "peerDependencies": {
+    "@adonis-agora/cms": "workspace:*",
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@adonis-agora/cms": "workspace:*",
+    "@types/node": "^26.4.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5",
+    "zod": "^4.6.7"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  }
+}

@@ -14,7 +14,8 @@
     "better-sqlite3": "^13.0.3",
     "luxon": "^3.7.2",
     "reflect-metadata": "^0.2.2",
-    "@adonis-agora/cms-admin": "workspace:*"
+    "@adonis-agora/cms-admin": "workspace:*",
+    "@adonis-agora/cms-mcp": "workspace:*"
   },
   "devDependencies": {
     "@adonisjs/ace": "^14.1.1",
