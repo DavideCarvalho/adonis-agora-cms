@@ -19,9 +19,9 @@
       "default": "./dist/src/index.js"
     },
     "./commands": {
-      "types": "./dist/commands/main.d.ts",
-      "import": "./dist/commands/main.js",
-      "default": "./dist/commands/main.js"
+      "types": "./dist/src/commands/main.d.ts",
+      "import": "./dist/src/commands/main.js",
+      "default": "./dist/src/commands/main.js"
     },
     "./testing": {
       "types": "./dist/src/testing/index.d.ts",
@@ -42,6 +42,11 @@
       "types": "./dist/configure.d.ts",
       "import": "./dist/configure.js",
       "default": "./dist/configure.js"
+    },
+    "./db": {
+      "types": "./dist/src/db/index.d.ts",
+      "import": "./dist/src/db/index.js",
+      "default": "./dist/src/db/index.js"
     }
   },
   "files": [
@@ -52,7 +57,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json && pnpm run copy:stubs",
-    "copy:stubs": "mkdir -p dist/stubs && cp -r stubs/. dist/stubs/",
+    "copy:stubs": "mkdir -p dist/stubs && cp -r stubs/config stubs/database dist/stubs/",
     "prepack": "pnpm run build",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",

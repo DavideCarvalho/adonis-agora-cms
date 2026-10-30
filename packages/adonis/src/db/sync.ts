@@ -60,7 +60,7 @@ export async function createCmsTables(
 
 /** Drops every CMS table (children first). */
 export async function dropCmsTables(client: CmsKnex, prefix = 'cms_'): Promise<void> {
-  const engine = detectEngineFromClient(client);
+  const engine = detectEngine(client);
   const introspection = await introspect(client, engine);
   const names = introspection.tables
     .map((table) => table.name)
@@ -289,7 +289,7 @@ function nameDepth(name: string): number {
   return name.split('__').length - 1;
 }
 
-function detectEngineFromClient(client: CmsKnex): Engine {
+export function detectEngine(client: CmsKnex): Engine {
   const name = (client as unknown as { client?: { config?: { client?: string } } }).client?.config
     ?.client;
   if (name === 'pg' || name === 'postgres' || name === 'postgresql') return 'pg';

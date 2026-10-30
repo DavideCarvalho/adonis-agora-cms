@@ -59,7 +59,7 @@ export type FieldValidator = (args: {
   value: unknown;
   data: Record<string, unknown>;
   locale?: LocaleCode;
-}) => string | void | Promise<string | void>;
+}) => string | undefined | Promise<string | undefined>;
 
 export type FieldHook = (args: {
   value: unknown;

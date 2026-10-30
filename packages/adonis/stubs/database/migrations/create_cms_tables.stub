@@ -1,0 +1,27 @@
+{{{
+  exports({ to: app.migrationsPath(`${new Date().getTime()}_create_cms_tables.ts`) })
+}}}
+import { BaseSchema } from '@adonisjs/lucid/schema'
+import config from '#config/cms'
+import { compileSchema } from '@adonis-agora/cms'
+import { detectEngine, dropCmsTables, syncCmsSchema } from '@adonis-agora/cms/db'
+import type { CmsKnex } from '@adonis-agora/cms/db'
+
+/**
+ * Creates the CMS schema from `config/cms.ts`.
+ *
+ * Keep this file if you set `db.schema: 'migrations'`; delete it when using the managed mode.
+ */
+export default class extends BaseSchema {
+  async up() {
+    const client = this.db as unknown as CmsKnex
+    const engine = detectEngine(client)
+    const spec = compileSchema(config, { engine })
+
+    await syncCmsSchema(client, spec, { engine })
+  }
+
+  async down() {
+    await dropCmsTables(this.db as unknown as CmsKnex, config.db?.tablePrefix ?? 'cms_')
+  }
+}

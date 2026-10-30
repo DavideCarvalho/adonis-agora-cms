@@ -3,7 +3,6 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { diffSchema } from '../../src/db/diff.js';
 import { introspectSqlite } from '../../src/db/introspect/sqlite.js';
 import { renderPlan } from '../../src/db/plan_render.js';
-import { planIsEmpty } from '../../src/db/types.js';
 import { compileSchema } from '../../src/schema/compile.js';
 import { blogConfig } from '../fixtures/blog_config.js';
 import { asCmsKnex, sqliteClient } from '../helpers/db.js';

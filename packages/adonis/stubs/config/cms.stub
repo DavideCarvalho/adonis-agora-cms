@@ -1,0 +1,64 @@
+{{{
+  exports({ to: app.configPath('cms.ts') })
+}}}
+import { block, collection, defineConfig, fields, global } from '@adonis-agora/cms'
+
+/**
+ * Configuration for @adonis-agora/cms. This file is the single source of truth: `cms:diff`
+ * shows what it would change, `cms:sync` applies it (or `cms:generate` writes a migration),
+ * and `CmsDocument<typeof config, 'posts'>` types every document.
+ */
+const hero = block('hero', {
+  fields: [
+    fields.text('heading', { required: true }),
+    fields.textarea('subheading'),
+  ],
+})
+
+export default defineConfig({
+  db: {
+    // 'managed' applies the plan automatically in development and waits for `cms:sync` in
+    // production. Use 'migrations' to own the DDL through Lucid migrations.
+    schema: 'managed',
+    tablePrefix: 'cms_',
+    id: 'uuid',
+  },
+
+  admin: {
+    path: '/admin',
+    title: 'CMS',
+  },
+
+  localization: {
+    locales: ['pt-BR'],
+    defaultLocale: 'pt-BR',
+  },
+
+  collections: [
+    collection('posts', {
+      labels: { singular: 'Post', plural: 'Posts' },
+      admin: { useAsTitle: 'title', defaultColumns: ['title', 'status'] },
+      versions: { drafts: true },
+      fields: [
+        fields.text('title', { required: true, maxLength: 120 }),
+        fields.slug('slug', { from: 'title', unique: true }),
+        fields.richText('body'),
+        fields.select('status', {
+          options: [
+            { label: 'Draft', value: 'draft' },
+            { label: 'Published', value: 'published' },
+          ],
+          defaultValue: 'draft',
+        }),
+        fields.date('publishedAt'),
+        fields.blocks('layout', { blocks: [hero] }),
+      ],
+    }),
+  ],
+
+  globals: [
+    global('site_settings', {
+      fields: [fields.text('siteName'), fields.textarea('description')],
+    }),
+  ],
+})

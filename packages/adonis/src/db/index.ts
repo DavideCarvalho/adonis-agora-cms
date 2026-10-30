@@ -8,6 +8,7 @@ export { planExitCode, renderPlan } from './plan_render.js';
 export {
   applyPlan,
   createCmsTables,
+  detectEngine,
   dropCmsTables,
   readSchemaState,
   stateTableName,

@@ -1,11 +1,4 @@
-import type {
-  ColumnSpec,
-  ColumnType,
-  Engine,
-  ForeignKeyRef,
-  IndexSpec,
-  TableSpec,
-} from '../schema/types.js';
+import type { ColumnSpec, ColumnType, Engine, IndexSpec, TableSpec } from '../schema/types.js';
 
 /**
  * The slice of Knex the CMS uses.
