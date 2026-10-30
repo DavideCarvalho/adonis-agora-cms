@@ -8,7 +8,7 @@ Part of the [Agora](https://github.com/DavideCarvalho) ecosystem, alongside
 [`@adonis-agora/filter`](https://github.com/DavideCarvalho/adonis-agora-filter),
 `@adonis-agora/authkit` and `@adonis-agora/authz`.
 
-> **Status:** architecture approved, Phase 1 (schema foundation) in progress.
+> **Status:** architecture approved — full scope, no MVP. Implementation running by milestones.
 > Read [`docs/specs/2026-10-30-adonis-cms-design.md`](./docs/specs/2026-10-30-adonis-cms-design.md).
 
 ## The idea

@@ -1,6 +1,6 @@
 # Adonis CMS — spec de arquitetura
 
-- **Status:** aprovado (desenho), implementação faseada
+- **Status:** aprovado (desenho), escopo completo, implementação por marcos
 - **Data:** 2026-10-30
 - **Alvo:** AdonisJS 7.x · Lucid 22.x · Node >= 20.6 · TypeScript 7
 - **Repo:** `adonis-cms` (`@adonis-agora/cms`), espelhando `adonis-media`
@@ -49,6 +49,12 @@ tempo.
 - Adapter MongoDB.
 - Marketplace de plugins (a extensibilidade é por código, não por registro remoto).
 - Editor de código customizável (o `code` field é textarea com highlight).
+
+**Não existe MVP.** O produto entregue é a superfície completa descrita neste documento: todos
+os field types, armazenamento relacional completo, drafts, histórico sem poda por default,
+i18n aninhada, painel, live preview e todas as integrações. A numeração de marcos na §21 é
+ordem de entrega e revisão, não corte de escopo — nenhuma feature é implementada "pela metade
+para depois".
 
 ### Não-objetivo de design
 
@@ -154,7 +160,7 @@ adonis-cms/
 │   │   │   ├── admin/             # admin API (schema JSON, prefs, preview tokens)
 │   │   │   ├── integrations/      # media, authkit, authz, telescope, durable
 │   │   │   └── testing/           # createTestCms
-│   │   ├── commands/              # ace: cms:sync, cms:diff, cms:generate
+│   │   ├── commands/              # ace: cms:sync, cms:diff, cms:generate, cms:status, cms:types
 │   │   ├── providers/             # cms_provider, admin_provider
 │   │   ├── stubs/                 # config/cms.stub, migrations/*.stub
 │   │   └── configure.ts           # node ace configure
@@ -189,16 +195,20 @@ export default defineConfig({
     path: '/admin',
     auth: 'cms',              // 'cms' | 'authkit' | adapter próprio
     title: 'Painel',
+    livePreview: {
+      url: '/preview',        // base do site; o painel acrescenta ?token=&collection=&id=
+    },
   },
 
   localization: {
     locales: ['pt-BR', 'en'],
     defaultLocale: 'pt-BR',
     fallback: true,
+    localizedRequired: 'default', // 'default' | 'all'
   },
 
   versions: {
-    maxPerDocument: 50,
+    retention: null,          // null = histórico completo; número = poda por documento
     autosave: false,          // default por collection, sobrescrevível
     lockTtl: 300,             // segundos
   },
@@ -230,8 +240,13 @@ export default defineConfig({
           options: [{ label: 'Rascunho', value: 'draft' }, { label: 'Publicado', value: 'published' }],
           defaultValue: 'draft',
         }),
+        fields.select('channels', {
+          options: [{ label: 'Web', value: 'web' }, { label: 'RSS', value: 'rss' }],
+          hasMany: true,        // tabela filha, filtrável e ordenável
+        }),
         fields.date('publishedAt', { admin: { position: 'sidebar' } }),
         fields.relation('author', { relationTo: 'users' }),
+        fields.relation('related', { relationTo: ['posts', 'pages'], hasMany: true }), // polimórfico
         fields.upload('cover', { relationTo: 'media' }),
         fields.array('tags', { fields: [fields.text('label')] }),
         fields.group('seo', { fields: [fields.text('title'), fields.textarea('description')] }),
@@ -265,30 +280,30 @@ Falham no boot (dev) e no `cms:diff` (CI), com erro `CmsConfigError` apontando o
 
 ## 7. Campos
 
-### Catálogo v1
+### Catálogo completo
 
-| Field | Coluna | Admin component | Notas |
+| Field | Armazenamento | Admin component | Notas |
 |---|---|---|---|
-| `text` | `varchar(len)` | `TextInput` | `maxLength`, `minLength` |
+| `text` | `varchar(len)` | `TextInput` | `maxLength`, `minLength`, `pattern` |
 | `textarea` | `text` | `Textarea` | |
 | `email` | `varchar(320)` | `EmailInput` | validação de formato |
 | `password` | `varchar(255)` | `PasswordInput` | hash via hook; nunca serializado |
 | `number` | `int`/`numeric` | `NumberInput` | `format: 'int' \| 'float' \| 'decimal'`, `min`, `max` |
 | `checkbox` | `boolean` | `Checkbox` | |
 | `date` | `timestamptz` | `DatePicker` | `withTime: true` default |
-| `select` | `varchar(255)` | `Select` | `hasMany: false` v1; valor fora das options rejeitado |
+| `select` | `varchar(255)` ou tabela filha | `Select` / `MultiSelect` | `hasMany: true` → tabela filha ordenada; valor fora das options rejeitado |
 | `radio` | `varchar(255)` | `RadioGroup` | |
 | `json` | `jsonb` | `JsonEditor` | validação de JSON no server |
 | `code` | `text` | `CodeEditor` | `language`, highlight |
-| `slug` | `varchar(255)` | `SlugInput` | `from`, gera no `beforeValidate` se vazio |
+| `slug` | `varchar(255)` | `SlugInput` | `from`, gera no `beforeValidate` se vazio; unique por locale |
 | `richText` | `jsonb` | `RichText` (SPI) | documento do editor, não HTML |
-| `relation` | `<name>_id` / `cms_relations` | `RelationPicker` | `hasMany`, `relationTo` único na v1 |
+| `relation` | `<name>_id` / tabela filha | `RelationPicker` | `hasMany`, `relationTo: string \| string[]` (polimórfico suportado) |
 | `upload` | `<name>_id` + meta | `UploadPicker` | precisa do adapter media |
-| `array` | `jsonb` | `ArrayField` | `fields[]`, `minRows`, `maxRows` |
-| `group` | `jsonb` | `GroupField` | `fields[]`, `flatten: false` |
-| `blocks` | `jsonb` | `BlocksBuilder` | `blocks: BlockDefinition[]` |
-| `tabs` | (agrupador) | `Tabs` | só afeta o admin; `fields[]` por tab |
-| `row` / `collapsible` | (agrupador) | layout | só afeta o admin |
+| `array` | tabela filha | `ArrayField` | `fields[]`, `minRows`, `maxRows`, aninhamento recursivo |
+| `group` | colunas prefixadas na tabela pai | `GroupField` | `fields[]`, recursivo |
+| `blocks` | tabela filha com `type` | `BlocksBuilder` | `blocks: BlockDefinition[]`, aninhamento recursivo |
+| `tabs` | (estrutural) | `Tabs` | `fields[]` por tab |
+| `row` / `collapsible` | (estrutural) | layout | só afeta o admin |
 
 `tabs`, `row` e `collapsible` são **estruturais**: não geram coluna, apenas reorganizam o
 formulário. O compilador achata seus filhos preservando o caminho para o admin.
@@ -357,11 +372,14 @@ interface SchemaSpec {
 
 interface TableSpec {
   name: string                     // cms_posts
-  kind: 'collection' | 'global' | 'system'
-  slug: string
+  kind: 'collection' | 'global' | 'child' | 'system'
+  slug: string                     // 'posts', 'tags', 'layout'
+  owner?: string                   // tabela pai, quando kind = 'child'
+  path?: string                    // 'tags', 'layout.gallery'
   columns: ColumnSpec[]
   indexes: IndexSpec[]
   uniques: UniqueSpec[]
+  foreignKeys: ForeignKeySpec[]
 }
 
 interface ColumnSpec {
@@ -374,26 +392,62 @@ interface ColumnSpec {
   nullable: boolean
   default?: unknown
   json?: boolean                   // marca coluna JSON (GIN index opcional)
+  references?: { table: string; column: string; onDelete: 'cascade' | 'set null' | 'restrict' }
 }
 ```
 
 ### Mapeamento
 
-- **Collection** → tabela `cms_<slug>` (+ sufixo de locale quando `localized`).
-- **Campo localizado** → uma coluna por locale: `title_pt_br`, `title_en` (`-` vira `_`,
-  minúsculo). Fallback é resolvido na leitura, não no banco.
-- **`group`** → JSON (`seo` = `{ title, description }`). `flatten: true` vira colunas
-  prefixadas `seo_title`, `seo_description` — útil para indexar/filtrar.
-- **`array`/`blocks`/`richText`** → JSON. Sem tabela filha na v1 (limitação documentada na §22).
-- **`relation` hasOne** → `<name>_id` do tipo do `idKind` alvo, com índice.
-- **`relation` hasMany** → linhas em `cms_relations` (`owner_collection`, `owner_id`, `field`,
-  `related_collection`, `related_id`, `order_index`).
-- **`upload`** → `<name>_id` (string) quando o adapter media está presente; `<name>: { id, url, mime, width, height }` é montado na leitura.
+- **Collection** → tabela `cms_<slug>`.
+- **Global** → tabela própria `cms_<slug>` de linha única (`id = 1`), mesmo compilador.
+- **Campo localizado escalar** → uma coluna por locale: `title_pt_br`, `title_en` (`-` vira
+  `_`, minúsculo). Fallback é resolvido na leitura, não no banco. Índice único por coluna
+  significa unique **por locale**.
+- **`group`** → colunas prefixadas na tabela pai (`seo_title`, `seo_description`), recursivo.
+  Group é representação, não tabela: mantém a query plana e indexável.
+- **`array`** → tabela filha `<table>__<path>` com `id`, `_parent_id`, `_order`, `_locale`
+  (quando localizado) e uma coluna por subfield. Aninhamento recursivo gera
+  `<table>__<path>__<subpath>`, com `_parent_id` apontando para a linha do nível anterior.
+- **`blocks`** → tabela filha com `id`, `_parent_id`, `_order`, `_locale`, `type` (slug do
+  bloco) e a **união** das colunas de todos os blocks (nullable). Blocks aninhados seguem a
+  mesma regra do `array`. `type` é indexado; `(parent_id, type, _order)` é índice composto.
+- **`select` hasMany** → tabela filha com `value`, `_order`, `_parent_id`, `_locale`.
+- **`relation` hasOne** → `<name>_id` do tipo do `idKind` alvo, com FK e índice; quando
+  `relationTo` é array (polimórfico), acrescenta `<name>_collection` e a FK é lógica.
+- **`relation` hasMany** → tabela filha `<table>__<path>` com `related_id`,
+  `related_collection` (só polimórfico), `_order`; FK física quando `relationTo` é único.
+- **`upload`** → `<name>_id` (string) + FK lógica para a biblioteca de mídia;
+  `<name>: { id, url, mime, width, height }` é montado na leitura pelo adapter.
+- **`richText` / `json` / `code`** → coluna JSON/text na tabela pai. Rich text é documento de
+  editor, não HTML; nunca é achatado em tabela.
+
+### Por que tabela filha, e não JSON
+
+Um `array`/`blocks` em JSON é mais simples de escrever, mas torna impossível o que o Payload
+faz de verdade: filtrar (`where[layout.type]=hero`), ordenar, contar e indexar dentro da
+estrutura, além de aplicar access por campo interno. Tabela filha dá FK, índice e allow-list
+do `filter` sem casos especiais. O custo é mais DDL — que o diff já resolve.
+
+### Query de estruturas aninhadas
+
+O compilador emite, junto com o `TableSpec`, um **query plan** por caminho de campo:
+
+```
+posts.layout[].gallery[].caption  →  cms_posts__layout JOIN cms_posts__layout__gallery
+```
+
+O repositório usa `EXISTS` (para filtro) ou `LEFT JOIN` + agregação (para population) a partir
+desse plan, então nem o `filter` nem o handler REST conhecem o formato das tabelas filhas.
+Population é **batched**: uma query por campo por nível (`WHERE _parent_id IN (...)`), nunca
+N+1.
 
 ### Colunas de sistema (toda tabela de collection/global)
 
-`id`, `created_at`, `updated_at`, `_status` (só quando `versions.drafts`), `_deleted_at`
-(soft delete opcional, default off).
+`id`, `created_at`, `updated_at`, `_status` (sempre presente; só muda de significado quando a
+collection tem drafts), `_deleted_at` (soft delete opcional, default off).
+
+Tabelas filhas têm `id`, `_parent_id`, `_order`, `_locale` (só quando localizado) e
+`created_at`/`updated_at` quando o field pede `timestamps: true`.
 
 `_` é reservado: fields não podem começar com underscore.
 
@@ -401,16 +455,19 @@ interface ColumnSpec {
 
 | Tabela | Colunas |
 |---|---|
-| `cms_versions` | `id`, `collection`, `document_id`, `locale`, `version`, `status`, `snapshot` json, `created_by`, `created_at`, `is_latest` bool |
-| `cms_relations` | `id`, `owner_collection`, `owner_id`, `field`, `related_collection`, `related_id`, `order_index` |
+| `cms_versions` | `id`, `collection`, `document_id`, `locale`, `version`, `status`, `autosave` bool, `snapshot` json, `created_by`, `created_at`, `is_latest` bool |
 | `cms_schema_state` | `id`, `spec_hash`, `engine`, `plan` json, `applied_at` |
 | `cms_preferences` | `id`, `user_id`, `key`, `value` json |
 | `cms_document_locks` | `id`, `collection`, `document_id`, `user_id`, `expires_at` |
-| `cms_users` | opcional, só quando `admin.auth: 'cms'` (id, email, password, name, role, created_at) |
+| `cms_users` | quando `admin.auth: 'cms'` (id, email, password, name, role, created_at) |
 
-Índices default: `cms_versions (collection, document_id, locale, version desc)`,
-`cms_relations (owner_collection, owner_id, field, order_index)`,
-`cms_document_locks (collection, document_id)` único.
+Não existe mais `cms_relations`: relação hasMany tem tabela filha própria (FK quando
+monomórfica), e polimorfismo usa `related_collection` na mesma tabela filha.
+
+Índices default: filhas `(parent_id, _order)`, `(parent_id, _locale)` quando localizado,
+`(parent_id, type)` em blocks; versões `(collection, document_id, locale, version desc)`;
+locks `(collection, document_id)` único.
+
 
 ---
 
@@ -445,23 +502,33 @@ interface SchemaPlan {
   creates: TableSpec[]
   alters: Array<{ table: string; addColumns: ColumnSpec[]; dropColumns: string[]; alterColumns: ColumnAlter[] }>
   indexes: Array<{ table: string; add: IndexSpec[]; drop: string[] }>
+  foreignKeys: Array<{ table: string; add: ForeignKeySpec[]; drop: string[] }>
   drops: string[]
   destructive: boolean
   warnings: string[]
 }
 ```
 
-- **Introspecção** por engine: Postgres `information_schema.columns` + `pg_indexes`; MySQL
-  `information_schema`; SQLite `pragma table_info` + `pragma index_list`.
+- **Introspecção** por engine: Postgres `information_schema.columns` + `pg_indexes` +
+  `information_schema.table_constraints`; MySQL `information_schema`; SQLite `pragma table_info`,
+  `pragma index_list` e `pragma foreign_key_list`.
+- **Tabelas filhas entram no mesmo plano**: criar/alterar/dropar `cms_posts__layout` é igual a
+  qualquer tabela. Quando um block ganha um campo, a **união** de colunas muda e o alter é
+  calculado sobre a tabela filha — sem migração especial.
+- **Ordem de aplicação**: cria tabelas pai → filhas (por profundidade de `path`) → índices →
+  FKs; drop na ordem inversa. Isso evita FK quebrada no meio do plano.
 - **Destrutivo** (drop de coluna/tabela, narrowing de tipo) só aplica com `--allow-destructive`
   ou `db.prune: true`; senão vira `warning` e o plano sai com exit code ≠ 0.
 - **Rename** não é inferido: `db.renames: { 'posts.old_field': 'new_field' }` transforma
   drop+add em `RENAME COLUMN`. Sem isso, é drop+add (perda de dados, bloqueada por destrutivo).
+  Caminhos de tabela filha também são aceitos: `posts.layout.heading`.
 - **Transacionalidade**: Postgres e SQLite aplicam o plano em uma transação (rollback total em
   falha). MySQL não tem DDL transacional — o plano é aplicado statement a statement e o
   `cms_schema_state` só é atualizado no fim; falha no meio exige `cms:sync` de novo (idempotente).
 - **Drift**: `cms_schema_state.spec_hash` é comparado com `spec.hash`. Divergência em
   `migrations` = `CmsSchemaDriftError` com o diff anexado.
+- **Tabelas órfãs**: tabela com prefixo do CMS que não existe no spec vira `drop` — bloqueado
+  por destrutivo, nunca silencioso.
 
 ### Comandos ace
 
@@ -487,9 +554,15 @@ pelo qual o Payload gera SQL, e não importa o schema TS).
 const config = defineConfig({ collections: [postsCollection] })  // 'const' generic
 
 type Post = CmsDocument<typeof config, 'posts'>
-// { id: string; title: string; slug: string; body: RichTextValue | null
-//   authorId: string | null; status: 'draft' | 'published'
-//   layout: Array<HeroBlock | GalleryBlock>; seo: { title?: string; description?: string }
+// { id: string; title: string; slug: string
+//   body: RichTextValue | Record<Locale, RichTextValue>
+//   status: 'draft' | 'published'; channels: Array<'web' | 'rss'>
+//   author: string | CmsDocument<typeof config, 'users'> | null
+//   related: Array<Post | Page>
+//   cover: CmsUpload | null
+//   tags: Array<{ id: string; label: string | null }>
+//   layout: Array<HeroBlock | GalleryBlock>
+//   seo: { title: string | null; description: string | null }
 //   createdAt: Date; updatedAt: Date; _status: 'draft' | 'published' }
 
 const posts = cms.collection('posts')
@@ -499,16 +572,25 @@ await posts.find({ where: { status: 'published' } }) // `status` tipado como uni
 
 Regras da inferência:
 
-- `required: true` → propriedade obrigatória na entrada; nullable na saída só se não-required.
-- `select`/`radio` com `options` literais → união de strings.
+- `required: true` → propriedade obrigatória na entrada; na saída, o tipo é o mesmo do campo
+  (nunca `| null`) — nullabilidade é derivada de `required`, não de opcional.
+- `select`/`radio` com `options` literais → união de strings; um array de options vira união
+  de todos os valores.
 - `localized: true` → `LocalizedValue<T>` = `T | Record<locale, T>` na entrada,
-  `Record<locale, T>` na saída.
-- `hasMany` → `string[]` na entrada, documento populado quando `depth > 0`.
-- Saída sempre inclui `id`, `createdAt`, `updatedAt`, `_status` (se drafts).
+  `Record<locale, T>` na saída quando nenhum locale é pedido, `T` quando `locale` é fixado
+  (sobrecarga de assinatura por literal).
+- `relation` hasOne → `string | DocumentoPopulado` conforme `depth`; `hasMany` → array.
+- `array`/`blocks`/`group` → tipos aninhados recursivos; `blocks` vira união discriminada por
+  `type`, `array` vira `Array<{ id, ... }>`.
+- `select hasMany` → `Array<Value>` na entrada, com ordem preservada.
+- Saída sempre inclui `id`, `createdAt`, `updatedAt`, `_status`.
 - Entrada omite campos gerados (`createdAt`), aceita `draft?: boolean` e `locale?: string`.
+- `access.read` negado remove a propriedade do tipo de saída quando o access é estático
+  (`() => false`); access dinâmico mantém a propriedade e o valor é removido em runtime.
 
-Nada disso é gerado em disco. Se a inferência ficar pesada em configs gigantes, existe escape
-hatch `cms:types` opcional — mas ele **não** é necessário para usar o pacote.
+Nada disso é gerado em disco. Existe o comando opcional `cms:types` para quem preferir tipos
+materializados (configs gigantes, ou consumo por outro pacote), mas ele **não** é necessário
+para usar o CMS.
 
 ---
 
@@ -626,7 +708,7 @@ type AccessFn = (args: {
 - Global usa o mesmo contrato; `read`/`update` apenas.
 - `cms.access` expõe helpers puros para teste: `evaluateAccess(fn, args)`.
 
-Integração com `@adonis-agora/authz` (fase 5) é um adapter que traduz `AccessFn` em
+Integração com `@adonis-agora/authz` é um adapter que traduz `AccessFn` em
 `authz.can(...)`, sem mudar o contrato do core.
 
 ---
@@ -662,7 +744,7 @@ Regras:
 
 ---
 
-## 15. Versionamento (fase 3)
+## 15. Versionamento
 
 - **Draft**: `draft: true` escreve na tabela principal com `_status = 'draft'` e cria a versão
   `status = 'draft'`, `is_latest = true` (a anterior recebe `false`). A linha principal sempre
@@ -671,29 +753,38 @@ Regras:
   `_status = 'published'` no doc. `unpublish` volta para `draft` sem perder a versão publicada.
 - **Restore**: lê o snapshot da versão, roda `beforeValidate`/`beforeChange` de novo (o schema
   pode ter mudado) e grava como nova versão — nunca sobrescreve histórico.
-- **Autosave**: por collection, `interval` em ms; grava versão draft com `autosave: true` no
-  snapshot e não dispara `afterChange` (evita efeito colateral a cada tecla). Versões autosave
-  são podadas primeiro.
-- **Retenção**: mantém `versions.maxPerDocument`; poda por collection/documento/locale, sempre
-  preservando a última publicada. Roda no write (barato, delete por índice) e no `cms:status`.
+- **Snapshot**: JSON com o documento + **todas** as tabelas filhas (arrays, blocks, selects
+  hasMany) + ids de relação, e o `editor` do richText. É o que permite restore fiel sem
+  duplicar o schema em tabelas de versão.
+- **Autosave**: por collection, `interval` em ms; grava versão draft com `autosave: true` e não
+  dispara `afterChange` (evita efeito colateral a cada tecla).
+- **Retenção**: `versions.retention` é `null` por default = **histórico completo, sem poda**.
+  Quando configurado com número, poda por collection/documento/locale preservando sempre a
+  última publicada; autosave é podado antes das versões manuais.
 - **Locks**: `POST /:id/lock` com TTL; conflito = `409` com o usuário atual. Expira por
   `expires_at`; não é lock de banco, é advisory para o painel.
 - **Leitura draft**: `draft: true` exige access `read` = `true` para o usuário (nunca público).
+- **Diff de versões**: `GET /:id/versions/:a/diff/:b` devolve diff estrutural por campo
+  (inclusive dentro de arrays/blocks, comparando por `id` de linha).
 
 ---
 
-## 16. i18n e blocks (fase 4)
+## 16. i18n e blocks
 
 ### i18n
 
-- Locales vêm de `localization.locales`; cada campo `localized` gera `nome_<locale>`.
+- Locales vêm de `localization.locales`; campo `localized` escalar gera `nome_<locale>`;
+  campo `localized` dentro de tabela filha usa a coluna `_locale` na linha.
 - Escrita: `locale` ausente → `defaultLocale`. Escrita parcial (`undefined`) preserva o valor
-  existente (não zera o outro locale) — semântica de `PATCH`.
+  existente (não zera o outro locale) — semântica de `PATCH`. Isso vale para linhas filhas:
+  enviar um array parcial faz merge por `id` de linha, não delete+insert.
 - Leitura: `locale` ausente → devolve `Record<locale, T>` completo; `locale` presente →
   devolve o valor daquele locale (com fallback se `fallback: true` e o campo estiver vazio).
-- `required` em campo localizado = obrigatório em **todos** os locales? Não: obrigatório no
-  `defaultLocale`, opcional nos demais (regra explícita, evita bloquear tradução parcial).
-- Índices: índice composto por locale só quando o campo é `index: true`.
+- `localization.localizedRequired`: `'default'` (default) = obrigatório só no locale padrão;
+  `'all'` = obrigatório em todos. Regra explícita, sem surpresa em tradução parcial.
+- `unique: true` em campo localizado = único **por locale**.
+- Índices: campo localizado com `index: true` ganha índice por coluna; filha localizada ganha
+  `(parent_id, _locale)`.
 
 ### Blocks
 
@@ -703,15 +794,19 @@ const heroBlock = block('hero', {
 })
 ```
 
-- Snapshot: `[{ type: 'hero', id: 'uuid', value: { heading, image } }, ...]`.
-- Cada bloco recebe `id` estável (para keys no React e para patch por bloco).
+- Armazenamento: tabela filha com `id`, `_parent_id`, `_order`, `_locale`, `type` + união de
+  colunas de todos os blocks. Não é JSON — dá para filtrar por `layout.type` e por campo
+  interno de bloco.
+- Cada linha tem `id` estável (keys no React, patch por bloco, diff de versão).
 - Type narrowing: `BlocksValue<[typeof heroBlock, typeof galleryBlock]>` vira união
   discriminada por `type`.
-- Population de `upload`/`relation` **dentro** de blocks: depth-aware, mas só 1 nível (v1).
+- Population de `upload`/`relation` dentro de blocks é depth-aware e recursiva: o query plan
+  da §8 resolve o caminho completo (`posts.layout.gallery.image`), sem N+1.
+- Blocks aninhados dentro de blocks usam a mesma regra de tabela por caminho.
 
 ---
 
-## 17. Painel admin (fase 5)
+## 17. Painel admin
 
 ### Contrato `/api/cms/schema`
 
@@ -827,60 +922,79 @@ própria.
 
 ---
 
-## 21. Fases e critérios de aceite
+## 21. Marcos de entrega e critérios de aceite
 
-### Fase 1 — Fundação
-`defineConfig` + fields + `compileSchema` + `SchemaSpec` + diff/introspecção sqlite/pg +
-`syncCmsSchema`/`createTables`/`dropTables` + 3 modos + `cms:diff`/`cms:sync`/`cms:generate` +
-tipos por inferência + `createTestCms` + `configure`.
+Marcos são granularidade de **revisão e release**, não corte de escopo. Cada marco entrega
+features completas e permanentes; nada aqui é descartado depois.
+
+### Marco 1 — Fundação
+`defineConfig` + todos os field types + `compileSchema` + `SchemaSpec` + query plan de
+caminhos + diff/introspecção sqlite/pg/mysql + `syncCmsSchema`/`createTables`/`dropTables` +
+3 modos + `cms:diff`/`cms:sync`/`cms:generate`/`cms:status` + tipos por inferência +
+`createTestCms` + `configure`.
 
 **Aceite:** config de blog compila; `cms:diff` em banco vazio == plano de criação; aplicar
-duas vezes não muda nada (idempotente); adicionar campo gera alter; remover campo sem
-`--allow-destructive` falha com warning; tipos de `CmsDocument` batem com a config (type test
-com `expectTypeOf`).
+duas vezes não muda nada (idempotente); adicionar campo gera alter; adicionar block gera
+alter na tabela filha; remover campo sem `--allow-destructive` falha com warning; tipos de
+`CmsDocument` batem com a config (type test com `expectTypeOf`), incluindo blocks aninhados.
 
-### Fase 2 — Dados e API
-Repositório, Local API, REST, access, hooks, filter, validação, transações, population.
+### Marco 2 — Dados e API
+Repositório relacional (pai + filhas), Local API, REST, access, hooks, filter, validação,
+transações, population batched, soft delete.
 
-**Aceite:** CRUD completo via REST e Local API; access constraint esconde docs; field-level
-read remove chave; hook que lança faz rollback; `where`/`sort`/`page` do filter funcionam;
-`depth` popula relation.
+**Aceite:** CRUD completo via REST e Local API; array/block persistem em tabela filha e
+respeitam `_order`; `where[layout.type]=hero` funciona; access constraint esconde docs;
+field-level read remove chave; hook que lança faz rollback de pai e filhas; `depth` popula
+relation e estruturas aninhadas sem N+1 (assert de contagem de queries).
 
-### Fase 3 — Versionamento
-Drafts, publish/unpublish, restore, autosave, retenção, locks.
+### Marco 3 — Versionamento
+Drafts, publish/unpublish, restore, autosave, retenção (default ilimitada), locks, diff de
+versões.
 
 **Aceite:** draft não aparece em leitura pública; publish cria versão publicada; restore
-recria estado e gera nova versão; retenção mantém a última publicada.
+recria estado completo (incluindo filhas) e gera nova versão; diff entre versões mostra
+mudança dentro de block; retenção configurada preserva a última publicada.
 
-### Fase 4 — i18n e blocks
-Colunas por locale, fallback, blocks tipados, arrays/group aninhados, `flatten`.
+### Marco 4 — i18n
+Colunas por locale, `_locale` em filhas, fallback, `localizedRequired`, unique por locale,
+merge de linhas filhas por `id`.
 
-**Aceite:** escrever em `en` não zera `pt-BR`; leitura sem locale devolve mapa; blocks com
-união discriminada compilam; upload dentro de block popula com depth 1.
+**Aceite:** escrever em `en` não zera `pt-BR`; leitura sem locale devolve mapa; array
+localizado tem ordem independente por locale; `localizedRequired: 'all'` bloqueia só o que
+deve.
 
-### Fase 5 — Painel e integrações
-SPA embutida, schema JSON, FieldRegistry, list/edit/versions, live preview, adapters
-media/authkit/authz/telescope/durable.
+### Marco 5 — Painel
+SPA embutida, schema JSON, FieldRegistry, list/edit/versions/diff, blocks builder, media
+browser, live preview, auth adapters.
 
 **Aceite:** `node ace configure @adonis-agora/cms` deixa uma app crua com painel funcional em
-`/admin`; CRUD pelo painel; upload pelo media adapter; permissões refletidas na UI.
+`/admin`; CRUD pelo painel; upload pelo media adapter; permissões refletidas na UI; live
+preview reflete edição sem reload.
+
+### Marco 6 — Integrações e endurecimento
+Adapters media/authkit/authz/telescope/durable, `cms:types` opcional, e2e no `examples/blog`,
+matriz Postgres/MySQL/SQLite no CI, docs por tópico.
+
+**Aceite:** mesma suíte de integração passa nos três engines; telescope registra operações sem
+PII; durable recebe eventos pós-commit; e2e do blog verde.
 
 ---
 
-## 22. Decisões em aberto e riscos
+## 22. Decisões e riscos
 
 | # | Item | Decisão/risco |
 |---|---|---|
-| 1 | Rich text | SPI `RichTextEditor`; **Tiptap** como default (Lexical fica como adapter). Risco: formato do documento precisa ser versionado no snapshot — guardar `editor: 'tiptap@x'` junto. |
-| 2 | Auth do painel | Interface `CmsAuthAdapter`; default `cms_users` (fase 5), authkit como alternativa. Fase 1 só o adapter de teste. |
-| 3 | JSON por engine | `jsonb` no pg, `json` no mysql/sqlite. Filtro em chave de JSON não é uniforme — documentar como limitação (só igualdade em pg via `->>`). |
-| 4 | Blocks/array em JSON | Não dá para filtrar/ordenar por campo interno sem expression index. Aceitável na v1; se doer, Fase 6 cria tabelas filhas. |
-| 5 | DDL no MySQL | Sem transação; plano parcial é possível. Documentar e exigir backup/`--dry-run`. |
-| 6 | `afterChange` em trx | Difere do Payload (pós-commit). Efeito externo deve ir para durable. Documentar em destaque. |
-| 7 | Crescimento de `cms_versions` | Retenção por documento; sem particionamento na v1. Monitorar via `cms:status`. |
-| 8 | Bundle do admin | Lexical/Tiptap + TanStack pode passar de 600 kB gzip. Code-split por rota e editor lazy. |
-| 9 | Inferência de tipos profunda | Configs muito grandes podem estourar o TS. Escape hatch `cms:types` fica reservado, não implementado. |
-| 10 | Renomear campo | Só via `db.renames` explícito. Sem inferência heurística. |
+| 1 | Rich text | SPI `RichTextEditor`; **Tiptap** como default (Lexical fica como adapter). O snapshot guarda `editor: 'tiptap@x'` para restore fiel entre versões do editor. |
+| 2 | Auth do painel | Interface `CmsAuthAdapter`; implementações `cms_users` e `authkit` no mesmo marco. Adapter de teste desde o Marco 1. |
+| 3 | JSON por engine | `jsonb` no pg, `json` no mysql/sqlite. Igualdade em chave JSON só é uniforme no pg; **estruturas filtráveis não usam JSON** — para isso existem as tabelas filhas. `json` field é livre e não é filtrável por chave em engine não-pg (documentado). |
+| 4 | DDL no MySQL | Sem transação; plano parcial é possível. `cms:sync` é idempotente, então re-rodar converge. Exigir `--dry-run` em prod. |
+| 5 | `afterChange` em trx | Difere do Payload (pós-commit). Efeito externo vai para durable. Documentado em destaque. |
+| 6 | Crescimento de `cms_versions` | Default é histórico completo; snapshot inclui filhas. `cms:status` reporta tamanho por collection; `retention` numérico existe para quem precisar podar. |
+| 7 | Bundle do admin | Tiptap + TanStack pode passar de 600 kB gzip. Code-split por rota e editor em chunk separado (carregado só ao abrir um campo richText). |
+| 8 | Inferência de tipos profunda | Configs muito grandes podem estourar o TS. `cms:types` materializa os tipos como escape hatch (implementado no Marco 6), mantendo a inferência como caminho default. |
+| 9 | Renomear campo | Só via `db.renames` explícito, incluindo caminhos de filha (`posts.layout.heading`). Sem heurística. |
+| 10 | FKs em DDL destrutivo | Drop de tabela pai com filhas exige ordem inversa e `ON DELETE CASCADE` nas filhas. O plano já ordena; o teste cobre drop de collection inteira. |
+| 11 | `_order` concorrente | Reordenação usa `_order` esparso (100, 200, 300) e normaliza no write, evitando reescrever a lista inteira a cada drag. |
 
 ---
 
@@ -890,7 +1004,7 @@ media/authkit/authz/telescope/durable.
 - `pnpm-workspace.yaml` com `allowBuilds` (better-sqlite3, sharp se usado).
 - Todo pacote publicável: `type: module`, `exports` por subpath, `files: [dist, README, CHANGELOG, skills]`.
 - `@adonis-agora/cms/commands` exporta `commands.json` + classes.
-- CI: `biome check` → `tsc --noEmit` → `vitest` (sqlite) → matriz Postgres 16/17 (fase 2+).
-- Um changeset por fase; `release` via `changeset publish`.
+- CI: `biome check` → `tsc --noEmit` → `vitest` (sqlite) → matriz Postgres 16/17 + MySQL 8.
+- Um changeset por marco; `release` via `changeset publish`.
 - Docs: `docs/` por tópico (schema, fields, access, hooks, versions, i18n, admin, integrations),
   no formato do `adonis-media/docs`.
