@@ -46,6 +46,7 @@ export {
   deleteDocument,
   findDocumentByID,
   findDocuments,
+  restoreDocument,
   updateDocument,
 } from './repository/crud.js';
 export { slugify, validateDocument } from './repository/validate.js';
@@ -69,5 +70,12 @@ export {
   unlockDocument,
   unpublishDocument,
 } from './versions/actions.js';
+export type { PartitionOptions, PartitionPlan } from './versions/partitions.js';
+export {
+  ensureVersionPartitions,
+  versionPartitionDdl,
+  versionPartitionDropDdl,
+  versionPartitionPlan,
+} from './versions/partitions.js';
 export type { VersionRecord } from './versions/store.js';
 export { diffSnapshots, getVersion, listVersions } from './versions/store.js';

@@ -70,7 +70,15 @@ export function compileSchema(config: CmsConfig, options: CompileOptions = {}): 
   };
 
   for (const collection of config.collections ?? []) {
-    ctx.tables.push(compileDocumentTable(collection.slug, 'collection', collection.fields, ctx));
+    ctx.tables.push(
+      compileDocumentTable(
+        collection.slug,
+        'collection',
+        collection.fields,
+        ctx,
+        collection.softDelete === true,
+      ),
+    );
   }
 
   for (const global of config.globals ?? []) {
@@ -107,6 +115,7 @@ function compileDocumentTable(
   kind: 'collection' | 'global',
   fields: readonly FieldConfig[],
   ctx: CompileContext,
+  softDelete = false,
 ): TableSpec {
   const table: TableSpec = {
     name: `${ctx.tablePrefix}${slug}`,
@@ -115,6 +124,10 @@ function compileDocumentTable(
     columns: systemColumns(ctx.idKind, ctx.tenancy),
     indexes: [],
   };
+
+  if (softDelete) {
+    table.columns.push({ name: '_deleted_at', type: 'timestamp', nullable: true, index: true });
+  }
 
   compileFields(table, fields, ctx, {
     prefix: '',

@@ -12,6 +12,7 @@ import {
   findDocumentByID,
   findDocuments,
   type OperationOptions,
+  restoreDocument,
   updateDocument,
 } from '../repository/crud.js';
 import type { RepoContext } from '../repository/document.js';
@@ -67,6 +68,7 @@ export type CmsCollectionApi<C, S extends string> = {
     options?: OperationOptions,
   ): Promise<CmsDocument<C, S>>;
   delete(id: string, options?: OperationOptions): Promise<void>;
+  restore(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   count(query?: FindQuery): Promise<number>;
   publish(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   unpublish(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
@@ -190,6 +192,10 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
 
           async delete(id, operation) {
             await deleteDocument(ctx, slug, id, operation);
+          },
+
+          async restore(id, operation) {
+            return (await restoreDocument(ctx, slug, id, operation)) as CmsDocument<C, S>;
           },
 
           async count(query) {

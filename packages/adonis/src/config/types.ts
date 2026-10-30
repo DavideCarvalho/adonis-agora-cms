@@ -357,6 +357,8 @@ export type CollectionAdmin = {
 
 export type CollectionConfigInput = {
   fields: readonly FieldConfig[];
+  /** Deletes become `_deleted_at` timestamps instead of removing the row. */
+  softDelete?: boolean;
   labels?: Labels;
   admin?: CollectionAdmin;
   access?: CollectionAccess;

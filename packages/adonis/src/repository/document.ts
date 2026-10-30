@@ -35,6 +35,8 @@ export type DocumentOptions = {
   depth?: number;
   locale?: string | undefined;
   select?: readonly string[] | undefined;
+  /** Include soft-deleted rows (restore and admin tooling). */
+  includeDeleted?: boolean | undefined;
 };
 
 export function documentTable(spec: SchemaSpec, slug: string): TableSpec {

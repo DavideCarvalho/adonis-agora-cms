@@ -87,6 +87,17 @@ export function registerCmsRoutes(
     const bearer = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
     const principal = bearer && options.resolveToken ? await options.resolveToken(bearer) : null;
 
+    // Internal dashboards may target another tenant, but only with an explicit ability.
+    // For every other token the tenant stays bound to the token.
+    const requestedTenant = ctx.request.headers?.()['x-cms-tenant'] ?? null;
+    if (principal && requestedTenant && !principal.abilities.includes('tenant:switch')) {
+      const denied = ctx.response.status(403);
+      denied.json({
+        error: { code: 'CMS_FORBIDDEN', message: 'token cannot switch tenant' },
+      });
+      return;
+    }
+
     if (principal && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
       if (!principal.abilities.includes('write')) {
         const writer = ctx.response.status(403);
@@ -95,7 +106,9 @@ export function registerCmsRoutes(
       }
     }
 
-    const scoped = principal ? cms.forTenant(principal.tenant) : await scope(cms, ctx, options);
+    const scoped = principal
+      ? cms.forTenant(requestedTenant ?? principal.tenant)
+      : await scope(cms, ctx, options);
     const response = await handler(scoped, toRequest(ctx));
 
     const writer = ctx.response.status(response.status);

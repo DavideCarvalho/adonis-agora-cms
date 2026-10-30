@@ -58,6 +58,8 @@ export type OperationOptions = {
   autosave?: boolean;
   /** Replace the document instead of merging (used by version restore). */
   replace?: boolean;
+  /** Skip the soft-delete stamp and remove the row (and children) for real. */
+  force?: boolean;
 };
 
 export type FindResult = {
@@ -324,6 +326,19 @@ export async function deleteDocument(
 
   await runHooks(ctx, slug, 'beforeDelete', doc, { operation: 'delete' });
 
+  const soft = table.columns.some((column) => column.name === '_deleted_at');
+
+  if (soft && options.force !== true) {
+    await exec(
+      ctx.client,
+      `update ${ident(table.name, ctx.engine)} set ${ident('_deleted_at', ctx.engine)} = ? where ${ident('id', ctx.engine)} = ?`,
+      [new Date().toISOString(), id],
+    );
+    await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete' });
+    publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt);
+    return;
+  }
+
   await transaction(ctx.client, ctx.engine, async (trx) => {
     const trxContext: RepoContext = { ...ctx, client: trx };
     await deleteDescendants(trxContext, table, id, ctx.spec.tenancy.column);
@@ -373,6 +388,43 @@ function userIdOf(user: unknown): string | null {
   return id === undefined || id === null ? null : String(id);
 }
 
+/** Clears `_deleted_at`, bringing a soft-deleted document back. */
+export async function restoreDocument(
+  ctx: RepoContext,
+  slug: string,
+  id: string,
+  options: OperationOptions = {},
+): Promise<Record<string, unknown>> {
+  const table = documentTable(ctx.spec, slug);
+  if (!table.columns.some((column) => column.name === '_deleted_at')) {
+    throw new CmsNotFoundError(`"${slug}" does not use soft deletes`);
+  }
+
+  const access = decideAccess(
+    collectionAccess(ctx, slug)?.update,
+    accessArgs(ctx, { id }),
+    options.overrideAccess,
+  );
+  if (!access.allowed) throw denied(ctx, `restore "${slug}" is not allowed`);
+
+  const conditions = [`${ident('id', ctx.engine)} = ?`];
+  const bindings: unknown[] = [id];
+  if (ctx.spec.tenancy.column) {
+    conditions.push(tenantCondition(ctx, ctx.spec.tenancy.column));
+    if (ctx.tenant !== null) bindings.push(ctx.tenant);
+  }
+
+  await exec(
+    ctx.client,
+    `update ${ident(table.name, ctx.engine)} set ${ident('_deleted_at', ctx.engine)} = null where ${conditions.join(' and ')}`,
+    bindings,
+  );
+
+  const doc = await findDocumentByID(ctx, slug, id, { ...options, overrideAccess: true });
+  if (!doc) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
+  return doc;
+}
+
 /* ------------------------------------------------------------------ loading */
 
 export async function loadDocument(
@@ -388,6 +440,10 @@ export async function loadDocument(
   if (ctx.spec.tenancy.column) {
     where.push(tenantCondition(ctx, ctx.spec.tenancy.column));
     if (ctx.tenant !== null) bindings.push(ctx.tenant);
+  }
+
+  if (!options.includeDeleted && table.columns.some((column) => column.name === '_deleted_at')) {
+    where.push(`${ident('_deleted_at', ctx.engine)} is null`);
   }
 
   const row = await selectOne(
@@ -695,6 +751,10 @@ export function buildWhere(
   publishedOnly: boolean | undefined,
 ): { sql: string; bindings: unknown[] } {
   const parts: { sql: string; bindings: unknown[] }[] = [];
+
+  if (table.columns.some((column) => column.name === '_deleted_at')) {
+    parts.push({ sql: `${ident('_deleted_at', ctx.engine)} is null`, bindings: [] });
+  }
 
   if (ctx.spec.tenancy.column) {
     parts.push({
