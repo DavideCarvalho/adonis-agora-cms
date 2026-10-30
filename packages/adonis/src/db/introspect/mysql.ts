@@ -74,14 +74,14 @@ const COLUMNS_SQL = `
   select table_name, column_name, data_type, column_type, is_nullable,
          character_maximum_length, numeric_precision, numeric_scale
     from information_schema.columns
-   where table_schema = database()
+   where table_schema = coalesce(?, database())
    order by table_name, ordinal_position
 `;
 
 const INDEXES_SQL = `
   select table_name, index_name, non_unique, column_name, seq_in_index
     from information_schema.statistics
-   where table_schema = database()
+   where table_schema = coalesce(?, database())
    order by table_name, index_name, seq_in_index
 `;
 
@@ -92,14 +92,50 @@ const FOREIGN_KEYS_SQL = `
     join information_schema.referential_constraints rc
       on rc.constraint_name = kcu.constraint_name
      and rc.constraint_schema = kcu.table_schema
-   where kcu.table_schema = database()
+   where kcu.table_schema = coalesce(?, database())
      and kcu.referenced_table_name is not null
 `;
 
+/**
+ * Database name from the Knex connection.
+ *
+ * `database()` depends on the pooled connection; the configured name does not. Passing it
+ * explicitly keeps introspection stable when a connection is reused or when the pool connects
+ * to a different default database.
+ */
+export function mysqlSchemaName(client: CmsKnex): string | null {
+  const config = (client as unknown as { client?: { config?: { connection?: unknown } } }).client
+    ?.config;
+  const connection = config?.connection;
+
+  if (typeof connection === 'string') {
+    try {
+      return new URL(connection).pathname.replace(/^\//, '') || null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (connection && typeof connection === 'object' && 'database' in connection) {
+    const database = (connection as { database?: unknown }).database;
+    return database === undefined || database === null ? null : String(database);
+  }
+
+  return null;
+}
+
+/** MySQL 8 returns `information_schema` columns upper-cased; normalize before mapping. */
+function lowerKeys(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) out[key.toLowerCase()] = value;
+  return out;
+}
+
 export async function introspectMysql(client: CmsKnex): Promise<Introspection> {
-  const columnRows = rowsOf(await client.raw(COLUMNS_SQL));
-  const indexRows = rowsOf(await client.raw(INDEXES_SQL));
-  const foreignKeyRows = rowsOf(await client.raw(FOREIGN_KEYS_SQL));
+  const schema = mysqlSchemaName(client);
+  const columnRows = rowsOf(await client.raw(COLUMNS_SQL, [schema])).map(lowerKeys);
+  const indexRows = rowsOf(await client.raw(INDEXES_SQL, [schema])).map(lowerKeys);
+  const foreignKeyRows = rowsOf(await client.raw(FOREIGN_KEYS_SQL, [schema])).map(lowerKeys);
 
   type TableEntry = {
     name: string;
