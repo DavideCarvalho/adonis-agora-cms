@@ -895,6 +895,56 @@ esconde botões sem duplicar a lógica.
 - Tema: CSS variables com tokens Agora; sem Tailwind obrigatório no app do usuário (o painel
   compila o próprio CSS).
 
+### Bundle, componentes e HMR
+
+Dois modos de servir o painel, decididos pela existência do entry no app:
+
+| Modo | Quando | Build | HMR |
+|---|---|---|---|
+| `embedded` (default) | sem `resources/js/admin/entry.*` | SPA pré-buildada dentro do pacote | nenhum (não há o que editar) |
+| `ejected` | `node ace cms:eject-admin` | `vite build` do próprio app | Vite middleware + React Fast Refresh |
+
+`cms:eject-admin` cria `resources/js/admin/entry.tsx` e injeta `cmsAdmin()` no `vite.config.ts`
+(aliases, dedupe de React, base `/admin`). Sem entry, nada muda para quem não customiza; com
+entry, o `admin_provider` monta o Vite dev server em middleware mode sob `admin.path` em
+desenvolvimento e serve o build do app em produção.
+
+**Registro explícito, não caminho por string.** O contrato tem duas pontas:
+
+```ts
+// config/cms.ts — serializável, nunca importa React
+fields.defineField({ type: 'color', admin: { component: 'color' } })
+
+// resources/js/admin/entry.tsx — imports reais, tipados
+registerField('color', ColorInput)
+```
+
+O endpoint de schema envia `admin.component: 'color'`; o painel resolve no `FieldRegistry`. Os
+built-ins já vêm registrados. Não existe import map, geração de arquivo nem resolução de path em
+runtime — e o config continua Node-only por construção.
+
+**Por que não o caminho por string do Payload:** o Payload precisa de import map porque o admin é
+gerado a partir do config e o config não pode importar React. Aqui o admin é uma SPA com entry do
+app, então React morre onde deve morrer (no bundle do front). Em troca ganhamos autocomplete,
+typecheck, rename seguro e Fast Refresh — com o mesmo esforço de editar um path string.
+
+**O que liga no HMR do Adonis**
+
+| Mudança | Efeito | Mecanismo |
+|---|---|---|
+| componente de campo (`ColorInput.tsx`) | Fast Refresh, estado do form preservado | Vite |
+| `entry.tsx` / registro | Fast Refresh (recarrega o módulo) | Vite |
+| `config/cms.ts` ou arquivo que ele importa | restart do servidor (~300ms) + sync automático | watch do `serve --watch` / `--hmr` |
+| campo novo no config | painel refaz `/api/cms/schema` e renderiza | TanStack Query invalida no reconnect |
+
+Loop completo em dev: salva config → servidor reinicia → `managed` aplica o plano → admin
+refetcha o schema → o campo aparece. Sem comando manual.
+
+**Limite consciente:** não tentamos hot-reload do config via `hot-hook`. O config é consumido uma
+vez pelo repositório de config do Adonis; reimportar o módulo não atualiza esse valor sem
+re-registrar tudo. Restart curto é mais previsível que um boundary mal desenhado. `cms.refresh()`
+fica exposto para recompilar e re-sincronizar sem reiniciar no dia em que isso doer.
+
 ---
 
 ## 18. Integrações
