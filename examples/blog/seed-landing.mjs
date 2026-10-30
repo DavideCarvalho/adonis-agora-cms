@@ -6,11 +6,6 @@
  */
 const base = process.env.CMS_URL ?? 'http://127.0.0.1:5611';
 
-const paragraph = (text) => ({
-  type: 'doc',
-  content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
-});
-
 const landing = {
   title: 'Landing',
   visibility: 'public',
