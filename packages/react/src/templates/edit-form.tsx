@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Badge, Button, Field } from '../atoms/index.js';
+import { LivePreview } from '../organisms/live-preview.js';
 import { ArrayBuilder, BlocksBuilder } from '../organisms/structured.js';
 import { JsonField, resolveFieldComponent } from '../registry.js';
 import type { AdminCollection, AdminDocument, AdminField, AdminPermission } from '../types.js';
@@ -14,6 +15,8 @@ export type EditFormProps = {
   onPublish?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
   onBack?: (() => void) | undefined;
+  /** Signed URL from `GET /collections/:slug/:id/preview-token`. */
+  previewUrl?: string | undefined;
 };
 
 const CONTAINERS = new Set(['group', 'row', 'collapsible']);
@@ -34,9 +37,11 @@ export function EditForm({
   onPublish,
   onDelete,
   onBack,
+  previewUrl,
 }: EditFormProps) {
   const [values, setValues] = useState<AdminDocument>(doc);
   const [showJson, setShowJson] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const readOnly = useMemo(() => {
     const id = doc.id;
@@ -81,6 +86,11 @@ export function EditForm({
               Delete
             </Button>
           ) : null}
+          {previewUrl ? (
+            <Button size="sm" onClick={() => setPreviewOpen(true)}>
+              Preview
+            </Button>
+          ) : null}
           {onPublish && collection.drafts && permission?.update !== false ? (
             <Button size="sm" onClick={onPublish}>
               {doc._status === 'published' ? 'Unpublish' : 'Publish'}
@@ -116,6 +126,15 @@ export function EditForm({
           ))}
         </div>
       )}
+
+      {previewUrl ? (
+        <LivePreview
+          url={previewUrl}
+          data={values}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
 
       {errors && Object.keys(errors).length > 0 ? (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">

@@ -16,6 +16,7 @@ import {
   handleCollectionVersions,
   handleGlobalGet,
   handleGlobalUpdate,
+  handlePreviewToken,
   type RestRequest,
   type RestResponse,
 } from './handlers.js';
@@ -106,6 +107,7 @@ export function registerCmsRoutes(
     `${prefix}/collections/:slug/:id/versions/:version/restore`,
     dispatch(handleCollectionRestoreVersion),
   );
+  router.get(`${prefix}/collections/:slug/:id/preview-token`, dispatch(handlePreviewToken));
   router.post(`${prefix}/collections/:slug/:id/lock`, dispatch(handleCollectionLock));
   router.delete(`${prefix}/collections/:slug/:id/lock`, dispatch(handleCollectionUnlock));
   router.get(`${prefix}/globals/:slug`, dispatch(handleGlobalGet));

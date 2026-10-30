@@ -79,6 +79,13 @@ export class AdminClient {
     );
   }
 
+  async previewToken(
+    slug: string,
+    id: string,
+  ): Promise<{ token: string; url: string; expiresIn: number }> {
+    return this.request('GET', `/collections/${slug}/${id}/preview-token`);
+  }
+
   async global(slug: string): Promise<AdminDocument> {
     return this.request<AdminDocument>('GET', `/globals/${slug}`);
   }

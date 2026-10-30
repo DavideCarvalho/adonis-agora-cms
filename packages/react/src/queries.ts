@@ -11,7 +11,19 @@ export const cmsKeys = {
     [...cmsKeys.all, 'doc', slug, id, query] as const,
   versions: (slug: string, id: string) => [...cmsKeys.all, 'versions', slug, id] as const,
   global: (slug: string) => [...cmsKeys.all, 'global', slug] as const,
+  preview: (slug: string, id: string) => [...cmsKeys.all, 'preview', slug, id] as const,
 };
+
+export function usePreviewToken(slug: string, id: string | undefined) {
+  const { client } = useCms();
+  return useQuery({
+    queryKey: cmsKeys.preview(slug, id ?? ''),
+    queryFn: () => client.previewToken(slug, id as string),
+    enabled: Boolean(id),
+    retry: false,
+    staleTime: 0,
+  });
+}
 
 export function useAdminSchema() {
   const { client } = useCms();

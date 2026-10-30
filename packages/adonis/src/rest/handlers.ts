@@ -2,6 +2,7 @@ import { toAdminSchema } from '../admin/schema.js';
 import type { CmsConfig } from '../config/types.js';
 import { CmsNotFoundError } from '../errors.js';
 import type { Cms } from '../local_api/index.js';
+import { previewUrl, signPreviewToken } from '../preview/token.js';
 import { toRestError } from './errors.js';
 import { parseFindQuery } from './parse.js';
 
@@ -29,6 +30,52 @@ export async function handleAdminSchema(cms: Cms<CmsConfig>): Promise<RestRespon
     status: 200,
     body: toAdminSchema(cms.config, { user: cms.user }),
   }));
+}
+
+/**
+ * Issues a short-lived preview token for a document.
+ *
+ * The site verifies it with the shared secret; the panel only puts it in the iframe URL, so the
+ * draft never becomes public.
+ */
+export async function handlePreviewToken(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    const livePreview = cms.config.admin?.livePreview;
+
+    if (!livePreview?.url || !livePreview.secret) {
+      return {
+        status: 501,
+        body: {
+          error: {
+            code: 'CMS_PREVIEW_DISABLED',
+            message: 'configure admin.livePreview.url and admin.livePreview.secret',
+          },
+        },
+      };
+    }
+
+    const ttlSeconds = livePreview.ttlSeconds ?? 300;
+    const userId = (cms.user as { id?: unknown } | null)?.id;
+    const token = signPreviewToken(
+      {
+        collection: slug,
+        documentId: id,
+        userId: userId === undefined || userId === null ? null : String(userId),
+        exp: Date.now() + ttlSeconds * 1000,
+      },
+      livePreview.secret,
+    );
+
+    return {
+      status: 200,
+      body: { token, url: previewUrl(livePreview.url, token), expiresIn: ttlSeconds },
+    };
+  });
 }
 
 export async function handleCollectionFind(

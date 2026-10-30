@@ -373,7 +373,12 @@ export type AdminConfig = {
   auth?: 'cms' | 'authkit' | 'custom';
   title?: string;
   livePreview?: {
+    /** Site URL the iframe loads, e.g. `/preview`. */
     url?: string;
+    /** Shared secret used to sign short-lived preview tokens. */
+    secret?: string;
+    /** Token lifetime in seconds (default 300). */
+    ttlSeconds?: number;
   };
 };
 

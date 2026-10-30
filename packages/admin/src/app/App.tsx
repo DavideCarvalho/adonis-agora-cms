@@ -11,6 +11,7 @@ import {
   useDeleteDocument,
   useDocument,
   useDocuments,
+  usePreviewToken,
   usePublishDocument,
   useUpdateDocument,
 } from '@adonis-agora/cms-react';
@@ -168,6 +169,7 @@ function EditView({
   const update = useUpdateDocument(collection.slug, id ?? '');
   const publish = usePublishDocument(collection.slug, id ?? '');
   const remove = useDeleteDocument(collection.slug);
+  const preview = usePreviewToken(collection.slug, id);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -196,6 +198,7 @@ function EditView({
       errors={errors}
       onSubmit={handleSubmit}
       onBack={back}
+      previewUrl={preview.data?.url}
       onPublish={
         id
           ? () => publish.mutate(document.data?._status === 'published' ? 'unpublish' : 'publish')

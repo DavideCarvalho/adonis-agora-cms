@@ -17,6 +17,7 @@ export {
   handleCollectionVersions,
   handleGlobalGet,
   handleGlobalUpdate,
+  handlePreviewToken,
 } from './handlers.js';
 export { parseFindQuery } from './parse.js';
 export type { CmsRouter, RegisterCmsRoutesOptions, RouteContext } from './routes.js';

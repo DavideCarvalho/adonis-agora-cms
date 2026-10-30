@@ -5,6 +5,8 @@ export { AdminClient, CmsApiError } from './client.js';
 export { CmsProvider, useCms } from './context.js';
 export type { DataTableProps } from './organisms/data-table.js';
 export { DataTable } from './organisms/data-table.js';
+export type { LivePreviewProps } from './organisms/live-preview.js';
+export { LivePreview } from './organisms/live-preview.js';
 export { ArrayBuilder, BlocksBuilder } from './organisms/structured.js';
 export {
   cmsKeys,
@@ -13,6 +15,7 @@ export {
   useDeleteDocument,
   useDocument,
   useDocuments,
+  usePreviewToken,
   usePublishDocument,
   useRestoreVersion,
   useUpdateDocument,

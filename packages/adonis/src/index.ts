@@ -26,6 +26,8 @@ export type { CmsObservation, CmsObserver, TelescopeEntry } from './integrations
 export { telescopeWatcher } from './integrations/telescope.js';
 export type { Cms, CmsCollectionApi, CmsGlobalApi, CreateCmsOptions } from './local_api/index.js';
 export { createCms } from './local_api/index.js';
+export type { PreviewClaims } from './preview/token.js';
+export { previewUrl, signPreviewToken, verifyPreviewToken } from './preview/token.js';
 export { constraintToSql, decideAccess } from './repository/access.js';
 export type { FindQuery, FindResult, OperationOptions, WhereInput } from './repository/crud.js';
 export {
