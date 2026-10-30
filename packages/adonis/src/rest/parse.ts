@@ -27,6 +27,10 @@ export function parseFindQuery(input: Record<string, unknown>): FindQuery {
   const depth = toNumber(input.depth);
   if (depth !== undefined) query.depth = depth;
 
+  if (input.deleted === 'true' || input.deleted === '1' || input.deleted === true) {
+    query.deleted = true;
+  }
+
   if (typeof input.draft === 'boolean') query.draft = input.draft;
   else if (input.draft === 'true' || input.draft === '1') query.draft = true;
   else if (input.draft === 'false' || input.draft === '0') query.draft = false;

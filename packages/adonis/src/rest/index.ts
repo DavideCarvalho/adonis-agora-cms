@@ -9,6 +9,7 @@ export {
   handleCollectionFindOne,
   handleCollectionLock,
   handleCollectionPublish,
+  handleCollectionRestore,
   handleCollectionRestoreVersion,
   handleCollectionUnlock,
   handleCollectionUnpublish,

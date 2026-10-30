@@ -8,6 +8,7 @@ import {
   handleCollectionFindOne,
   handleCollectionLock,
   handleCollectionPublish,
+  handleCollectionRestore,
   handleCollectionRestoreVersion,
   handleCollectionUnlock,
   handleCollectionUnpublish,
@@ -139,6 +140,7 @@ export function registerCmsRoutes(
     `${prefix}/collections/:slug/:id/versions/:version/restore`,
     dispatch(handleCollectionRestoreVersion),
   );
+  router.post(`${prefix}/collections/:slug/:id/restore`, dispatch(handleCollectionRestore));
   router.get(`${prefix}/collections/:slug/:id/preview-token`, dispatch(handlePreviewToken));
   router.post(`${prefix}/collections/:slug/:id/lock`, dispatch(handleCollectionLock));
   router.delete(`${prefix}/collections/:slug/:id/lock`, dispatch(handleCollectionUnlock));

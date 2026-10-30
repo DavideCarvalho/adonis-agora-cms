@@ -138,8 +138,21 @@ export async function handleCollectionDelete(
   return run(async () => {
     const slug = requireParam(request.params.slug, 'slug');
     const id = requireParam(request.params.id, 'id');
-    await cms.collection(slug).delete(id);
+    const force = request.query.force === 'true' || request.query.force === '1';
+    await cms.collection(slug).delete(id, force ? { force: true } : undefined);
     return { status: NO_CONTENT, body: null };
+  });
+}
+
+export async function handleCollectionRestore(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    const doc = await cms.collection(slug).restore(id);
+    return { status: 200, body: doc };
   });
 }
 

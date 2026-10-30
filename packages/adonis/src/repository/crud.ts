@@ -43,6 +43,8 @@ export type FindQuery = {
   depth?: number;
   locale?: string;
   draft?: boolean;
+  /** Include soft-deleted documents (admin/restore tooling). */
+  deleted?: boolean;
   select?: string[];
 };
 
@@ -159,7 +161,14 @@ export async function findDocuments(
   const includeDrafts = query.draft === true || options.draft === true;
   assertDraftAccess(ctx, versions.drafts, includeDrafts, options.overrideAccess);
 
-  const where = buildWhere(ctx, table, query, access.constraint, versions.drafts && !includeDrafts);
+  const where = buildWhere(
+    ctx,
+    table,
+    query,
+    access.constraint,
+    versions.drafts && !includeDrafts,
+    query.deleted === true,
+  );
   const totalDocs = await countRows(ctx.client, table.name, where, ctx.engine);
 
   const columns =
@@ -414,13 +423,23 @@ export async function restoreDocument(
     if (ctx.tenant !== null) bindings.push(ctx.tenant);
   }
 
+  const existing = await selectOne(
+    ctx.client,
+    `select ${ident('id', ctx.engine)} as id from ${ident(table.name, ctx.engine)} where ${conditions.join(' and ')}`,
+    bindings,
+  );
+  if (!existing) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
+
   await exec(
     ctx.client,
     `update ${ident(table.name, ctx.engine)} set ${ident('_deleted_at', ctx.engine)} = null where ${conditions.join(' and ')}`,
     bindings,
   );
 
-  const doc = await findDocumentByID(ctx, slug, id, { ...options, overrideAccess: true });
+  const doc = await loadDocument(ctx, slug, id, {
+    ...options,
+    includeDeleted: true,
+  });
   if (!doc) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
   return doc;
 }
@@ -749,10 +768,11 @@ export function buildWhere(
   query: FindQuery,
   constraint: Parameters<typeof constraintToSql>[0] | undefined,
   publishedOnly: boolean | undefined,
+  includeDeleted = false,
 ): { sql: string; bindings: unknown[] } {
   const parts: { sql: string; bindings: unknown[] }[] = [];
 
-  if (table.columns.some((column) => column.name === '_deleted_at')) {
+  if (!includeDeleted && table.columns.some((column) => column.name === '_deleted_at')) {
     parts.push({ sql: `${ident('_deleted_at', ctx.engine)} is null`, bindings: [] });
   }
 
