@@ -7,6 +7,7 @@ export type { DataTableProps } from './organisms/data-table.js';
 export { DataTable } from './organisms/data-table.js';
 export type { LivePreviewProps } from './organisms/live-preview.js';
 export { LivePreview } from './organisms/live-preview.js';
+export { RelationPicker } from './organisms/relation-picker.js';
 export { ArrayBuilder, BlocksBuilder } from './organisms/structured.js';
 export {
   cmsKeys,

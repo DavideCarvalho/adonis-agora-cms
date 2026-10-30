@@ -199,6 +199,7 @@ function EditView({
       onSubmit={handleSubmit}
       onBack={back}
       previewUrl={preview.data?.url}
+      locales={schema.locales}
       onPublish={
         id
           ? () => publish.mutate(document.data?._status === 'published' ? 'unpublish' : 'publish')

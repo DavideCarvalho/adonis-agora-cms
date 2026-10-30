@@ -1,24 +1,51 @@
 import { expect, test } from '@playwright/test';
 
-test('admin serves from the Adonis app and drives the CMS REST API', async ({ page, request }) => {
-  const list = await request.get('/api/cms/collections/posts');
-  const body = (await list.json()) as { totalDocs: number };
+test('admin drives the CMS REST API end to end', async ({ page, request }) => {
+  const authors = await request.get('/api/cms/collections/authors');
+  const authorsBody = (await authors.json()) as { docs: { id: string; name: string }[] };
 
-  if (body.totalDocs === 0) {
+  let authorId = authorsBody.docs[0]?.id;
+  if (!authorId) {
+    const created = await request.post('/api/cms/collections/authors', {
+      data: { name: 'Davi Carvalho' },
+    });
+    expect(created.status()).toBe(201);
+    authorId = ((await created.json()) as { id: string }).id;
+  }
+
+  const posts = await request.get('/api/cms/collections/posts');
+  const postsBody = (await posts.json()) as { totalDocs: number };
+
+  if (postsBody.totalDocs === 0) {
     const created = await request.post('/api/cms/collections/posts', {
-      data: { title: 'Hello world', status: 'published' },
+      data: {
+        title: 'Hello world',
+        subtitle: { 'pt-BR': 'Primeiro post', en: 'First post' },
+        author: authorId,
+        status: 'published',
+      },
     });
     expect(created.status()).toBe(201);
   }
 
   await page.goto('/admin');
 
-  await expect(page.getByRole('button', { name: 'Posts' })).toBeVisible();
   await page.getByRole('button', { name: 'Posts' }).click();
-
   await expect(page.getByRole('cell', { name: 'Hello world' })).toBeVisible();
   await expect(page.getByText(/published/i).first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Edit' }).click();
-  await expect(page.getByLabel('title')).toHaveValue('Hello world');
+
+  await expect(page.getByRole('textbox', { name: /^title\*/ })).toHaveValue('Hello world');
+
+  // Localized field follows the locale switcher instead of rendering the raw map.
+  await expect(page.getByRole('textbox', { name: /^subtitle/ })).toHaveValue('Primeiro post');
+  await page.getByLabel('locale').selectOption('en');
+  await expect(page.getByRole('textbox', { name: /^subtitle/ })).toHaveValue('First post');
+
+  // Relation picker loads real options.
+  await expect(page.getByLabel('author')).toHaveValue(authorId);
+  await expect(
+    page.getByLabel('author').locator('option', { hasText: 'Davi Carvalho' }),
+  ).toHaveCount(1);
 });

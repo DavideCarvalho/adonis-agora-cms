@@ -17,6 +17,8 @@ export type EditFormProps = {
   onBack?: (() => void) | undefined;
   /** Signed URL from `GET /collections/:slug/:id/preview-token`. */
   previewUrl?: string | undefined;
+  /** Locales from the schema; enables the locale switcher for localized fields. */
+  locales?: readonly string[] | undefined;
 };
 
 const CONTAINERS = new Set(['group', 'row', 'collapsible']);
@@ -38,6 +40,7 @@ export function EditForm({
   onDelete,
   onBack,
   previewUrl,
+  locales = [],
 }: EditFormProps) {
   const [values, setValues] = useState<AdminDocument>(doc);
 
@@ -48,6 +51,7 @@ export function EditForm({
   }, [doc.id]);
   const [showJson, setShowJson] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [locale, setLocale] = useState<string>(locales[0] ?? '');
 
   const readOnly = useMemo(() => {
     const id = doc.id;
@@ -92,6 +96,20 @@ export function EditForm({
               Delete
             </Button>
           ) : null}
+          {locales.length > 1 ? (
+            <select
+              aria-label="locale"
+              className="h-9 rounded-md border border-zinc-300 px-2 text-sm"
+              value={locale}
+              onChange={(event) => setLocale(event.target.value)}
+            >
+              {locales.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          ) : null}
           {previewUrl ? (
             <Button size="sm" onClick={() => setPreviewOpen(true)}>
               Preview
@@ -127,6 +145,7 @@ export function EditForm({
                 setValue={setValue}
                 error={errors?.[field.name]}
                 readOnly={readOnly}
+                locale={locale}
               />
             </div>
           ))}
@@ -161,6 +180,7 @@ function FieldRenderer({
   setValue,
   error,
   readOnly,
+  locale,
   path = '',
 }: {
   field: AdminField;
@@ -168,6 +188,7 @@ function FieldRenderer({
   setValue: (path: string, value: unknown) => void;
   error?: string | undefined;
   readOnly: boolean;
+  locale?: string | undefined;
   path?: string;
 }) {
   const fieldPath = path ? `${path}.${field.name}` : field.name;
@@ -183,6 +204,7 @@ function FieldRenderer({
             values={values}
             setValue={setValue}
             readOnly={readOnly}
+            locale={locale}
             path={fieldPath}
           />
         ))}
@@ -206,12 +228,24 @@ function FieldRenderer({
   }
 
   const Component = resolveFieldComponent(field);
+  const raw = getByPath(values, fieldPath);
+  const localized = field.localized === true && Boolean(locale);
+  const bucket =
+    localized && raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : undefined;
+
   return (
     <Component
       field={field}
-      value={getByPath(values, fieldPath)}
-      onChange={(next) => setValue(fieldPath, next)}
+      value={localized ? bucket?.[locale as string] : raw}
+      onChange={(next) => {
+        if (localized) {
+          setValue(fieldPath, { ...(bucket ?? {}), [locale as string]: next });
+          return;
+        }
+        setValue(fieldPath, next);
+      }}
       error={error}
+      locale={locale}
       disabled={readOnly || field.restricted === true}
       id={fieldPath}
     />
