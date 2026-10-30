@@ -142,6 +142,31 @@ const STYLE = `
 .cms-block-add:hover {
   background: #c084fc;
   color: #180a26;
+}
+
+/* Full-height grip on the block's left edge: the easiest thing to grab, and it never covers text. */
+.cms-block-grip {
+  position: fixed;
+  left: calc(var(--cms-left) - 7px);
+  top: calc(var(--cms-top) + 2px);
+  width: 8px;
+  height: max(18px, calc(var(--cms-height) - 4px));
+  z-index: 2147483000;
+  border-radius: 4px;
+  background: rgba(192, 132, 252, 0.45);
+  opacity: 0;
+  cursor: grab;
+  touch-action: none;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+[data-cms-overlay][data-visible] .cms-block-grip {
+  opacity: 1;
+}
+.cms-block-grip:hover {
+  background: #c084fc;
+}
+.cms-block-grip:active {
+  cursor: grabbing;
 }`;
 
 /**
@@ -224,7 +249,8 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
     '<button type="button" data-act="edit" title="Edit block">✎</button>' +
     '<button type="button" data-act="delete" title="Delete block">🗑</button>' +
     '</div>' +
-    '<button type="button" class="cms-block-add" title="Insert a block here">+</button>';
+    '<button type="button" class="cms-block-add" title="Insert a block here">+</button>' +
+    '<div class="cms-block-grip" title="Drag to move this block"></div>';
   document.body.appendChild(overlay);
 
   var active = null;
@@ -262,7 +288,10 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
   });
 
   overlay.addEventListener('pointerdown', function (event) {
-    var handle = event.target && event.target.closest ? event.target.closest('button[data-act="drag"]') : null;
+    var handle =
+      event.target && event.target.closest
+        ? event.target.closest('button[data-act="drag"], .cms-block-grip')
+        : null;
     if (!handle || !active) return;
 
     event.preventDefault();
