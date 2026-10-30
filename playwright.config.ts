@@ -5,8 +5,10 @@ export default defineConfig({
   timeout: 30_000,
   use: { baseURL: 'http://127.0.0.1:5611' },
   webServer: {
-    command: 'node examples/blog/server.mjs',
-    url: 'http://127.0.0.1:5611',
+    command: 'node ace.js serve --no-watch',
+    cwd: 'examples/blog',
+    url: 'http://127.0.0.1:5611/admin',
     reuseExistingServer: true,
+    timeout: 60_000,
   },
 });

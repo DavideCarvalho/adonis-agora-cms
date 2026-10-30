@@ -41,6 +41,9 @@ importers:
       '@adonis-agora/cms':
         specifier: workspace:*
         version: link:../../packages/adonis
+      '@adonis-agora/cms-admin':
+        specifier: workspace:*
+        version: link:../../packages/admin
       '@adonisjs/core':
         specifier: 7.5.0
         version: 7.5.0(@adonisjs/assembler@8.6.0(typescript@6.0.3))(supports-color@10.2.2)(youch@4.1.1)

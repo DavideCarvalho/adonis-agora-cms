@@ -48,7 +48,7 @@ export default class CmsAdminProvider {
 
     const router = (await this.app.container.make('router')) as RouterLike;
 
-    router.get(`${basePath}/*`, async (context: unknown) => {
+    const serve = async (context: unknown) => {
       const ctx = context as ContextLike;
       const url = ctx.request.url().split('?')[0] ?? '';
       const relative = url.startsWith(basePath) ? url.slice(basePath.length) : url;
@@ -70,7 +70,10 @@ export default class CmsAdminProvider {
 
       ctx.response.header('content-type', body.contentType);
       ctx.response.send(body.body);
-    });
+    };
+
+    router.get(basePath, serve);
+    router.get(`${basePath}/*`, serve);
   }
 }
 

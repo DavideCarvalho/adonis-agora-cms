@@ -10,6 +10,7 @@ export default defineConfig({
     () => import('@adonisjs/core/providers/app_provider'),
     () => import('@adonisjs/lucid/database_provider'),
     () => import('@adonis-agora/cms/cms_provider'),
+    () => import('@adonis-agora/cms-admin/cms_admin_provider'),
   ],
   preloads: [() => import('./start/kernel.js'), () => import('./start/routes.js')],
   directories: {
