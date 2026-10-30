@@ -3,9 +3,9 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "dist",
-    "tsBuildInfoFile": ".tsbuildinfo",
     "types": ["node"],
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "incremental": false
   },
   "include": [
     "src/**/*.ts",
