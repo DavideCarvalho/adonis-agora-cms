@@ -57,6 +57,11 @@ export type RegisterCmsRoutesOptions = {
     token: string,
   ) => Promise<{ tenant: string | null; abilities: readonly string[] } | null>;
   /**
+   * Locale negotiated by the host (e.g. `ctx.i18n.locale`). Used as the content locale when
+   * the request does not pass `?locale`.
+   */
+  resolveLocale?: (context: RouteContext) => string | undefined;
+  /**
    * Resolves the request principal. The tenant is what makes the same route serve
    * `acme.example.com` and `globex.example.com` without extra routing.
    */
@@ -110,7 +115,14 @@ export function registerCmsRoutes(
     const scoped = principal
       ? cms.forTenant(requestedTenant ?? principal.tenant)
       : await scope(cms, ctx, options);
-    const response = await handler(scoped, toRequest(ctx));
+
+    const request = toRequest(ctx);
+    const negotiated = options.resolveLocale?.(ctx);
+    if (negotiated && request.query.locale === undefined) {
+      request.query = { ...request.query, locale: negotiated };
+    }
+
+    const response = await handler(scoped, request);
 
     const writer = ctx.response.status(response.status);
     if (response.status === 204) {

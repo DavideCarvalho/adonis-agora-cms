@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Button } from '../atoms/index.js';
+import { useMessages } from '../context.js';
 
 export type LivePreviewProps = {
   /** Signed preview URL returned by the server (`/preview?token=…`). */
@@ -18,6 +19,7 @@ export type LivePreviewProps = {
  * it public.
  */
 export function LivePreview({ url, data, open, onClose }: LivePreviewProps) {
+  const t = useMessages();
   const frame = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -34,7 +36,7 @@ export function LivePreview({ url, data, open, onClose }: LivePreviewProps) {
   return (
     <div className="fixed inset-y-0 right-0 z-40 flex w-[46rem] max-w-full flex-col border-l border-zinc-200 bg-white shadow-xl">
       <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
-        <span className="text-sm font-medium text-zinc-700">Preview</span>
+        <span className="text-sm font-medium text-zinc-700">{t.preview}</span>
         <Button size="sm" variant="ghost" onClick={onClose}>
           Close
         </Button>

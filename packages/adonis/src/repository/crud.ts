@@ -155,7 +155,8 @@ export async function findDocuments(
 
   const limit = Math.max(1, Math.min(query.limit ?? 20, 200));
   const page = Math.max(1, query.page ?? 1);
-  const locale = query.locale ?? options.locale ?? ctx.locale;
+  // No locale means "give me the locale map"; the default locale is a write-time concern.
+  const locale = query.locale ?? options.locale;
 
   const versions = versionsFor(ctx.config, slug);
   const includeDrafts = query.draft === true || options.draft === true;

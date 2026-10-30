@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Badge, Button, Field } from '../atoms/index.js';
+import { useMessages } from '../context.js';
 import { LivePreview } from '../organisms/live-preview.js';
 import { ArrayBuilder, BlocksBuilder } from '../organisms/structured.js';
 import { VersionsPanel } from '../organisms/versions-panel.js';
@@ -43,6 +44,7 @@ export function EditForm({
   previewUrl,
   locales = [],
 }: EditFormProps) {
+  const t = useMessages();
   const [values, setValues] = useState<AdminDocument>(doc);
 
   // The document arrives after mount (query), so the form must adopt it once it lands.
@@ -82,7 +84,7 @@ export function EditForm({
             </Button>
           ) : null}
           <h2 className="text-lg font-semibold text-zinc-900">
-            {doc.id ? 'Edit' : 'New'} {collection.labels?.singular ?? collection.slug}
+            {doc.id ? t.edit : t.new} {collection.labels?.singular ?? collection.slug}
           </h2>
           {doc._status ? (
             <Badge tone={doc._status === 'published' ? 'success' : 'warning'}>{doc._status}</Badge>
@@ -91,11 +93,11 @@ export function EditForm({
 
         <div className="flex items-center gap-2">
           <Button size="sm" variant="ghost" onClick={() => setShowJson((value) => !value)}>
-            {showJson ? 'Form' : 'JSON'}
+            {showJson ? t.form : t.json}
           </Button>
           {onDelete && permission?.delete ? (
             <Button size="sm" variant="danger" onClick={onDelete}>
-              Delete
+              {t.delete}
             </Button>
           ) : null}
           {locales.length > 1 ? (
@@ -114,21 +116,21 @@ export function EditForm({
           ) : null}
           {doc.id && collection.versioned ? (
             <Button size="sm" onClick={() => setHistoryOpen(true)}>
-              History
+              {t.history}
             </Button>
           ) : null}
           {previewUrl ? (
             <Button size="sm" onClick={() => setPreviewOpen(true)}>
-              Preview
+              {t.preview}
             </Button>
           ) : null}
           {onPublish && collection.drafts && permission?.update !== false ? (
             <Button size="sm" onClick={onPublish}>
-              {doc._status === 'published' ? 'Unpublish' : 'Publish'}
+              {doc._status === 'published' ? t.unpublish : t.publish}
             </Button>
           ) : null}
           <Button size="sm" variant="primary" type="submit" disabled={saving || readOnly}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t.saving : t.save}
           </Button>
         </div>
       </header>

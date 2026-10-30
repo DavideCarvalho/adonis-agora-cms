@@ -9,6 +9,7 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
 });
 
+const adminLocale = import.meta.env.VITE_CMS_LOCALE === 'pt-BR' ? 'pt-BR' : 'en';
 const client = new AdminClient();
 
 const root = document.getElementById('root');
@@ -16,7 +17,7 @@ if (root) {
   createRoot(root).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <CmsProvider client={client}>
+        <CmsProvider client={client} locale={adminLocale}>
           <App />
         </CmsProvider>
       </QueryClientProvider>

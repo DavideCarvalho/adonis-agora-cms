@@ -2,7 +2,9 @@ export type { ButtonProps, ButtonSize, ButtonVariant, FieldProps } from './atoms
 export { Badge, Button, Checkbox, Field, Input, Select, Textarea } from './atoms/index.js';
 export type { AdminClientOptions } from './client.js';
 export { AdminClient, CmsApiError } from './client.js';
-export { CmsProvider, useCms } from './context.js';
+export { CmsProvider, useCms, useMessages } from './context.js';
+export type { CmsLocale, CmsMessages } from './i18n.js';
+export { cmsMessages } from './i18n.js';
 export type { DataTableProps } from './organisms/data-table.js';
 export { DataTable } from './organisms/data-table.js';
 export type { LivePreviewProps } from './organisms/live-preview.js';

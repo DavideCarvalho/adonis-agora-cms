@@ -1,5 +1,6 @@
 import { Badge, Button } from '../atoms/index.js';
 import { cn } from '../cn.js';
+import { useMessages } from '../context.js';
 import type { AdminCollection, AdminDocument, AdminPermission } from '../types.js';
 
 export type DataTableProps = {
@@ -28,6 +29,7 @@ export function DataTable({
   onToggleDeleted,
   busy,
 }: DataTableProps) {
+  const t = useMessages();
   const columns = collection.admin?.defaultColumns?.length
     ? [...collection.admin.defaultColumns]
     : [collection.admin?.useAsTitle ?? 'id'];
@@ -42,7 +44,7 @@ export function DataTable({
           {collection.softDelete && onToggleDeleted ? (
             <label className="flex items-center gap-2 text-sm text-zinc-600">
               <input type="checkbox" checked={showDeleted ?? false} onChange={onToggleDeleted} />
-              Show deleted
+              {t.showDeleted}
             </label>
           ) : null}
           {onCreate && permission?.create !== false ? (
@@ -70,7 +72,7 @@ export function DataTable({
             {docs.length === 0 ? (
               <tr>
                 <td colSpan={columns.length + 2} className="px-3 py-10 text-center text-zinc-500">
-                  No documents yet.
+                  {t.noDocuments}
                 </td>
               </tr>
             ) : (
@@ -97,7 +99,7 @@ export function DataTable({
                           onClick={() => onRestore(doc)}
                           disabled={busy}
                         >
-                          Restore
+                          {t.restore}
                         </Button>
                       ) : (
                         <Button
@@ -116,7 +118,7 @@ export function DataTable({
                           onClick={() => onDelete(doc)}
                           disabled={busy}
                         >
-                          Delete
+                          {t.delete}
                         </Button>
                       ) : null}
                     </div>

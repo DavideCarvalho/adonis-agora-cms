@@ -81,6 +81,10 @@ export default class CmsProvider {
     registerCmsRoutes(router, cms, {
       prefix: config.rest?.prefix ?? '/api/cms',
       resolveToken: (token) => resolveApiToken(cms.repoContext(), token),
+      resolveLocale: (context) => {
+        const i18n = (context as { i18n?: { locale?: string } }).i18n;
+        return i18n?.locale;
+      },
       resolveContext: async (context: RouteContext) => {
         const user = (context as { auth?: { user?: unknown } }).auth?.user ?? null;
         const hostname = context.request.hostname?.() ?? '';
