@@ -22,6 +22,13 @@ delight of the first.
 Operate. Admin panel at `admin.path` (`/admin`). Design is not the product here — clarity is,
 with brand living in precise details (type, rhythm, a single accent).
 
+## Editing structured content
+
+Array and blocks rows are cards with a drag handle: drag to reorder, ArrowUp/ArrowDown on a
+focused handle to move a step, `admin.isSortable: false` to pin the order. The order on screen is
+the order the API stores (the child table carries `_order`), so a drag is a data change, not a
+presentation detail.
+
 ## Must not change
 
 Data model, REST/SDK contracts, permissions visibility, locale switcher behavior, soft-delete

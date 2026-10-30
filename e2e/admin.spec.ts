@@ -13,36 +13,38 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
     authorId = ((await created.json()) as { id: string }).id;
   }
 
-  const posts = await request.get('/api/cms/collections/posts');
-  const postsBody = (await posts.json()) as { totalDocs: number };
+  // Each run owns its document: the specs share one database and run in parallel workers.
+  const title = `Hello world ${Date.now().toString(36)}`;
 
-  if (postsBody.totalDocs === 0) {
-    const created = await request.post('/api/cms/collections/posts', {
-      data: {
-        title: 'Hello world',
-        subtitle: { 'pt-BR': 'Primeiro post', en: 'First post' },
-        body: {
-          tiptap: {
-            type: 'doc',
-            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hello body' }] }],
-          },
+  const created = await request.post('/api/cms/collections/posts', {
+    data: {
+      title,
+      subtitle: { 'pt-BR': 'Primeiro post', en: 'First post' },
+      body: {
+        tiptap: {
+          type: 'doc',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hello body' }] }],
         },
-        author: authorId,
-        status: 'published',
       },
-    });
-    expect(created.status()).toBe(201);
-  }
+      author: authorId,
+      status: 'published',
+    },
+  });
+  expect(created.status()).toBe(201);
 
   await page.goto('/admin');
 
   await page.getByRole('button', { name: 'Posts' }).click();
-  await expect(page.getByRole('cell', { name: 'Hello world' })).toBeVisible();
+
+  // Other specs create posts in the same collection, so every table interaction is scoped to
+  // this row instead of matching the first Edit/Delete button on the page.
+  const helloRow = page.getByRole('row').filter({ hasText: title });
+  await expect(helloRow).toBeVisible();
   await expect(page.getByText(/published/i).first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Edit' }).click();
+  await helloRow.getByRole('button', { name: 'Edit' }).click();
 
-  await expect(page.getByRole('textbox', { name: /^title \*/ })).toHaveValue('Hello world');
+  await expect(page.getByRole('textbox', { name: /^title \*/ })).toHaveValue(title);
 
   // Localized field follows the locale switcher instead of rendering the raw map.
   await expect(page.getByRole('textbox', { name: /^subtitle/ })).toHaveValue('Primeiro post');
@@ -67,16 +69,15 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
 
   // Back to the list: soft delete, trash view and restore.
   await page.getByRole('button', { name: 'back' }).click();
-  await expect(page.getByRole('cell', { name: 'Hello world' })).toBeVisible();
+  await expect(helloRow).toBeVisible();
 
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('button', { name: 'Delete' }).click();
-  await expect(page.getByRole('cell', { name: 'Hello world' })).toHaveCount(0);
+  await helloRow.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByRole('cell', { name: title })).toHaveCount(0);
 
   await page.getByLabel('Show deleted').check();
-  await expect(page.getByRole('cell', { name: 'Hello world' })).toBeVisible();
-  await page.getByRole('button', { name: 'Restore' }).click();
+  await helloRow.getByRole('button', { name: 'Restore' }).click();
 
   await page.getByLabel('Show deleted').uncheck();
-  await expect(page.getByRole('cell', { name: 'Hello world' })).toBeVisible();
+  await expect(helloRow).toBeVisible();
 });

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { createApiToken, resolveApiToken } from '../../src/auth/api_tokens.js';
 import { collection, defineConfig, fields } from '../../src/index.js';
 import { createCms } from '../../src/local_api/index.js';
-import { type RouteContext, registerCmsRoutes } from '../../src/rest/routes.js';
+import { registerCmsRoutes } from '../../src/rest/routes.js';
 import { createTestCms, type TestCms } from '../../src/testing/create_test_cms.js';
 
 const config = defineConfig({

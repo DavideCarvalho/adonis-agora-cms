@@ -48,6 +48,11 @@ export type FieldAdmin = {
   condition?: (data: Record<string, unknown>) => boolean;
   /** Hide from the list view. */
   hiddenInList?: boolean;
+  /**
+   * Array and blocks rows are reorderable by drag in the admin. Set `false` to pin the order
+   * (Payload exposes the same switch under `admin.isSortable`).
+   */
+  isSortable?: boolean;
 };
 
 export type FieldAccess = {

@@ -7,7 +7,12 @@ export type AdminField = {
   localized?: boolean;
   hidden?: boolean;
   defaultValue?: unknown;
-  admin?: { position?: 'main' | 'sidebar'; description?: string; component?: string };
+  admin?: {
+    position?: 'main' | 'sidebar';
+    description?: string;
+    component?: string;
+    isSortable?: boolean;
+  };
   options?: readonly { label: string; value: string }[];
   relationTo?: string | readonly string[];
   hasMany?: boolean;

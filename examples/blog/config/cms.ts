@@ -19,6 +19,15 @@ export default defineConfig({
         fields.text('subtitle', { localized: true }),
         fields.richText('body'),
         fields.slug('slug', { from: 'title', unique: true }),
+        fields.array('sections', {
+          fields: [fields.text('heading'), fields.text('note')],
+        }),
+        fields.blocks('layout', {
+          blocks: [
+            { slug: 'hero', fields: [fields.text('headline')] },
+            { slug: 'quote', fields: [fields.textarea('quote')] },
+          ],
+        }),
         fields.relation('author', { relationTo: 'authors' }),
         fields.select('status', {
           options: [

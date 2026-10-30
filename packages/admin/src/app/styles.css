@@ -2,6 +2,14 @@
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap");
 
 /*
+  The atoms and organisms live in @adonis-agora/cms-react, which Tailwind's automatic source
+  detection skips because it sits behind a workspace symlink in node_modules. Without this the
+  utilities those components use (`grid`, `rounded-lg`, …) are never generated and the structured
+  field builders render unstyled.
+*/
+@source "../../../react/src";
+
+/*
   Aviary tokens — the shared console design system (see the media and telescope dashboards).
   Everything above the "per console" line is identical across every Agora console and must not be
   tuned here. Only `--accent` differs: violet for the CMS.
@@ -190,6 +198,10 @@ th,
 
 .sidebar__foot {
   margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-family: "JetBrains Mono", monospace;
   font-size: 10.5px;
   color: var(--muted);
@@ -601,6 +613,95 @@ th,
   color: var(--muted);
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+/* Array and blocks rows: a card per row, a drag handle in the header, fields beneath. */
+.field-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.row-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.row-card--dragging {
+  opacity: 0.55;
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line-soft);
+}
+.row-head__index {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+.row-head__spacer {
+  flex: 1;
+}
+.row-head .select {
+  width: auto;
+  min-width: 140px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.drag-handle {
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.1;
+  cursor: grab;
+  touch-action: none;
+}
+.drag-handle:hover {
+  color: var(--text);
+  background: var(--line-soft);
+}
+.drag-handle:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.row-body {
+  padding: 10px 10px 12px;
+}
+.row-body__empty {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.row-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+.row-fields > * {
+  min-width: 0;
+}
+@media (max-width: 820px) {
+  .row-fields {
+    grid-template-columns: 1fr;
+  }
+}
+.field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .alert {

@@ -1,7 +1,7 @@
 {
   "name": "@adonis-agora/cms-react",
   "version": "0.0.0",
-  "description": "React building blocks for @adonis-agora/cms \u2014 API client, TanStack Query hooks, the field registry and atomic UI primitives. Compose your own dashboard or use @adonis-agora/cms-admin. Part of the Agora ecosystem.",
+  "description": "React building blocks for @adonis-agora/cms — API client, TanStack Query hooks, the field registry and atomic UI primitives. Compose your own dashboard or use @adonis-agora/cms-admin. Part of the Agora ecosystem.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -47,11 +47,14 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@tiptap/react": "^3.32.1",
     "@tiptap/starter-kit": "^3.32.1",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "tailwind-merge": "^3.6.0",
-    "class-variance-authority": "^0.7.1"
+    "tailwind-merge": "^3.6.0"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.0.0",
