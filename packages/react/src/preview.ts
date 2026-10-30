@@ -59,8 +59,8 @@ const STYLE = `
 
 .cms-block-bar {
   position: fixed;
-  top: calc(var(--cms-top) + 6px);
-  left: calc(var(--cms-left) + var(--cms-width) - 90px);
+  top: calc(var(--cms-top) - 11px);
+  left: calc(var(--cms-left) + 6px);
   z-index: 2147483000;
   display: flex;
   gap: 2px;
@@ -101,8 +101,18 @@ const STYLE = `
   color: #f87171;
 }
 .cms-block-bar button[data-act="drag"] {
+  width: auto;
+  padding: 0 8px;
+  gap: 5px;
+  display: inline-flex;
+  align-items: center;
   cursor: grab;
   touch-action: none;
+}
+.cms-block-bar button[data-act="drag"] span {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .cms-block-bar button[data-act="drag"]:active {
   cursor: grabbing;
@@ -208,7 +218,9 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
   overlay.setAttribute('data-cms-overlay', '');
   overlay.innerHTML =
     '<div class="cms-block-bar">' +
-    '<button type="button" data-act="drag" title="Drag to reorder">⠿</button>' +
+    '<button type="button" data-act="drag" title="Drag to reorder (or use the arrow keys)">' +
+    '⠿ <span>mover</span>' +
+    '</button>' +
     '<button type="button" data-act="edit" title="Edit block">✎</button>' +
     '<button type="button" data-act="delete" title="Delete block">🗑</button>' +
     '</div>' +
