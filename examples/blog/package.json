@@ -3,10 +3,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.mjs"
+    "dev": "node ace serve --watch",
+    "build": "node ace build",
+    "start": "node bin/server.js"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3",
-    "knex": "^3.3.0"
+    "@adonis-agora/cms": "workspace:*",
+    "@adonisjs/core": "7.5.0",
+    "@adonisjs/lucid": "^22.4.2",
+    "better-sqlite3": "^13.0.3"
+  },
+  "devDependencies": {
+    "@adonisjs/assembler": "^8.6.0",
+    "@swc/core": "1.16.1",
+    "typescript": "^7.0.2",
+    "@adonisjs/ace": "^14.1.1"
+  },
+  "imports": {
+    "#start/*": "./start/*.js",
+    "#config/*": "./config/*.js",
+    "#controllers/*": "./app/controllers/*.js"
   }
 }

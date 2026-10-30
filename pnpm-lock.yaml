@@ -38,12 +38,31 @@ importers:
 
   examples/blog:
     dependencies:
+      '@adonis-agora/cms':
+        specifier: workspace:*
+        version: link:../../packages/adonis
+      '@adonisjs/core':
+        specifier: 7.5.0
+        version: 7.5.0(@adonisjs/assembler@8.6.0(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1)
+      '@adonisjs/lucid':
+        specifier: ^22.4.2
+        version: 22.4.2(@adonisjs/assembler@8.6.0(typescript@7.0.2))(@adonisjs/core@7.5.0(@adonisjs/assembler@8.6.0(typescript@7.0.2))(supports-color@10.2.2)(youch@4.1.1))(better-sqlite3@13.0.3)(mysql2@3.24.6(@types/node@26.6.6))(pg@8.23.1)(supports-color@10.2.2)
       better-sqlite3:
         specifier: ^13.0.3
         version: 13.0.3
-      knex:
-        specifier: ^3.3.0
-        version: 3.3.0(better-sqlite3@13.0.3)(mysql2@3.24.6(@types/node@26.6.6))(pg@8.23.1)(supports-color@10.2.2)
+    devDependencies:
+      '@adonisjs/ace':
+        specifier: ^14.1.1
+        version: 14.1.1(youch@4.1.1)
+      '@adonisjs/assembler':
+        specifier: ^8.6.0
+        version: 8.6.0(typescript@7.0.2)
+      '@swc/core':
+        specifier: 1.16.1
+        version: 1.16.1
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   packages/admin:
     dependencies:
