@@ -10,3 +10,6 @@ coverage/
 .DS_Store
 *.log
 pnpm-debug.log*
+
+test-results/
+playwright-report/
