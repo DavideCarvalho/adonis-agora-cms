@@ -42,6 +42,7 @@ export function EditForm({
   const [values, setValues] = useState<AdminDocument>(doc);
 
   // The document arrives after mount (query), so the form must adopt it once it lands.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed by identity, not by deep value
   useEffect(() => {
     setValues(doc);
   }, [doc.id]);
