@@ -1,7 +1,7 @@
 {
   "name": "@adonis-agora/cms",
   "version": "0.0.0",
-  "description": "Config-first CMS for AdonisJS — collections, globals, every field type, drafts, i18n, access control, hooks, REST and a schema-driven admin. Part of the Agora ecosystem.",
+  "description": "Config-first CMS for AdonisJS \u2014 collections, globals, every field type, drafts, i18n, access control, hooks, REST and a schema-driven admin. Part of the Agora ecosystem.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -77,6 +77,11 @@
       "types": "./dist/src/integrations/durable.d.ts",
       "import": "./dist/src/integrations/durable.js",
       "default": "./dist/src/integrations/durable.js"
+    },
+    "./services/main": {
+      "types": "./dist/services/main.d.ts",
+      "import": "./dist/services/main.js",
+      "default": "./dist/services/main.js"
     }
   },
   "files": [

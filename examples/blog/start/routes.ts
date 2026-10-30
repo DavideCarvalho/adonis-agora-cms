@@ -1,31 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { verifyPreviewToken } from '@adonis-agora/cms';
+import cms from '@adonis-agora/cms/services/main';
 import app from '@adonisjs/core/services/app';
 import router from '@adonisjs/core/services/router';
 import { renderPage, renderPost } from '../app/pages/render.js';
 
 const PREVIEW_SECRET = 'local-preview-secret';
 
-type ServerCms = {
-  collection(slug: string): {
-    find(query: Record<string, unknown>): Promise<{ docs: Record<string, unknown>[] }>;
-    findByID(id: string, options: Record<string, unknown>): Promise<Record<string, unknown> | null>;
-  };
-  forTenant(tenant: string | null): ServerCms;
-};
-
-/** The CMS instance the provider created at boot; hooks and access run exactly as over REST. */
-async function cms(): Promise<ServerCms> {
-  return (await app.container.make('cms')) as unknown as ServerCms;
-}
-
 router.get('/', async () => ({ hello: 'blog example' }));
 
 /** A published page, rendered through the `slug → block` map. */
 router.get('/p/:slug', async ({ params, response }) => {
-  const client = await cms();
-  const { docs } = await client.collection('pages').find({
+  const { docs } = await cms.collection('pages').find({
     where: { slug: { equals: params.slug } },
   });
 
@@ -45,8 +32,7 @@ router.get('/preview', async ({ request, response }) => {
   const claims = verifyPreviewToken(token, PREVIEW_SECRET);
   if (!claims) return response.status(401).send('invalid or expired preview token');
 
-  const client = await cms();
-  const scoped = client.forTenant(claims.tenant);
+  const scoped = cms.forTenant(claims.tenant);
   const doc = await scoped.collection(claims.collection).findByID(claims.documentId, {
     draft: true,
     overrideAccess: true,

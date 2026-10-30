@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import type { ApplicationService } from '@adonisjs/core/types';
+import { setCms } from '../services/main.js';
 import { resolveApiToken } from '../src/auth/api_tokens.js';
 import type { CmsConfig } from '../src/config/types.js';
 import { resolveDbConfig, resolveTenancy } from '../src/config/types.js';
@@ -77,12 +78,14 @@ export default class CmsProvider {
     const cms = createCms({ config, client, engine });
 
     // Server-side entry point for app code (routes, jobs, server components):
-    // `await app.container.make('cms')` returns the same instance, with hooks and access applied.
+    // `import cms from '@adonis-agora/cms/services/main'` returns this same instance, with hooks
+    // and access applied. The binding stays for anyone who prefers the container.
     (
       this.app.container as unknown as {
         singleton(name: string, factory: () => unknown): void;
       }
     ).singleton('cms', () => cms);
+    setCms(cms);
 
     if (config.rest?.enabled !== false) {
       await this.registerRoutes(config, cms);

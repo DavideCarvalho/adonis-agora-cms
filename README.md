@@ -113,6 +113,19 @@ tenancy: { strategy: 'database', connection: (t) => `tenant_${t}` }
 No `tenancy` key = single instance. Per-tenant overrides in `row` mode are limited to
 admin/labels/visibility because the DDL is shared. Read the spec, §23.
 
+## Reading content from app code
+
+```ts
+import cms from '@adonis-agora/cms/services/main';
+
+const { docs } = await cms.collection('pages').find({ where: { slug: { equals: 'home' } } });
+```
+
+`services/main` is the typed singleton the provider fills at boot — the same instance the REST
+routes use, so hooks, access and tenancy all apply. Importing it before boot is safe; using it
+before boot throws with a clear message. The container binding stays available
+(`app.container.make('cms')`) for anything that resolves services that way.
+
 ## Admin panel
 
 ```bash
