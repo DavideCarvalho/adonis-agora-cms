@@ -35,3 +35,14 @@ export { buildQueryPlan } from './schema/query_plan.js';
 export type * from './schema/types.js';
 export { createTestCms } from './testing/index.js';
 export type * from './types/document.js';
+export type { DocumentLock } from './versions/actions.js';
+export {
+  getDocumentLock,
+  lockDocument,
+  publishDocument,
+  restoreVersion,
+  unlockDocument,
+  unpublishDocument,
+} from './versions/actions.js';
+export type { VersionRecord } from './versions/store.js';
+export { diffSnapshots, getVersion, listVersions } from './versions/store.js';

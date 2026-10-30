@@ -5,7 +5,14 @@ import {
   handleCollectionDelete,
   handleCollectionFind,
   handleCollectionFindOne,
+  handleCollectionLock,
+  handleCollectionPublish,
+  handleCollectionRestoreVersion,
+  handleCollectionUnlock,
+  handleCollectionUnpublish,
   handleCollectionUpdate,
+  handleCollectionVersion,
+  handleCollectionVersions,
   handleGlobalGet,
   handleGlobalUpdate,
   type RestRequest,
@@ -83,6 +90,19 @@ export function registerCmsRoutes(
   router.get(`${prefix}/collections/:slug/:id`, dispatch(handleCollectionFindOne));
   router.patch(`${prefix}/collections/:slug/:id`, dispatch(handleCollectionUpdate));
   router.delete(`${prefix}/collections/:slug/:id`, dispatch(handleCollectionDelete));
+  router.post(`${prefix}/collections/:slug/:id/publish`, dispatch(handleCollectionPublish));
+  router.post(`${prefix}/collections/:slug/:id/unpublish`, dispatch(handleCollectionUnpublish));
+  router.get(`${prefix}/collections/:slug/:id/versions`, dispatch(handleCollectionVersions));
+  router.get(
+    `${prefix}/collections/:slug/:id/versions/:version`,
+    dispatch(handleCollectionVersion),
+  );
+  router.post(
+    `${prefix}/collections/:slug/:id/versions/:version/restore`,
+    dispatch(handleCollectionRestoreVersion),
+  );
+  router.post(`${prefix}/collections/:slug/:id/lock`, dispatch(handleCollectionLock));
+  router.delete(`${prefix}/collections/:slug/:id/lock`, dispatch(handleCollectionUnlock));
   router.get(`${prefix}/globals/:slug`, dispatch(handleGlobalGet));
   router.patch(`${prefix}/globals/:slug`, dispatch(handleGlobalUpdate));
 }

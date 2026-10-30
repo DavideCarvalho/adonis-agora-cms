@@ -8,6 +8,7 @@ export { planExitCode, renderPlan } from './plan_render.js';
 export {
   applyPlan,
   createCmsTables,
+  createTableFromSpec,
   detectEngine,
   dropCmsTables,
   readSchemaState,
@@ -15,6 +16,7 @@ export {
   syncCmsSchema,
   writeSchemaState,
 } from './sync.js';
+export { ensureSystemTables, locksTable, systemTables, versionsTable } from './system_tables.js';
 export type {
   CmsKnex,
   ColumnAlter,

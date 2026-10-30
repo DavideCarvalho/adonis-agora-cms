@@ -1,6 +1,7 @@
 import type { CmsConfig, FieldConfig } from '../config/types.js';
 import { resolveDbConfig, resolveLocalization, resolveTenancy } from '../config/types.js';
 import { assertValidConfig } from '../config/validate.js';
+import { systemTables } from '../db/system_tables.js';
 import { CmsConfigError } from '../errors.js';
 import {
   childSystemColumns,
@@ -76,7 +77,16 @@ export function compileSchema(config: CmsConfig, options: CompileOptions = {}): 
     ctx.tables.push(compileDocumentTable(global.slug, 'global', global.fields, ctx));
   }
 
-  const queryPlan = buildQueryPlan(ctx.tables);
+  const tables = [
+    ...ctx.tables,
+    ...systemTables({
+      tablePrefix: ctx.tablePrefix,
+      idKind: ctx.idKind,
+      tenancy: ctx.tenancy,
+    }),
+  ];
+
+  const queryPlan = buildQueryPlan(tables);
   const withoutHash = {
     engine: ctx.engine,
     idKind: ctx.idKind,
@@ -85,7 +95,7 @@ export function compileSchema(config: CmsConfig, options: CompileOptions = {}): 
     defaultLocale: ctx.defaultLocale,
     tenancy: ctx.tenancy,
     renames: db.renames,
-    tables: ctx.tables,
+    tables,
     queryPlan,
   };
 

@@ -1,5 +1,5 @@
 import type { CmsConfig } from '../config/types.js';
-import { resolveLocalization } from '../config/types.js';
+import { resolveLocalization, resolveVersions } from '../config/types.js';
 import { detectEngine } from '../db/sync.js';
 import type { CmsKnex } from '../db/types.js';
 import {
@@ -15,6 +15,16 @@ import type { RepoContext } from '../repository/document.js';
 import { compileSchema } from '../schema/compile.js';
 import type { Engine, SchemaSpec } from '../schema/types.js';
 import type { CmsCreateInput, CmsDocument, CmsUpdateInput } from '../types/document.js';
+import {
+  type DocumentLock,
+  lockDocument,
+  publishDocument,
+  readVersions,
+  restoreVersion,
+  unlockDocument,
+  unpublishDocument,
+} from '../versions/actions.js';
+import type { VersionRecord } from '../versions/store.js';
 
 export type CreateCmsOptions = {
   config: CmsConfig;
@@ -49,6 +59,19 @@ export type CmsCollectionApi<C, S extends string> = {
   ): Promise<CmsDocument<C, S>>;
   delete(id: string, options?: OperationOptions): Promise<void>;
   count(query?: FindQuery): Promise<number>;
+  publish(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
+  unpublish(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
+  versions(
+    id: string,
+    options?: { locale?: string | null; limit?: number; page?: number },
+  ): Promise<{ docs: VersionRecord[]; totalDocs: number }>;
+  restoreVersion(
+    id: string,
+    version: number,
+    options?: OperationOptions,
+  ): Promise<CmsDocument<C, S>>;
+  lock(id: string, ttlSeconds?: number): Promise<DocumentLock>;
+  unlock(id: string, options?: { overrideAccess?: boolean }): Promise<void>;
 };
 
 export type CmsGlobalApi<C, S extends string> = {
@@ -143,6 +166,31 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
           async count(query) {
             const result = await findDocuments(ctx, slug, { ...query, limit: 1 });
             return result.totalDocs;
+          },
+
+          async publish(id, operation) {
+            return (await publishDocument(ctx, slug, id, operation)) as CmsDocument<C, S>;
+          },
+
+          async unpublish(id, operation) {
+            return (await unpublishDocument(ctx, slug, id, operation)) as CmsDocument<C, S>;
+          },
+
+          async versions(id, options) {
+            return readVersions(ctx, slug, id, options);
+          },
+
+          async restoreVersion(id, version, operation) {
+            return (await restoreVersion(ctx, slug, id, version, operation)) as CmsDocument<C, S>;
+          },
+
+          async lock(id, ttlSeconds) {
+            const { lockTtl } = resolveVersions(ctx.config);
+            return lockDocument(ctx, slug, id, ttlSeconds ?? lockTtl);
+          },
+
+          async unlock(id, options) {
+            await unlockDocument(ctx, slug, id, options);
           },
         };
       },

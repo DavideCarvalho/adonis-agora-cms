@@ -1,4 +1,4 @@
-import { resolveLocalization } from '../config/types.js';
+import { resolveLocalization, versionsFor } from '../config/types.js';
 import {
   CmsConflictError,
   CmsForbiddenError,
@@ -6,6 +6,7 @@ import {
   CmsValidationError,
 } from '../errors.js';
 import type { TableSpec } from '../schema/types.js';
+import { recordVersion } from '../versions/store.js';
 import { constraintToSql, decideAccess, existsSql, resolveEntry } from './access.js';
 import {
   buildWriteRows,
@@ -49,6 +50,12 @@ export type OperationOptions = {
   select?: string[];
   overrideAccess?: boolean;
   status?: 'draft' | 'published';
+  /** Create as a draft (versioned collections). */
+  draft?: boolean;
+  /** Autosave versions do not fire `afterChange`. */
+  autosave?: boolean;
+  /** Replace the document instead of merging (used by version restore). */
+  replace?: boolean;
 };
 
 export type FindResult = {
@@ -84,7 +91,7 @@ export async function createDocument(
   const validated = validate(ctx, slug, payload);
   await assertUnique(ctx, table, validated, undefined);
 
-  const status = options.status ?? (validated._status === 'draft' ? 'draft' : 'published');
+  const status = options.status ?? (options.draft === true ? 'draft' : 'published');
   const rows = buildWriteRows(ctx, slug, validated, { status, isNew: true });
 
   if (ctx.spec.tenancy.column && ctx.spec.tenancy.required && !ctx.tenant) {
@@ -102,6 +109,14 @@ export async function createDocument(
       operation: 'create',
       doc: doc ?? { id: insertedId },
     });
+
+    await recordVersion(trxContext, slug, insertedId, {
+      status,
+      snapshot: doc ?? { id: insertedId },
+      autosave: options.autosave === true,
+      locale: options.locale ?? null,
+    });
+
     return insertedId;
   });
 
@@ -133,7 +148,11 @@ export async function findDocuments(
   const page = Math.max(1, query.page ?? 1);
   const locale = query.locale ?? options.locale ?? ctx.locale;
 
-  const where = buildWhere(ctx, table, query, access.constraint, query.draft);
+  const versions = versionsFor(ctx.config, slug);
+  const includeDrafts = query.draft === true || options.draft === true;
+  assertDraftAccess(ctx, versions.drafts, includeDrafts, options.overrideAccess);
+
+  const where = buildWhere(ctx, table, query, access.constraint, versions.drafts && !includeDrafts);
   const totalDocs = await countRows(ctx.client, table.name, where, ctx.engine);
 
   const columns =
@@ -180,6 +199,10 @@ export async function findDocumentByID(
   );
   if (!access.allowed) return null;
 
+  const versions = versionsFor(ctx.config, slug);
+  const includeDrafts = options.draft === true;
+  assertDraftAccess(ctx, versions.drafts, includeDrafts, options.overrideAccess);
+
   const doc = await loadDocument(ctx, slug, id, {
     depth: options.depth ?? 1,
     locale: options.locale,
@@ -187,6 +210,10 @@ export async function findDocumentByID(
   });
 
   if (!doc) return null;
+
+  if (versions.drafts && !includeDrafts && !options.overrideAccess && doc._status !== 'published') {
+    return null;
+  }
 
   if (access.constraint) {
     const constraints = constraintToSql(access.constraint, ctx.spec, ctx.engine, table.name);
@@ -231,7 +258,7 @@ export async function updateDocument(
     previousData: previous,
   });
 
-  const merged = mergeDocument(previous, payload);
+  const merged = options.replace === true ? payload : mergeDocument(previous, payload);
   const validated = validate(ctx, slug, merged);
   await assertUnique(ctx, table, validated, id);
 
@@ -248,10 +275,19 @@ export async function updateDocument(
       depth: options.depth ?? 1,
       locale: options.locale,
     });
-    await runHooks(ctx, slug, 'afterChange', payload, {
-      operation: 'update',
-      doc: doc ?? { id },
-      previousData: previous,
+    if (options.autosave !== true) {
+      await runHooks(ctx, slug, 'afterChange', payload, {
+        operation: 'update',
+        doc: doc ?? { id },
+        previousData: previous,
+      });
+    }
+
+    await recordVersion(trxContext, slug, id, {
+      status: options.autosave === true ? 'draft' : status,
+      snapshot: doc ?? { id },
+      autosave: options.autosave === true,
+      locale: options.locale ?? null,
     });
   });
 
@@ -576,7 +612,7 @@ export function buildWhere(
   table: TableSpec,
   query: FindQuery,
   constraint: Parameters<typeof constraintToSql>[0] | undefined,
-  draft: boolean | undefined,
+  publishedOnly: boolean | undefined,
 ): { sql: string; bindings: unknown[] } {
   const parts: { sql: string; bindings: unknown[] }[] = [];
 
@@ -601,7 +637,7 @@ export function buildWhere(
     }
   }
 
-  if (draft === false) {
+  if (publishedOnly) {
     parts.push({ sql: `${ident('_status', ctx.engine)} = ?`, bindings: ['published'] });
   }
 
@@ -757,6 +793,19 @@ function resolveColumnName(ctx: RepoContext, table: TableSpec, field: string): s
 }
 
 /* ------------------------------------------------------------------- access */
+
+function assertDraftAccess(
+  ctx: RepoContext,
+  draftsEnabled: boolean,
+  includeDrafts: boolean,
+  overrideAccess: boolean | undefined,
+): void {
+  if (!draftsEnabled || !includeDrafts) return;
+  if (overrideAccess) return;
+  if (!ctx.user) {
+    throw new CmsForbiddenError('drafts can only be read by an authenticated user');
+  }
+}
 
 function collectionAccess(ctx: RepoContext, slug: string) {
   return (ctx.config.collections ?? []).find((item) => item.slug === slug)?.access;

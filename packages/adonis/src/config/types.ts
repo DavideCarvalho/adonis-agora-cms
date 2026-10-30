@@ -314,6 +314,8 @@ export type VersionsConfig = {
   autosave?: false | { interval: number };
   /** `null` keeps full history. A number prunes per document, always keeping the last publish. */
   retention?: number | null;
+  /** Advisory document lock TTL in seconds (app-level only). */
+  lockTtl?: number;
 };
 
 export type CollectionAdmin = {
@@ -468,6 +470,14 @@ export type ResolvedDbConfig = {
   renames: Record<string, string>;
 };
 
+export type ResolvedVersions = {
+  drafts: boolean;
+  autosave: false | { interval: number };
+  /** `null` keeps full history. */
+  retention: number | null;
+  lockTtl: number;
+};
+
 export type ResolvedLocalization = {
   locales: readonly LocaleCode[];
   defaultLocale: LocaleCode;
@@ -493,6 +503,26 @@ export function resolveLocalization(config: CmsConfig): ResolvedLocalization {
     fallback: config.localization?.fallback ?? true,
     localizedRequired: config.localization?.localizedRequired ?? 'default',
   };
+}
+
+/** Collection-level `versions` wins over the app-level default. */
+export function resolveVersions(
+  config: CmsConfig,
+  collectionVersions?: VersionsConfig,
+): ResolvedVersions {
+  const merged: VersionsConfig = { ...config.versions, ...collectionVersions };
+  return {
+    drafts: merged.drafts ?? false,
+    autosave: merged.autosave ?? false,
+    retention: merged.retention ?? null,
+    lockTtl: config.versions?.lockTtl ?? 300,
+  };
+}
+
+/** Convenience: versions config for a collection slug. */
+export function versionsFor(config: CmsConfig, slug: string): ResolvedVersions {
+  const collection = (config.collections ?? []).find((item) => item.slug === slug);
+  return resolveVersions(config, collection?.versions);
 }
 
 /** Default resolver: `acme.example.com` → `acme`; `example.com` → `null`. */

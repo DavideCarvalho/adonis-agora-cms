@@ -79,7 +79,7 @@ export async function applyPlan(
 ): Promise<void> {
   await withTransaction(client, options.engine, async (trx) => {
     for (const table of plan.creates) {
-      await createTable(trx, table, options.engine);
+      await createTableFromSpec(trx, table, options.engine);
     }
 
     for (const alter of plan.alters) {
@@ -92,7 +92,11 @@ export async function applyPlan(
   });
 }
 
-async function createTable(client: CmsKnex, table: TableSpec, engine: Engine): Promise<void> {
+export async function createTableFromSpec(
+  client: CmsKnex,
+  table: TableSpec,
+  engine: Engine,
+): Promise<void> {
   const callback = (raw: unknown) => {
     const builder = raw as TableBuilderLike;
     for (const column of table.columns) {

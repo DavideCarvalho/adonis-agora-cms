@@ -8,9 +8,10 @@ Part of the [Agora](https://github.com/DavideCarvalho) ecosystem, alongside
 [`@adonis-agora/filter`](https://github.com/DavideCarvalho/adonis-agora-filter),
 `@adonis-agora/authkit` and `@adonis-agora/authz`.
 
-> **Status:** schema foundation, data layer and REST shipped — Local API, access, hooks, row
-> tenancy and generated routes are working. Drafts/versions, i18n runtime, admin and
-> integrations are next — see the [architecture spec](./docs/specs/2026-10-30-adonis-cms-design.md).
+> **Status:** schema, data layer, REST and versioning are shipped — Local API, access, hooks,
+> row tenancy, generated routes, drafts, publish/restore and locks are working. i18n runtime,
+> admin and integrations are next — see the
+> [architecture spec](./docs/specs/2026-10-30-adonis-cms-design.md).
 
 ## The idea
 

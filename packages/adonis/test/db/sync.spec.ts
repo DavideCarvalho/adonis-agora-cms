@@ -43,10 +43,14 @@ describe('syncCmsSchema', () => {
     await syncCmsSchema(asCmsKnex(knex), spec, { skipState: true });
 
     const introspection = await introspectSqlite(asCmsKnex(knex));
-    expect(introspection.tables.map((table) => table.name).sort()).toEqual([
-      'cms_posts',
-      'cms_posts__tags',
-    ]);
+    expect(introspection.tables.map((table) => table.name).sort()).toEqual(
+      expect.arrayContaining([
+        'cms_posts',
+        'cms_posts__tags',
+        'cms_versions',
+        'cms_document_locks',
+      ]),
+    );
 
     const second = await syncCmsSchema(asCmsKnex(knex), spec, { skipState: true });
     expect(planIsEmpty(second)).toBe(true);

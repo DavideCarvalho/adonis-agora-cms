@@ -127,3 +127,105 @@ function requireParam(value: string | undefined, name: string): string {
   if (!value) throw new CmsNotFoundError(`missing "${name}" parameter`);
   return value;
 }
+
+export async function handleCollectionPublish(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    const doc = await cms.collection(slug).publish(id);
+    return { status: 200, body: doc };
+  });
+}
+
+export async function handleCollectionUnpublish(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    const doc = await cms.collection(slug).unpublish(id);
+    return { status: 200, body: doc };
+  });
+}
+
+export async function handleCollectionVersions(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    const query = request.query;
+    const options: { locale?: string | null; limit?: number; page?: number } = {};
+    if (typeof query.locale === 'string') options.locale = query.locale;
+    if (typeof query.limit === 'string') options.limit = Number(query.limit);
+    if (typeof query.page === 'string') options.page = Number(query.page);
+
+    const result = await cms.collection(slug).versions(id, options);
+    return { status: 200, body: result };
+  });
+}
+
+export async function handleCollectionVersion(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    const version = Number(requireParam(request.params.version, 'version'));
+    const result = await cms.collection(slug).versions(id, { limit: 100 });
+    const record = result.docs.find((item) => item.version === version);
+
+    if (!record) {
+      return {
+        status: 404,
+        body: { error: { code: 'CMS_NOT_FOUND', message: `version ${version} not found` } },
+      };
+    }
+
+    return { status: 200, body: record };
+  });
+}
+
+export async function handleCollectionRestoreVersion(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    const version = Number(requireParam(request.params.version, 'version'));
+    const doc = await cms.collection(slug).restoreVersion(id, version);
+    return { status: 200, body: doc };
+  });
+}
+
+export async function handleCollectionLock(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    const ttl = typeof request.body?.ttlSeconds === 'number' ? request.body.ttlSeconds : undefined;
+    const lock = await cms.collection(slug).lock(id, ttl);
+    return { status: 200, body: lock };
+  });
+}
+
+export async function handleCollectionUnlock(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    await cms.collection(slug).unlock(id);
+    return { status: NO_CONTENT, body: null };
+  });
+}

@@ -205,6 +205,13 @@ describe('route wiring', () => {
       'GET /api/cms/collections/:slug/:id',
       'PATCH /api/cms/collections/:slug/:id',
       'DELETE /api/cms/collections/:slug/:id',
+      'POST /api/cms/collections/:slug/:id/publish',
+      'POST /api/cms/collections/:slug/:id/unpublish',
+      'GET /api/cms/collections/:slug/:id/versions',
+      'GET /api/cms/collections/:slug/:id/versions/:version',
+      'POST /api/cms/collections/:slug/:id/versions/:version/restore',
+      'POST /api/cms/collections/:slug/:id/lock',
+      'DELETE /api/cms/collections/:slug/:id/lock',
       'GET /api/cms/globals/:slug',
       'PATCH /api/cms/globals/:slug',
     ]);
