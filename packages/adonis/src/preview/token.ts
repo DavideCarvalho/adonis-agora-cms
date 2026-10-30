@@ -4,6 +4,8 @@ export type PreviewClaims = {
   collection: string;
   documentId: string;
   userId: string | null;
+  /** Tenant the token was issued for; never read from the request. */
+  tenant: string | null;
   /** Unix ms. */
   exp: number;
 };

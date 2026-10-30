@@ -1,5 +1,14 @@
 export type { AdminCollection, AdminField, AdminPermission, AdminSchema } from './admin/schema.js';
 export { toAdminSchema } from './admin/schema.js';
+export type { ApiTokenPrincipal, CreateApiTokenOptions } from './auth/api_tokens.js';
+export {
+  createApiToken,
+  generateApiToken,
+  hashApiToken,
+  listApiTokens,
+  resolveApiToken,
+  tokenCan,
+} from './auth/api_tokens.js';
 export { collection, global, labels } from './config/collection.js';
 export { defineConfig } from './config/define_config.js';
 export { block, fields } from './config/fields.js';

@@ -66,6 +66,7 @@ export async function handlePreviewToken(
         collection: slug,
         documentId: id,
         userId: userId === undefined || userId === null ? null : String(userId),
+        tenant: cms.tenant,
         exp: Date.now() + ttlSeconds * 1000,
       },
       livePreview.secret,

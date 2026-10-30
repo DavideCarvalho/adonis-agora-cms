@@ -92,8 +92,28 @@ export function locksTable(spec: SystemTableContext): TableSpec {
   };
 }
 
+/** Application tokens — the principal a content client authenticates with. */
+export function apiTokensTable(spec: SystemTableContext): TableSpec {
+  return {
+    name: `${spec.tablePrefix}api_tokens`,
+    kind: 'system',
+    slug: 'api_tokens',
+    columns: [
+      column('id', 'increment'),
+      column('name', 'string', { length: 64 }),
+      column('token_hash', 'string', { length: 64, unique: true }),
+      column('tenant', 'string', { length: 64, nullable: true, index: true }),
+      column('abilities', 'json'),
+      column('expires_at', 'timestamp', { nullable: true }),
+      column('created_at', 'timestamp', { default: { kind: 'now' } }),
+      column('last_used_at', 'timestamp', { nullable: true }),
+    ],
+    indexes: [{ name: `${spec.tablePrefix}api_tokens_tenant_idx`, columns: ['tenant'] }],
+  };
+}
+
 export function systemTables(spec: SystemTableContext): TableSpec[] {
-  return [versionsTable(spec), locksTable(spec)];
+  return [versionsTable(spec), locksTable(spec), apiTokensTable(spec)];
 }
 
 /** Creates the CMS-owned tables that are outside the compiled spec (idempotent). */

@@ -6,7 +6,13 @@ import { handlePreviewToken } from '../../src/rest/handlers.js';
 import { createTestCms } from '../../src/testing/create_test_cms.js';
 import { repositoryConfig } from '../fixtures/repo_config.js';
 
-const claims = { collection: 'posts', documentId: 'p1', userId: 'u1', exp: Date.now() + 60_000 };
+const claims = {
+  collection: 'posts',
+  documentId: 'p1',
+  userId: 'u1',
+  tenant: 'acme',
+  exp: Date.now() + 60_000,
+};
 
 describe('preview token', () => {
   test('signs and verifies a token', () => {
@@ -63,6 +69,7 @@ describe('GET preview token handler', () => {
         collection: 'posts',
         documentId: 'p1',
         userId: 'u1',
+        tenant: null,
       });
       expect(body.url.startsWith('/preview?token=')).toBe(true);
     } finally {

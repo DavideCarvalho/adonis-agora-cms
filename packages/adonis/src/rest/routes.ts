@@ -34,10 +34,12 @@ export type CmsRouter = {
 
 export type RouteContext = {
   params: Record<string, string>;
+  method?: string;
   request: {
     qs(): Record<string, unknown>;
     body(): unknown;
     hostname?(): string;
+    headers?(): Record<string, string>;
   };
   response: {
     status(code: number): {
@@ -49,6 +51,10 @@ export type RouteContext = {
 
 export type RegisterCmsRoutesOptions = {
   prefix?: string;
+  /** Resolves `Authorization: Bearer` into an app principal (tenant comes from the token). */
+  resolveToken?: (
+    token: string,
+  ) => Promise<{ tenant: string | null; abilities: readonly string[] } | null>;
   /**
    * Resolves the request principal. The tenant is what makes the same route serve
    * `acme.example.com` and `globex.example.com` without extra routing.
@@ -76,7 +82,20 @@ export function registerCmsRoutes(
   const prefix = options.prefix ?? '/api/cms';
   const dispatch = (handler: Handler) => async (context: unknown) => {
     const ctx = context as RouteContext;
-    const scoped = await scope(cms, ctx, options);
+    const method = (ctx.method ?? 'GET').toUpperCase();
+    const authorization = ctx.request.headers?.().authorization ?? '';
+    const bearer = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
+    const principal = bearer && options.resolveToken ? await options.resolveToken(bearer) : null;
+
+    if (principal && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
+      if (!principal.abilities.includes('write')) {
+        const writer = ctx.response.status(403);
+        writer.json({ error: { code: 'CMS_FORBIDDEN', message: 'token is read-only' } });
+        return;
+      }
+    }
+
+    const scoped = principal ? cms.forTenant(principal.tenant) : await scope(cms, ctx, options);
     const response = await handler(scoped, toRequest(ctx));
 
     const writer = ctx.response.status(response.status);

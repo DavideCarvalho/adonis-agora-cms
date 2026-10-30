@@ -101,6 +101,8 @@ export type Cms<C extends CmsConfig = CmsConfig> = {
   as(user: unknown): Cms<C>;
   /** Recompiles the config (dev tooling / `cms.refresh()`). */
   refresh(): Promise<SchemaSpec>;
+  /** Internal repository context, for token management and ops tooling. */
+  repoContext(): RepoContext;
 };
 
 type Overrides = Partial<
@@ -264,6 +266,10 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
       async refresh() {
         spec = compileSchema(ctx.config, { engine: ctx.engine });
         return spec;
+      },
+
+      repoContext() {
+        return ctx;
       },
     };
   }

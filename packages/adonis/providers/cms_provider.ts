@@ -1,4 +1,5 @@
 import type { ApplicationService } from '@adonisjs/core/types';
+import { resolveApiToken } from '../src/auth/api_tokens.js';
 import type { CmsConfig } from '../src/config/types.js';
 import { resolveDbConfig, resolveTenancy } from '../src/config/types.js';
 import { validateConfig } from '../src/config/validate.js';
@@ -79,6 +80,7 @@ export default class CmsProvider {
 
     registerCmsRoutes(router, cms, {
       prefix: config.rest?.prefix ?? '/api/cms',
+      resolveToken: (token) => resolveApiToken(cms.repoContext(), token),
       resolveContext: async (context: RouteContext) => {
         const user = (context as { auth?: { user?: unknown } }).auth?.user ?? null;
         const hostname = context.request.hostname?.() ?? '';
