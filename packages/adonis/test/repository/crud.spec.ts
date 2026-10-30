@@ -63,7 +63,8 @@ describe('local API — create', () => {
     });
 
     const read = await cms.collection('posts').findByID(post.id);
-    const gallery = (read?.layout as { gallery: { link: unknown }[] }[])[0]?.gallery ?? [];
+    const layout = (read?.layout ?? []) as { gallery: { link: unknown }[] }[];
+    const gallery = layout[0]?.gallery ?? [];
 
     // The block stores the id; reading it back with depth resolves the document.
     expect(gallery[0]?.link).toMatchObject({ id: page.id, title: 'Linked page' });
