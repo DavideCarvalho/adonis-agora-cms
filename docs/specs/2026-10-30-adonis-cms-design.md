@@ -899,10 +899,10 @@ esconde botões sem duplicar a lógica.
 
 Dois modos de servir o painel, decididos pela existência do entry no app:
 
-| Modo | Quando | Build | HMR |
-|---|---|---|---|
-| `embedded` (default) | sem `resources/js/admin/entry.*` | SPA pré-buildada dentro do pacote | nenhum (não há o que editar) |
-| `ejected` | `node ace cms:eject-admin` | `vite build` do próprio app | Vite middleware + React Fast Refresh |
+| Modo                 | Quando                           | Build                             | HMR                                  |
+| -------------------- | -------------------------------- | --------------------------------- | ------------------------------------ |
+| `embedded` (default) | sem `resources/js/admin/entry.*` | SPA pré-buildada dentro do pacote | nenhum (não há o que editar)         |
+| `ejected`            | `node ace cms:eject-admin`       | `vite build` do próprio app       | Vite middleware + React Fast Refresh |
 
 `cms:eject-admin` cria `resources/js/admin/entry.tsx` e injeta `cmsAdmin()` no `vite.config.ts`
 (aliases, dedupe de React, base `/admin`). Sem entry, nada muda para quem não customiza; com
@@ -913,10 +913,10 @@ desenvolvimento e serve o build do app em produção.
 
 ```ts
 // config/cms.ts — serializável, nunca importa React
-fields.defineField({ type: 'color', admin: { component: 'color' } })
+fields.defineField({ type: 'color', admin: { component: 'color' } });
 
 // resources/js/admin/entry.tsx — imports reais, tipados
-registerField('color', ColorInput)
+registerField('color', ColorInput);
 ```
 
 O endpoint de schema envia `admin.component: 'color'`; o painel resolve no `FieldRegistry`. Os
@@ -930,12 +930,12 @@ typecheck, rename seguro e Fast Refresh — com o mesmo esforço de editar um pa
 
 **O que liga no HMR do Adonis**
 
-| Mudança | Efeito | Mecanismo |
-|---|---|---|
-| componente de campo (`ColorInput.tsx`) | Fast Refresh, estado do form preservado | Vite |
-| `entry.tsx` / registro | Fast Refresh (recarrega o módulo) | Vite |
-| `config/cms.ts` ou arquivo que ele importa | restart do servidor (~300ms) + sync automático | watch do `serve --watch` / `--hmr` |
-| campo novo no config | painel refaz `/api/cms/schema` e renderiza | TanStack Query invalida no reconnect |
+| Mudança                                    | Efeito                                         | Mecanismo                            |
+| ------------------------------------------ | ---------------------------------------------- | ------------------------------------ |
+| componente de campo (`ColorInput.tsx`)     | Fast Refresh, estado do form preservado        | Vite                                 |
+| `entry.tsx` / registro                     | Fast Refresh (recarrega o módulo)              | Vite                                 |
+| `config/cms.ts` ou arquivo que ele importa | restart do servidor (~300ms) + sync automático | watch do `serve --watch` / `--hmr`   |
+| campo novo no config                       | painel refaz `/api/cms/schema` e renderiza     | TanStack Query invalida no reconnect |
 
 Loop completo em dev: salva config → servidor reinicia → `managed` aplica o plano → admin
 refetcha o schema → o campo aparece. Sem comando manual.
