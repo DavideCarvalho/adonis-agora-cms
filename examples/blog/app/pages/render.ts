@@ -103,7 +103,7 @@ function renderBlocks(value: unknown, field: string): string {
       const render = blocks[String(block.type ?? '')];
       // Unknown block types render nothing rather than guessing — the map is the contract.
       if (!render) return '';
-      return render(block, `${field}[${index}]`);
+      return `<div data-cms-block="${field}[${index}]">${render(block, `${field}[${index}]`)}</div>`;
     })
     .join('');
 }

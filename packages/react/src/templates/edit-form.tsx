@@ -89,6 +89,34 @@ export function EditForm({
     setValues((current) => setByPath({ ...current }, path, value));
   };
 
+  /** Structural edits from the preview toolbar mutate the same values the form edits. */
+  const mutateRows = (field: string, next: (rows: unknown[]) => unknown[]) =>
+    setValues((current) => {
+      const rows = getByPath(current, field);
+      if (!Array.isArray(rows)) return current;
+      const copy = { ...current };
+      setByPath(copy, field, next([...rows]));
+      return copy;
+    });
+
+  const moveBlock = (field: string, from: number, to: number) =>
+    mutateRows(field, (rows) => {
+      if (from < 0 || to < 0 || from >= rows.length || to >= rows.length) return rows;
+      const [row] = rows.splice(from, 1);
+      if (row !== undefined) rows.splice(to, 0, row);
+      return rows;
+    });
+
+  const deleteBlock = (field: string, index: number) =>
+    mutateRows(field, (rows) => rows.filter((_, position) => position !== index));
+
+  const focusBlock = (path: string) => {
+    const form = formRef.current;
+    if (!form) return;
+    const first = form.querySelector<HTMLElement>(`[id^="${path}."]`);
+    if (first) focusField(first.id);
+  };
+
   const visibleFields = collection.fields.filter((field) => !field.hidden);
 
   return (
@@ -215,6 +243,9 @@ export function EditForm({
           open={previewOpen}
           onClose={() => setPreviewOpen(false)}
           onFocusField={focusField}
+          onEditBlock={focusBlock}
+          onMoveBlock={moveBlock}
+          onDeleteBlock={deleteBlock}
         />
       ) : null}
     </form>

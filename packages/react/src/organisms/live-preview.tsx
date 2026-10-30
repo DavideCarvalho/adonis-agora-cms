@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Button } from '../atoms/index.js';
 import { useMessages } from '../context.js';
-import { PREVIEW_BRIDGE_SOURCE, PREVIEW_EDIT_MESSAGE } from '../preview.js';
+import {
+  PREVIEW_BRIDGE_SOURCE,
+  PREVIEW_DELETE_BLOCK_MESSAGE,
+  PREVIEW_EDIT_BLOCK_MESSAGE,
+  PREVIEW_EDIT_MESSAGE,
+  PREVIEW_MOVE_BLOCK_MESSAGE,
+} from '../preview.js';
 
 export type LivePreviewProps = {
   url: string;
@@ -10,6 +16,12 @@ export type LivePreviewProps = {
   onClose: () => void;
   /** Called when the page reports a click on a `data-cms-field` region. */
   onFocusField?: ((field: string) => void) | undefined;
+  /** Called when the block toolbar asks to edit a block (`layout[2]`). */
+  onEditBlock?: ((path: string) => void) | undefined;
+  /** Called when a block is dragged to another position in the page. */
+  onMoveBlock?: ((field: string, from: number, to: number) => void) | undefined;
+  /** Called when the block toolbar deletes a block. */
+  onDeleteBlock?: ((field: string, index: number) => void) | undefined;
 };
 
 /**
@@ -18,7 +30,16 @@ export type LivePreviewProps = {
  * into view in the form. Same-origin frames get the bridge injected automatically; a site on
  * another origin calls `previewBridge()` from `@adonis-agora/cms-react/preview` itself.
  */
-export function LivePreview({ url, data, open, onClose, onFocusField }: LivePreviewProps) {
+export function LivePreview({
+  url,
+  data,
+  open,
+  onClose,
+  onFocusField,
+  onEditBlock,
+  onMoveBlock,
+  onDeleteBlock,
+}: LivePreviewProps) {
   const t = useMessages();
   const frame = useRef<HTMLIFrameElement>(null);
 
@@ -31,18 +52,41 @@ export function LivePreview({ url, data, open, onClose, onFocusField }: LivePrev
   }, [data, open, url]);
 
   useEffect(() => {
-    if (!open || !onFocusField) return;
+    if (!open) return;
 
     const onMessage = (event: MessageEvent) => {
-      const payload = event.data as { type?: string; field?: unknown } | null;
-      if (payload?.type !== PREVIEW_EDIT_MESSAGE) return;
-      if (typeof payload.field !== 'string' || !payload.field) return;
-      onFocusField(payload.field);
+      const payload = event.data as {
+        type?: string;
+        field?: unknown;
+        index?: unknown;
+        from?: unknown;
+        to?: unknown;
+        path?: unknown;
+      } | null;
+      if (!payload || typeof payload.type !== 'string') return;
+
+      const field = typeof payload.field === 'string' ? payload.field : null;
+
+      if (payload.type === PREVIEW_EDIT_MESSAGE && field) {
+        onFocusField?.(field);
+        return;
+      }
+      if (payload.type === PREVIEW_EDIT_BLOCK_MESSAGE && typeof payload.path === 'string') {
+        onEditBlock?.(payload.path);
+        return;
+      }
+      if (payload.type === PREVIEW_DELETE_BLOCK_MESSAGE && field) {
+        onDeleteBlock?.(field, Number(payload.index));
+        return;
+      }
+      if (payload.type === PREVIEW_MOVE_BLOCK_MESSAGE && field) {
+        onMoveBlock?.(field, Number(payload.from), Number(payload.to));
+      }
     };
 
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [open, onFocusField]);
+  }, [open, onFocusField, onEditBlock, onMoveBlock, onDeleteBlock]);
 
   const injectBridge = useCallback(() => {
     const doc = frame.current?.contentDocument;
