@@ -13,3 +13,7 @@ pnpm-debug.log*
 
 test-results/
 playwright-report/
+
+.adonisjs/
+examples/blog/build/
+*.sqlite3
