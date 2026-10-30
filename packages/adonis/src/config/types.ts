@@ -438,8 +438,15 @@ export type ResolvedTenancy = {
   connection: ((tenantId: TenantId) => string) | null;
 };
 
+export type RestConfig = {
+  enabled?: boolean;
+  /** Base path for the generated routes. Defaults to `/api/cms`. */
+  prefix?: string;
+};
+
 export type CmsConfigInput = {
   collections?: readonly CollectionConfig[];
+  rest?: RestConfig;
   globals?: readonly GlobalConfig[];
   db?: DbConfig;
   admin?: AdminConfig;

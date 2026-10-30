@@ -61,19 +61,6 @@ export type FindResult = {
   hasPrevPage: boolean;
 };
 
-const OPERATORS: Record<string, string> = {
-  equals: '=',
-  not_equals: '<>',
-  in: 'in',
-  not_in: 'not in',
-  like: 'like',
-  not_like: 'not like',
-  greater_than: '>',
-  greater_than_equal: '>=',
-  less_than: '<',
-  less_than_equal: '<=',
-};
-
 /* ------------------------------------------------------------------- create */
 
 export async function createDocument(
@@ -660,40 +647,79 @@ function fieldCondition(
   const entry = resolveEntry(ctx.spec, field, table.name);
   if (!entry) return { sql: '1 = 0', bindings: [] };
 
-  const operators = isOperatorObject(value)
-    ? Object.entries(value)
-    : ([['equals', value]] as const);
-  const parts: { sql: string; bindings: unknown[] }[] = [];
+  const conditions = isOperatorObject(value)
+    ? Object.entries(value).map(([operator, operand]) =>
+        compileOperator(entry.column, operator, operand),
+      )
+    : [compileOperator(entry.column, 'equals', value)];
 
-  for (const [operator, operand] of operators) {
-    const sqlOperator = OPERATORS[operator];
-    if (!sqlOperator) continue;
+  const active = conditions.filter((item): item is { sql: string; bindings: unknown[] } =>
+    Boolean(item),
+  );
+  if (active.length === 0) return { sql: '1 = 0', bindings: [] };
 
-    if (sqlOperator === 'in' || sqlOperator === 'not_in') {
+  return {
+    sql: active
+      .map((item) => `(${wrapEntry(ctx, table, entry, item.sql, item.bindings).sql})`)
+      .join(' and '),
+    bindings: active.flatMap((item) => item.bindings),
+  };
+}
+
+function compileOperator(
+  column: string,
+  operator: string,
+  operand: unknown,
+): { sql: string; bindings: unknown[] } | null {
+  const quoted = column;
+
+  switch (operator) {
+    case 'equals':
+      return operand === null
+        ? { sql: `${quoted} is null`, bindings: [] }
+        : { sql: `${quoted} = ?`, bindings: [operand] };
+    case 'not_equals':
+      return operand === null
+        ? { sql: `${quoted} is not null`, bindings: [] }
+        : { sql: `${quoted} <> ?`, bindings: [operand] };
+    case 'greater_than':
+      return { sql: `${quoted} > ?`, bindings: [operand] };
+    case 'greater_than_equal':
+      return { sql: `${quoted} >= ?`, bindings: [operand] };
+    case 'less_than':
+      return { sql: `${quoted} < ?`, bindings: [operand] };
+    case 'less_than_equal':
+      return { sql: `${quoted} <= ?`, bindings: [operand] };
+    case 'in':
+    case 'not_in': {
       const list = Array.isArray(operand) ? operand : [operand];
       if (list.length === 0) {
-        parts.push({ sql: sqlOperator === 'in' ? '1 = 0' : '1 = 1', bindings: [] });
-        continue;
+        return { sql: operator === 'in' ? '1 = 0' : '1 = 1', bindings: [] };
       }
-      const condition = `${ident(entry.column, ctx.engine)} ${sqlOperator} (${placeholders(list.length)})`;
-      parts.push(wrapEntry(ctx, table, entry, condition, list));
-      continue;
+      const keyword = operator === 'in' ? 'in' : 'not in';
+      return { sql: `${quoted} ${keyword} (${placeholders(list.length)})`, bindings: list };
     }
-
-    if (operand === null && operator === 'equals') {
-      parts.push(wrapEntry(ctx, table, entry, `${ident(entry.column, ctx.engine)} is null`, []));
-      continue;
-    }
-
-    const condition = `${ident(entry.column, ctx.engine)} ${sqlOperator} ?`;
-    parts.push(wrapEntry(ctx, table, entry, condition, [operand]));
+    case 'like':
+      return { sql: `${quoted} like ?`, bindings: [operand] };
+    case 'not_like':
+      return { sql: `${quoted} not like ?`, bindings: [operand] };
+    case 'contains':
+      return { sql: `${quoted} like ?`, bindings: [`%${String(operand)}%`] };
+    case 'not_contains':
+      return { sql: `${quoted} not like ?`, bindings: [`%${String(operand)}%`] };
+    case 'icontains':
+      return { sql: `lower(${quoted}) like lower(?)`, bindings: [`%${String(operand)}%`] };
+    case 'starts_with':
+      return { sql: `${quoted} like ?`, bindings: [`${String(operand)}%`] };
+    case 'ends_with':
+      return { sql: `${quoted} like ?`, bindings: [`%${String(operand)}`] };
+    case 'is_null':
+      return { sql: `${quoted} is null`, bindings: [] };
+    case 'is_not_null':
+      return { sql: `${quoted} is not null`, bindings: [] };
+    default:
+      return null;
   }
-
-  if (parts.length === 0) return { sql: '1 = 0', bindings: [] };
-  return {
-    sql: parts.map((part) => `(${part.sql})`).join(' and '),
-    bindings: parts.flatMap((part) => part.bindings),
-  };
 }
 
 function wrapEntry(
@@ -820,12 +846,32 @@ function getPath(data: Record<string, unknown>, path: string): unknown {
   }, data);
 }
 
+const OPERATOR_NAMES = new Set([
+  'equals',
+  'not_equals',
+  'greater_than',
+  'greater_than_equal',
+  'less_than',
+  'less_than_equal',
+  'in',
+  'not_in',
+  'like',
+  'not_like',
+  'contains',
+  'not_contains',
+  'icontains',
+  'starts_with',
+  'ends_with',
+  'is_null',
+  'is_not_null',
+]);
+
 function isOperatorObject(value: unknown): value is Record<string, unknown> {
   return (
     value !== null &&
     typeof value === 'object' &&
     !Array.isArray(value) &&
-    Object.keys(value).some((key) => key in OPERATORS)
+    Object.keys(value).some((key) => OPERATOR_NAMES.has(key))
   );
 }
 

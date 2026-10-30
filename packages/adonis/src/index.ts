@@ -24,6 +24,11 @@ export {
   updateDocument,
 } from './repository/crud.js';
 export { slugify, validateDocument } from './repository/validate.js';
+export { toRestError } from './rest/errors.js';
+export type { RestRequest, RestResponse } from './rest/handlers.js';
+export { parseFindQuery } from './rest/parse.js';
+export type { CmsRouter, RegisterCmsRoutesOptions, RouteContext } from './rest/routes.js';
+export { registerCmsRoutes } from './rest/routes.js';
 export { compileSchema, hasLocalizedDescendant, indexName } from './schema/compile.js';
 export { canonicalJson, hashSchema } from './schema/hash.js';
 export { buildQueryPlan } from './schema/query_plan.js';

@@ -47,6 +47,11 @@
       "types": "./dist/src/db/index.d.ts",
       "import": "./dist/src/db/index.js",
       "default": "./dist/src/db/index.js"
+    },
+    "./rest": {
+      "types": "./dist/src/rest/index.d.ts",
+      "import": "./dist/src/rest/index.js",
+      "default": "./dist/src/rest/index.js"
     }
   },
   "files": [

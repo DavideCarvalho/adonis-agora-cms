@@ -179,11 +179,11 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
       },
 
       forTenant(tenant) {
-        return instance({ tenant });
+        return instance({ ...overrides, tenant });
       },
 
       as(user) {
-        return instance({ user });
+        return instance({ ...overrides, user });
       },
 
       async refresh() {
