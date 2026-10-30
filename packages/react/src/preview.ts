@@ -59,8 +59,8 @@ const STYLE = `
 
 .cms-block-bar {
   position: fixed;
-  top: calc(var(--cms-top) - 11px);
-  left: calc(var(--cms-left) + 6px);
+  top: calc(var(--cms-top) + 2px);
+  left: calc(var(--cms-left) + 4px);
   z-index: 2147483000;
   display: flex;
   gap: 2px;
@@ -121,7 +121,7 @@ const STYLE = `
 .cms-block-add {
   position: fixed;
   left: calc(var(--cms-left) + var(--cms-width) / 2 - 11px);
-  top: calc(var(--cms-top) - 12px);
+  top: calc(var(--cms-top) + var(--cms-height) - 10px);
   transform: translateX(-50%);
   z-index: 2147483000;
   display: none;
