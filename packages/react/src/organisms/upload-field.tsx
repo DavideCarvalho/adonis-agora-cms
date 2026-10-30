@@ -3,6 +3,7 @@ import { Button, Field } from '../atoms/index.js';
 import { CmsApiError } from '../client.js';
 import { useCms } from '../context.js';
 import type { FieldComponentProps } from '../registry.js';
+import { fieldTitle } from '../registry.js';
 import type { CmsUpload } from '../types.js';
 import { RelationPicker } from './relation-picker.js';
 
@@ -82,7 +83,7 @@ export function UploadField({ field, value, onChange, error, id, disabled }: Fie
 
   return (
     <Field
-      label={field.name}
+      label={fieldTitle(field)}
       description={field.admin?.description}
       error={error ?? failure ?? undefined}
       required={field.required}

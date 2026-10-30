@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../atoms/index.js';
 import { useMessages } from '../context.js';
 import {
+  PREVIEW_BLOCK_MENU_MESSAGE,
   PREVIEW_BRIDGE_SOURCE,
   PREVIEW_DELETE_BLOCK_MESSAGE,
   PREVIEW_EDIT_BLOCK_MESSAGE,
   PREVIEW_EDIT_MESSAGE,
   PREVIEW_INSERT_BLOCK_MESSAGE,
+  PREVIEW_INSERT_HERE_MESSAGE,
   PREVIEW_MOVE_BLOCK_MESSAGE,
 } from '../preview.js';
 
@@ -25,6 +27,10 @@ export type LivePreviewProps = {
   onDeleteBlock?: ((field: string, index: number) => void) | undefined;
   /** Called when a block is dropped from the palette into the page. */
   onInsertBlock?: ((field: string, type: string, index: number) => void) | undefined;
+  /** Block slugs offered by the "+" menu inside the page. */
+  blockTypes?: readonly string[] | undefined;
+  /** Right-click → Duplicar. */
+  onDuplicateBlock?: ((field: string, index: number) => void) | undefined;
   /** `inline` drops the fixed panel chrome so the editor can place it in its own grid. */
   variant?: 'panel' | 'inline';
   /** Bump to reload the frame (a newly inserted block does not exist in the current DOM). */
@@ -47,11 +53,19 @@ export function LivePreview({
   onMoveBlock,
   onDeleteBlock,
   onInsertBlock,
+  blockTypes = [],
+  onDuplicateBlock,
   variant = 'panel',
   refreshKey = 0,
 }: LivePreviewProps) {
   const t = useMessages();
   const frame = useRef<HTMLIFrameElement>(null);
+  const body = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<
+    | { kind: 'insert'; field: string; index: number; x: number; y: number }
+    | { kind: 'block'; field: string; index: number; x: number; y: number }
+    | null
+  >(null);
 
   useEffect(() => {
     if (!open) return;
@@ -70,6 +84,8 @@ export function LivePreview({
         field?: unknown;
         blockType?: unknown;
         index?: unknown;
+        x?: unknown;
+        y?: unknown;
         from?: unknown;
         to?: unknown;
         path?: unknown;
@@ -97,6 +113,23 @@ export function LivePreview({
       if (payload.type === PREVIEW_INSERT_BLOCK_MESSAGE && field) {
         const type = typeof payload.blockType === 'string' ? payload.blockType : '';
         if (type) onInsertBlock?.(field, type, Number(payload.index));
+        return;
+      }
+      if (
+        (payload.type === PREVIEW_INSERT_HERE_MESSAGE ||
+          payload.type === PREVIEW_BLOCK_MENU_MESSAGE) &&
+        field
+      ) {
+        // The frame reports coordinates in its own viewport; the menu lives in the admin's.
+        const frameRect = frame.current?.getBoundingClientRect();
+        const hostRect = body.current?.getBoundingClientRect();
+        setMenu({
+          kind: payload.type === PREVIEW_INSERT_HERE_MESSAGE ? 'insert' : 'block',
+          field,
+          index: Number(payload.index),
+          x: (frameRect?.left ?? 0) - (hostRect?.left ?? 0) + Number(payload.x ?? 0),
+          y: (frameRect?.top ?? 0) - (hostRect?.top ?? 0) + Number(payload.y ?? 0),
+        });
       }
     };
 
@@ -133,7 +166,82 @@ export function LivePreview({
           </Button>
         </header>
       ) : null}
-      <div className="panel__body">
+      <div className="panel__body" ref={body}>
+        {menu ? (
+          <div
+            className="preview-menu"
+            style={{ left: Math.max(8, menu.x), top: Math.max(8, menu.y) }}
+            role="menu"
+          >
+            {menu.kind === 'insert' ? (
+              blockTypes.length === 0 ? (
+                <span className="preview-menu__empty">no blocks</span>
+              ) : (
+                blockTypes.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => {
+                      onInsertBlock?.(menu.field, type, menu.index);
+                      setMenu(null);
+                    }}
+                  >
+                    {type}
+                  </button>
+                ))
+              )
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onEditBlock?.(`${menu.field}[${menu.index}]`);
+                    setMenu(null);
+                  }}
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDuplicateBlock?.(menu.field, menu.index);
+                    setMenu(null);
+                  }}
+                >
+                  Duplicar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onMoveBlock?.(menu.field, menu.index, menu.index - 1);
+                    setMenu(null);
+                  }}
+                >
+                  Mover ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onMoveBlock?.(menu.field, menu.index, menu.index + 1);
+                    setMenu(null);
+                  }}
+                >
+                  Mover ↓
+                </button>
+                <button
+                  type="button"
+                  className="preview-menu__danger"
+                  onClick={() => {
+                    onDeleteBlock?.(menu.field, menu.index);
+                    setMenu(null);
+                  }}
+                >
+                  Excluir
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
         <iframe
           ref={frame}
           src={refreshKey > 0 ? `${url}${url.includes('?') ? '&' : '?'}_r=${refreshKey}` : url}

@@ -122,6 +122,18 @@ export function EditForm({
   const deleteBlock = (field: string, index: number) =>
     mutateRows(field, (rows) => rows.filter((_, position) => position !== index));
 
+  const duplicateBlock = (field: string, index: number) => {
+    mutateRows(field, (rows) => {
+      const row = rows[index];
+      if (!row) return rows;
+      const copy = JSON.parse(JSON.stringify(row)) as Record<string, unknown>;
+      delete copy.id;
+      delete copy._order;
+      return [...rows.slice(0, index + 1), copy, ...rows.slice(index + 1)];
+    });
+    setRefresh((value) => value + 1);
+  };
+
   const focusBlock = (path: string) => {
     const form = formRef.current;
     if (!form) return;
@@ -254,6 +266,7 @@ export function EditForm({
           }
           onInsert={insertBlock}
           onDelete={deleteBlock}
+          onDuplicate={duplicateBlock}
           onMove={moveBlock}
           onFocusField={(path) => {
             selectFromPath(path);
@@ -331,6 +344,7 @@ type VisualEditorProps = {
   onSetBlock: (index: number, row: Record<string, unknown>) => void;
   onInsert: (field: string, type: string, index: number) => void;
   onDelete: (field: string, index: number) => void;
+  onDuplicate: (field: string, index: number) => void;
   onMove: (field: string, from: number, to: number) => void;
   onFocusField: (path: string) => void;
   onEditBlock: (path: string) => void;
@@ -357,6 +371,7 @@ function VisualEditor({
   onSetBlock,
   onInsert,
   onDelete,
+  onDuplicate,
   onMove,
   onFocusField,
   onEditBlock,
@@ -433,7 +448,9 @@ function VisualEditor({
           onEditBlock={onEditBlock}
           onMoveBlock={onMove}
           onDeleteBlock={onDelete}
+          onDuplicateBlock={onDuplicate}
           onInsertBlock={onInsert}
+          blockTypes={definitions.map((item) => item.slug)}
         />
       </div>
 
@@ -586,8 +603,21 @@ function FieldRenderer({
   );
 }
 
+/**
+ * `layout[1].linhas[0].texto` -> `['layout', '1', 'linhas', '0', 'texto']`.
+ *
+ * Array indices are just segments, so the same walk works for root fields, rows and blocks nested
+ * inside blocks — which is what makes dragging inside a block possible.
+ */
+function pathSegments(path: string): string[] {
+  return path
+    .replace(/\[(\d+)\]/g, '.$1')
+    .split('.')
+    .filter(Boolean);
+}
+
 function getByPath(target: Record<string, unknown>, path: string): unknown {
-  return path.split('.').reduce<unknown>((current, segment) => {
+  return pathSegments(path).reduce<unknown>((current, segment) => {
     if (current && typeof current === 'object') {
       return (current as Record<string, unknown>)[segment];
     }
@@ -600,12 +630,22 @@ function setByPath(
   path: string,
   value: unknown,
 ): Record<string, unknown> {
-  const segments = path.split('.');
+  const segments = pathSegments(path);
   let cursor = target;
 
   for (let index = 0; index < segments.length - 1; index += 1) {
     const key = segments[index] ?? '';
-    if (!cursor[key] || typeof cursor[key] !== 'object') cursor[key] = {};
+    const next = segments[index + 1] ?? '';
+    const wantsArray = /^\d+$/.test(next);
+    const current = cursor[key];
+
+    if (!current || typeof current !== 'object') {
+      cursor[key] = wantsArray ? [] : {};
+    } else if (Array.isArray(current) && !wantsArray) {
+      // A row path into an array without an index is ambiguous; keep the array as-is.
+      cursor[key] = current;
+    }
+
     cursor = cursor[key] as Record<string, unknown>;
   }
 

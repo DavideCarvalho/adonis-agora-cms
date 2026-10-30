@@ -37,13 +37,21 @@ export function resolveFieldComponent(field: AdminField): ComponentType<FieldCom
   );
 }
 
+/**
+ * Human label for a field: the config `label` when present, otherwise the field name. Without it
+ * the form shows raw names like `acao` next to a uuid.
+ */
+export function fieldTitle(field: AdminField): string {
+  return typeof field.label === 'string' && field.label.length > 0 ? field.label : field.name;
+}
+
 const asString = (value: unknown): string =>
   value === undefined || value === null ? '' : String(value);
 
 export function TextField({ field, value, onChange, error, id }: FieldComponentProps) {
   return (
     <Field
-      label={field.name}
+      label={fieldTitle(field)}
       description={field.admin?.description}
       error={error}
       required={field.required}
@@ -62,7 +70,7 @@ export function TextField({ field, value, onChange, error, id }: FieldComponentP
 export function TextareaField({ field, value, onChange, error, id }: FieldComponentProps) {
   return (
     <Field
-      label={field.name}
+      label={fieldTitle(field)}
       description={field.admin?.description}
       error={error}
       required={field.required}
@@ -79,7 +87,7 @@ export function TextareaField({ field, value, onChange, error, id }: FieldCompon
 
 export function NumberField({ field, value, onChange, error, id }: FieldComponentProps) {
   return (
-    <Field label={field.name} error={error} required={field.required} htmlFor={id}>
+    <Field label={fieldTitle(field)} error={error} required={field.required} htmlFor={id}>
       <Input
         id={id}
         type="number"
@@ -94,7 +102,7 @@ export function NumberField({ field, value, onChange, error, id }: FieldComponen
 
 export function CheckboxField({ field, value, onChange, error, id }: FieldComponentProps) {
   return (
-    <Field label={field.name} error={error} htmlFor={id}>
+    <Field label={fieldTitle(field)} error={error} htmlFor={id}>
       <Checkbox
         id={id}
         checked={value === true}
@@ -108,7 +116,7 @@ export function DateField({ field, value, onChange, error, id }: FieldComponentP
   const date =
     value instanceof Date ? value.toISOString().slice(0, 10) : asString(value).slice(0, 10);
   return (
-    <Field label={field.name} error={error} required={field.required} htmlFor={id}>
+    <Field label={fieldTitle(field)} error={error} required={field.required} htmlFor={id}>
       <Input id={id} type="date" value={date} onChange={(event) => onChange(event.target.value)} />
     </Field>
   );
@@ -116,7 +124,7 @@ export function DateField({ field, value, onChange, error, id }: FieldComponentP
 
 export function SelectField({ field, value, onChange, error, id }: FieldComponentProps) {
   return (
-    <Field label={field.name} error={error} required={field.required} htmlFor={id}>
+    <Field label={fieldTitle(field)} error={error} required={field.required} htmlFor={id}>
       <Select
         id={id}
         value={asString(value)}
@@ -137,7 +145,7 @@ export function JsonField({ field, value, onChange, error, id }: FieldComponentP
   const text = typeof value === 'string' ? value : JSON.stringify(value ?? null, null, 2);
 
   return (
-    <Field label={field.name} error={error} htmlFor={id}>
+    <Field label={fieldTitle(field)} error={error} htmlFor={id}>
       <Textarea
         id={id}
         className="font-mono text-xs"

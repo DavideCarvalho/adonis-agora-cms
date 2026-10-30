@@ -1,11 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { Field, Select } from '../atoms/index.js';
 import { useCms } from '../context.js';
-import type { FieldComponentProps } from '../registry.js';
+import { useAdminSchema } from '../queries.js';
+import { type FieldComponentProps, fieldTitle } from '../registry.js';
 import type { AdminDocument } from '../types.js';
 
-function labelOf(doc: AdminDocument): string {
-  const candidate = doc.title ?? doc.name ?? doc.label ?? doc.slug;
+/** The related collection's `useAsTitle`, then the usual title-ish fields, then the id. */
+function labelOf(doc: AdminDocument, titleField?: string): string {
+  const configured = titleField ? doc[titleField] : undefined;
+  const candidate =
+    configured ?? doc.title ?? doc.rotulo ?? doc.titulo ?? doc.name ?? doc.label ?? doc.slug;
+
   return typeof candidate === 'string' && candidate.length > 0 ? candidate : String(doc.id);
 }
 
@@ -24,8 +29,11 @@ export function RelationPicker({
   disabled,
 }: FieldComponentProps) {
   const { client } = useCms();
+  const schema = useAdminSchema();
   const targets = Array.isArray(field.relationTo) ? field.relationTo : [field.relationTo ?? ''];
   const target = targets[0] ?? '';
+  const titleField = schema.data?.collections.find((item) => item.slug === target)?.admin
+    ?.useAsTitle;
 
   const query = useQuery({
     queryKey: ['cms', 'relation', target],
@@ -42,7 +50,7 @@ export function RelationPicker({
 
   return (
     <Field
-      label={field.name}
+      label={fieldTitle(field)}
       description={field.admin?.description}
       error={error ?? (query.isError ? 'failed to load options' : undefined)}
       required={field.required}
@@ -60,7 +68,7 @@ export function RelationPicker({
         <option value="">—</option>
         {(query.data?.docs ?? []).map((doc) => (
           <option key={doc.id} value={doc.id}>
-            {labelOf(doc)}
+            {labelOf(doc, titleField)}
           </option>
         ))}
       </Select>

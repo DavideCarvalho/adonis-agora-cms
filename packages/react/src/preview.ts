@@ -17,6 +17,10 @@ export const PREVIEW_EDIT_BLOCK_MESSAGE = 'cms:edit-block';
 export const PREVIEW_DELETE_BLOCK_MESSAGE = 'cms:delete-block';
 export const PREVIEW_MOVE_BLOCK_MESSAGE = 'cms:move-block';
 export const PREVIEW_INSERT_BLOCK_MESSAGE = 'cms:insert-block';
+/** "+" in the page: ask the admin for a block type to insert at that position. */
+export const PREVIEW_INSERT_HERE_MESSAGE = 'cms:insert-here';
+/** Right-click on a block: open the block menu in the admin. */
+export const PREVIEW_BLOCK_MENU_MESSAGE = 'cms:block-menu';
 /** MIME used when a block is dragged from the palette into the page. */
 export const PREVIEW_BLOCK_MIME = 'application/x-cms-block';
 
@@ -98,6 +102,32 @@ const STYLE = `
 }
 .cms-block-bar button[data-act="drag"]:active {
   cursor: grabbing;
+}
+
+.cms-block-add {
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  transform: translateX(-50%);
+  z-index: 2147483000;
+  display: none;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #c084fc;
+  border-radius: 50%;
+  background: #0c0c0f;
+  color: #c084fc;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+[${PREVIEW_BLOCK_ATTRIBUTE}]:hover > .cms-block-add {
+  display: grid;
+  place-items: center;
+}
+.cms-block-add:hover {
+  background: #c084fc;
+  color: #180a26;
 }`;
 
 /**
@@ -112,6 +142,8 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
   var DELETE_BLOCK = ${JSON.stringify(PREVIEW_DELETE_BLOCK_MESSAGE)};
   var MOVE_BLOCK = ${JSON.stringify(PREVIEW_MOVE_BLOCK_MESSAGE)};
   var INSERT_BLOCK = ${JSON.stringify(PREVIEW_INSERT_BLOCK_MESSAGE)};
+  var INSERT_HERE = ${JSON.stringify(PREVIEW_INSERT_HERE_MESSAGE)};
+  var BLOCK_MENU = ${JSON.stringify(PREVIEW_BLOCK_MENU_MESSAGE)};
   var MIME = ${JSON.stringify(PREVIEW_BLOCK_MIME)};
 
   if (document.querySelector('style[data-cms-preview-bridge]')) return;
@@ -301,17 +333,57 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
 
   var decorate = function () {
     document.querySelectorAll('[' + BLOCK + ']').forEach(function (node) {
-      if (node.querySelector(':scope > .cms-block-bar')) return;
+      if (!node.querySelector(':scope > .cms-block-bar')) {
+        var bar = document.createElement('div');
+        bar.className = 'cms-block-bar';
+        bar.innerHTML =
+          '<button type="button" data-act="drag" title="Drag to reorder">⠿</button>' +
+          '<button type="button" data-act="edit" title="Edit block">✎</button>' +
+          '<button type="button" data-act="delete" title="Delete block">🗑</button>';
+        node.appendChild(bar);
+      }
 
-      var bar = document.createElement('div');
-      bar.className = 'cms-block-bar';
-      bar.innerHTML =
-        '<button type="button" data-act="drag" title="Drag to reorder">⠿</button>' +
-        '<button type="button" data-act="edit" title="Edit block">✎</button>' +
-        '<button type="button" data-act="delete" title="Delete block">🗑</button>';
-      node.appendChild(bar);
+      if (!node.querySelector(':scope > .cms-block-add')) {
+        var add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'cms-block-add';
+        add.title = 'Insert a block here';
+        add.textContent = '+';
+        node.appendChild(add);
+      }
     });
   };
+
+  // "+" above a block: the admin opens the block-type menu at that spot.
+  document.addEventListener('click', function (event) {
+    var add = event.target && event.target.closest ? event.target.closest('.cms-block-add') : null;
+    if (!add) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    var node = add.closest('[' + BLOCK + ']');
+    var ref = node ? parse(node) : null;
+    if (!ref) return;
+
+    var rect = add.getBoundingClientRect();
+    post(INSERT_HERE, {
+      field: ref.field,
+      index: ref.index,
+      x: rect.left,
+      y: rect.bottom + 6,
+    });
+  }, true);
+
+  // Right-click a block: duplicate / move / delete, mirrored in the admin.
+  document.addEventListener('contextmenu', function (event) {
+    var node = event.target && event.target.closest ? event.target.closest('[' + BLOCK + ']') : null;
+    var ref = node ? parse(node) : null;
+    if (!ref) return;
+
+    event.preventDefault();
+    post(BLOCK_MENU, { field: ref.field, index: ref.index, x: event.clientX, y: event.clientY });
+  }, true);
 
   decorate();
 

@@ -15,7 +15,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Button, Field, Select } from '../atoms/index.js';
-import { resolveFieldComponent } from '../registry.js';
+import { fieldTitle, resolveFieldComponent } from '../registry.js';
 import type { AdminField } from '../types.js';
 
 type Row = Record<string, unknown>;
@@ -379,7 +379,7 @@ export function ArrayBuilder({
   };
 
   return (
-    <Field label={field.name} description={field.admin?.description}>
+    <Field label={fieldTitle(field)} description={field.admin?.description}>
       <Rows ids={ids} sensors={sensors} sortable={sortable} onDragEnd={onDragEnd}>
         {rows.map((row, index) => {
           const id = ids[index] ?? `row-${index}`;
@@ -484,7 +484,7 @@ export function BlocksBuilder({
   };
 
   return (
-    <Field label={field.name} description={field.admin?.description}>
+    <Field label={fieldTitle(field)} description={field.admin?.description}>
       <Rows ids={ids} sensors={sensors} sortable={sortable} onDragEnd={onDragEnd}>
         {rows.map((row, index) => {
           const id = ids[index] ?? `row-${index}`;

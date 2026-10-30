@@ -1,7 +1,7 @@
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Button, Field } from '../atoms/index.js';
-import type { FieldComponentProps } from '../registry.js';
+import { type FieldComponentProps, fieldTitle } from '../registry.js';
 
 type RichValue = { tiptap?: unknown } | null | undefined;
 
@@ -26,7 +26,12 @@ export function RichText({ field, value, onChange, error, id }: FieldComponentPr
   });
 
   return (
-    <Field label={field.name} description={field.admin?.description} error={error} htmlFor={id}>
+    <Field
+      label={fieldTitle(field)}
+      description={field.admin?.description}
+      error={error}
+      htmlFor={id}
+    >
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-1">
           <Button
