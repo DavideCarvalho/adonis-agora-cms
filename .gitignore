@@ -17,3 +17,6 @@ playwright-report/
 .adonisjs/
 examples/blog/build/
 *.sqlite3
+
+# example uploads
+/examples/blog/storage/

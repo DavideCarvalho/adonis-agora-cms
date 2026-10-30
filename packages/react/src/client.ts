@@ -1,4 +1,11 @@
-import type { AdminDocument, AdminSchema, ListQuery, ListResult, VersionRecord } from './types.js';
+import type {
+  AdminDocument,
+  AdminSchema,
+  CmsUpload,
+  ListQuery,
+  ListResult,
+  VersionRecord,
+} from './types.js';
 
 export class CmsApiError extends Error {
   readonly status: number;
@@ -89,6 +96,38 @@ export class AdminClient {
     id: string,
   ): Promise<{ token: string; url: string; expiresIn: number }> {
     return this.request('GET', `/collections/${slug}/${id}/preview-token`);
+  }
+
+  /**
+   * Uploads one file through `POST {baseUrl}/uploads` and returns the stored asset. Only
+   * available when the app configured `cms.uploads.handler`; otherwise the endpoint is absent
+   * and the dropzone stays disabled.
+   */
+  async upload(
+    file: File,
+    options: { field?: string; collection?: string } = {},
+  ): Promise<CmsUpload> {
+    const query = new URLSearchParams();
+    if (options.field) query.set('field', options.field);
+    if (options.collection) query.set('collection', options.collection);
+    const search = query.toString();
+
+    const headers: Record<string, string> = { accept: 'application/json' };
+    if (this.headers) Object.assign(headers, await this.headers());
+
+    const body = new FormData();
+    body.append('file', file, file.name);
+
+    const response = await this.fetchImpl(`${this.baseUrl}/uploads${search ? `?${search}` : ''}`, {
+      method: 'POST',
+      headers,
+      body,
+    });
+
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) throw new CmsApiError(response.status, payload);
+
+    return payload as CmsUpload;
   }
 
   async global(slug: string): Promise<AdminDocument> {

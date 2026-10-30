@@ -44,6 +44,23 @@ test('array and blocks rows reorder by drag and the order is persisted', async (
   await expect(headings.nth(0)).toHaveValue('first');
   await expect(headings.nth(2)).toHaveValue('third');
 
+  // Collapse hides the row body but keeps the row in place, with a summary in the header.
+  await page.getByRole('button', { name: 'Collapse row 2' }).click();
+  await expect(page.getByRole('textbox', { name: /^heading$/ })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Expand row 2' })).toBeVisible();
+  await page.getByRole('button', { name: 'Expand row 2' }).click();
+  await expect(page.getByRole('textbox', { name: /^heading$/ })).toHaveCount(3);
+
+  // Copy a row and paste it: a duplicate without the original id, appended at the end.
+  await page.getByRole('button', { name: 'Copy' }).first().click();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('_cmsClipboard')))
+    .toContain('"field":"sections"');
+
+  await page.getByRole('button', { name: 'Paste row' }).click();
+  await expect(headings).toHaveCount(4);
+  await expect(headings.nth(3)).toHaveValue('first');
+
   // Drag the third row onto the first position.
   const from = await page.getByRole('button', { name: 'Reorder row 3' }).boundingBox();
   const to = await page.getByRole('button', { name: 'Reorder row 1' }).boundingBox();
@@ -58,6 +75,7 @@ test('array and blocks rows reorder by drag and the order is persisted', async (
   await expect(headings.nth(0)).toHaveValue('third');
   await expect(headings.nth(1)).toHaveValue('first');
   await expect(headings.nth(2)).toHaveValue('second');
+  await expect(headings.nth(3)).toHaveValue('first');
 
   // Blocks use the same controller; the keyboard shortcut covers the no-pointer case.
   const blockHandle = page.getByRole('button', { name: 'Reorder block 2' });
@@ -83,5 +101,5 @@ test('array and blocks rows reorder by drag and the order is persisted', async (
       },
       { timeout: 15_000 },
     )
-    .toEqual({ sections: ['third', 'first', 'second'], layout: ['quote', 'hero'] });
+    .toEqual({ sections: ['third', 'first', 'second', 'first'], layout: ['quote', 'hero'] });
 });

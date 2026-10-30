@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button } from '../atoms/index.js';
 import { useMessages } from '../context.js';
 import { LivePreview } from '../organisms/live-preview.js';
@@ -55,6 +55,24 @@ export function EditForm({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [locale, setLocale] = useState<string>(locales[0] ?? '');
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // A click on a `data-cms-field` region in the preview brings that field into view here.
+  const focusField = useCallback((name: string) => {
+    const form = formRef.current;
+    if (!form) return;
+    const selector = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(name) : name;
+    const target =
+      form.querySelector<HTMLElement>(`[id="${selector}"]`) ??
+      form.querySelector<HTMLElement>(`[name="${selector}"]`);
+    if (!target) return;
+
+    const wrapper = target.closest('.field') ?? target;
+    wrapper.classList.add('field--flash');
+    target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    target.focus?.();
+    window.setTimeout(() => wrapper.classList.remove('field--flash'), 1400);
+  }, []);
 
   // The document arrives after mount (query), so the form must adopt it once it lands.
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed by identity, not deep value
@@ -75,6 +93,7 @@ export function EditForm({
 
   return (
     <form
+      ref={formRef}
       className="form page-enter"
       onSubmit={(event) => {
         event.preventDefault();
@@ -195,6 +214,7 @@ export function EditForm({
           data={values}
           open={previewOpen}
           onClose={() => setPreviewOpen(false)}
+          onFocusField={focusField}
         />
       ) : null}
     </form>

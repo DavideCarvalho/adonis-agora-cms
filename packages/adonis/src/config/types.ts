@@ -496,9 +496,40 @@ export type CmsConfigInput = {
   tenancy?: TenancyConfig;
   /** Custom field types, registered by `defineField`. */
   fieldTypes?: readonly string[];
+  /**
+   * File drops for `upload` fields. Without a handler the admin shows the dropzone disabled and
+   * the field keeps working as a relation picker.
+   */
+  uploads?: UploadsConfig;
 };
 
 export type CmsConfig = CmsConfigInput;
+
+/**
+ * One dropped file, normalized by the CMS provider before it reaches the handler: the handler
+ * never sees an Adonis `MultipartFile`, so it can live in plain config code or in a package.
+ */
+export type CmsUploadFile = {
+  filename: string;
+  mimeType: string;
+  size: number;
+  contents: Uint8Array;
+};
+
+export type CmsUploadHandler = (
+  file: CmsUploadFile,
+  context: { field: string; collection: string },
+) =>
+  | { id: string; url?: string; mime?: string; width?: number; height?: number }
+  | Promise<{ id: string; url?: string; mime?: string; width?: number; height?: number }>;
+
+export type UploadsConfig = {
+  handler: CmsUploadHandler;
+  /** Max accepted size in bytes; the provider rejects larger files with 413. */
+  maxSize?: number;
+  /** Accepted MIME types, e.g. `['image/*']`. */
+  mimeTypes?: readonly string[];
+};
 
 export type ResolvedDbConfig = {
   schema: SchemaMode;

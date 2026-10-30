@@ -7,7 +7,8 @@ export default defineConfig({
   multipart: {
     limit: '1mb',
     types: ['multipart/form-data'],
-    autoProcess: false,
+    // Multipart is parsed only on the CMS upload route — everything else stays manual.
+    autoProcess: ['/api/cms/uploads'],
     processManually: [],
   },
 });

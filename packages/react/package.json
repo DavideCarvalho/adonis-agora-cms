@@ -1,7 +1,7 @@
 {
   "name": "@adonis-agora/cms-react",
   "version": "0.0.0",
-  "description": "React building blocks for @adonis-agora/cms — API client, TanStack Query hooks, the field registry and atomic UI primitives. Compose your own dashboard or use @adonis-agora/cms-admin. Part of the Agora ecosystem.",
+  "description": "React building blocks for @adonis-agora/cms \u2014 API client, TanStack Query hooks, the field registry and atomic UI primitives. Compose your own dashboard or use @adonis-agora/cms-admin. Part of the Agora ecosystem.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -31,6 +31,11 @@
       "types": "./dist/registry.d.ts",
       "import": "./dist/registry.js",
       "default": "./dist/registry.js"
+    },
+    "./preview": {
+      "types": "./dist/preview.d.ts",
+      "import": "./dist/preview.js",
+      "default": "./dist/preview.js"
     }
   },
   "files": [

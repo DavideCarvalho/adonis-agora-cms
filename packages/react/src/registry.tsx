@@ -2,6 +2,7 @@ import type { ChangeEvent, ComponentType } from 'react';
 import { Checkbox, Field, Input, Select, Textarea } from './atoms/index.js';
 import { RelationPicker } from './organisms/relation-picker.js';
 import { RichText } from './organisms/rich-text.js';
+import { UploadField } from './organisms/upload-field.js';
 import type { AdminField } from './types.js';
 
 export type FieldComponentProps = {
@@ -167,4 +168,4 @@ registerField('select', SelectField);
 registerField('radio', SelectField);
 registerField('json', JsonField);
 registerField('relation', RelationPicker);
-registerField('upload', RelationPicker);
+registerField('upload', UploadField);

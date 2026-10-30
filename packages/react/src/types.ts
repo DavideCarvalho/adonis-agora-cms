@@ -15,6 +15,7 @@ export type AdminField = {
   };
   options?: readonly { label: string; value: string }[];
   relationTo?: string | readonly string[];
+  mimeTypes?: readonly string[];
   hasMany?: boolean;
   minRows?: number;
   maxRows?: number;
@@ -52,6 +53,15 @@ export type AdminSchema = {
   globals: AdminCollection[];
   user: unknown;
   permissions: Record<string, AdminPermission>;
+};
+
+/** An asset returned by the upload endpoint (matches the core `CmsUpload`). */
+export type CmsUpload = {
+  id: string;
+  url?: string;
+  mime?: string;
+  width?: number;
+  height?: number;
 };
 
 export type AdminDocument = Record<string, unknown> & {

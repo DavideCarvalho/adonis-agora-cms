@@ -22,6 +22,15 @@ delight of the first.
 Operate. Admin panel at `admin.path` (`/admin`). Design is not the product here — clarity is,
 with brand living in precise details (type, rhythm, a single accent).
 
+## Marking what is editable
+
+A page marks its editable regions with `data-cms-field="<field name>"` (the field name in the
+document, arrays included: `sections.0.heading`). In live preview the admin outlines those
+regions and a click scrolls to the field and focuses it — the page itself says where it can be
+changed, so nothing is inferred from markup that the CMS cannot see. For same-origin previews the
+bridge is injected; a site on another origin calls `previewBridge()` from
+`@adonis-agora/cms-react/preview` on load.
+
 ## Editing structured content
 
 Array and blocks rows are cards with a drag handle: drag to reorder, ArrowUp/ArrowDown on a

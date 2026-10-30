@@ -15,6 +15,8 @@ export type AdminField = {
   /** Present for select/radio — the panel needs the option list. */
   options?: readonly { label: string; value: string }[];
   relationTo?: string | readonly string[];
+  /** Present for upload — the dropzone's `accept` list. */
+  mimeTypes?: readonly string[];
   hasMany?: boolean;
   minRows?: number;
   maxRows?: number;
@@ -159,6 +161,7 @@ function serializeField(field: FieldConfig, accessArgs: AccessArgs): AdminField 
 
   if (field.type === 'upload' && 'relationTo' in field) {
     serialized.relationTo = field.relationTo;
+    if ('mimeTypes' in field && field.mimeTypes) serialized.mimeTypes = field.mimeTypes;
   }
 
   if (field.type === 'array') {

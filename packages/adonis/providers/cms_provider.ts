@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import type { ApplicationService } from '@adonisjs/core/types';
 import { resolveApiToken } from '../src/auth/api_tokens.js';
 import type { CmsConfig } from '../src/config/types.js';
@@ -14,6 +15,30 @@ import { compileSchema } from '../src/schema/compile.js';
 type LucidDatabase = {
   connection(name?: string): { getWriteClient(): unknown };
 };
+
+type UploadRouteContext = {
+  request: {
+    qs?(): Record<string, unknown>;
+    headers?(): Record<string, string>;
+    file(name: string): {
+      clientName: string;
+      size?: number;
+      type?: string;
+      headers?: Record<string, string>;
+      tmpPath?: string;
+      toBuffer?: () => Promise<Buffer>;
+    } | null;
+  };
+  response: {
+    status(code: number): { json(payload: unknown): unknown };
+  };
+};
+
+function matchesMime(mimeType: string, accepted: readonly string[]): boolean {
+  return accepted.some((pattern) =>
+    pattern.endsWith('/*') ? mimeType.startsWith(pattern.slice(0, -1)) : pattern === mimeType,
+  );
+}
 
 /**
  * Wires the CMS into the app.
@@ -55,6 +80,10 @@ export default class CmsProvider {
       await this.registerRoutes(config, cms);
     }
 
+    if (config.uploads) {
+      await this.registerUploadRoute(config, cms);
+    }
+
     if (resolveDbConfig(config).schema !== 'managed') return;
 
     if (this.app.inProduction) {
@@ -69,6 +98,90 @@ export default class CmsProvider {
     }
 
     await syncCmsSchema(client, spec, { engine });
+  }
+
+  /**
+   * `POST {prefix}/uploads` — the endpoint behind the admin's upload dropzone.
+   *
+   * The provider normalizes the Adonis multipart file into `CmsUploadFile` and hands it to
+   * `config.uploads.handler`, so the handler never depends on `@adonisjs/core`. Files are read
+   * into memory: uploads here are assets (images, PDFs), not streamed archives.
+   */
+  private async registerUploadRoute(
+    config: CmsConfig,
+    cms: ReturnType<typeof createCms>,
+  ): Promise<void> {
+    const router = (await this.app.container.make('router')) as CmsRouter;
+    const prefix = config.rest?.prefix ?? '/api/cms';
+    const uploads = config.uploads;
+
+    if (!uploads) return;
+
+    router.post(`${prefix}/uploads`, async (context) => {
+      const ctx = context as UploadRouteContext;
+      const write = ctx.response.status(403);
+
+      const authorization = ctx.request.headers?.().authorization ?? '';
+      const bearer = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
+      const principal = bearer ? await resolveApiToken(cms.repoContext(), bearer) : null;
+
+      if (principal && !principal.abilities.includes('write')) {
+        write.json({ error: { code: 'CMS_FORBIDDEN', message: 'token is read-only' } });
+        return;
+      }
+
+      const file = ctx.request.file('file');
+      if (!file) {
+        ctx.response.status(400).json({
+          error: {
+            code: 'CMS_UPLOAD_MISSING',
+            message:
+              'expected a "file" part: let the bodyparser auto-process multipart on this route (config/bodyparser.ts → multipart.autoProcess includes the uploads path)',
+          },
+        });
+        return;
+      }
+
+      // Adonis reports the part's type as `image` (top level) in `file.type`; the full value with
+      // the subtype lives in the part headers.
+      const mimeType =
+        (file.headers?.['content-type'] ?? '').split(';')[0]?.trim() ||
+        file.type ||
+        'application/octet-stream';
+      const size = file.size ?? 0;
+
+      if (uploads.maxSize && size > uploads.maxSize) {
+        ctx.response.status(413).json({
+          error: { code: 'CMS_UPLOAD_TOO_LARGE', message: `file exceeds ${uploads.maxSize} bytes` },
+        });
+        return;
+      }
+
+      if (uploads.mimeTypes?.length && !matchesMime(mimeType, uploads.mimeTypes)) {
+        ctx.response.status(415).json({
+          error: {
+            code: 'CMS_UPLOAD_UNSUPPORTED',
+            message: `${mimeType} is not an accepted type`,
+          },
+        });
+        return;
+      }
+
+      const contents =
+        typeof file.toBuffer === 'function'
+          ? await file.toBuffer()
+          : await readFile(file.tmpPath ?? '');
+
+      const asset = await uploads.handler(
+        { filename: file.clientName, mimeType, size, contents },
+        {
+          field: String(ctx.request.qs?.().field ?? ''),
+          collection: String(ctx.request.qs?.().collection ?? ''),
+        },
+      );
+
+      ctx.response.status(201).json(asset);
+    });
   }
 
   private async registerRoutes(

@@ -20,6 +20,62 @@ import type { AdminField } from '../types.js';
 
 type Row = Record<string, unknown>;
 
+/**
+ * Row clipboard, the Payload `_payloadClipboard` idea: a copied row lives in localStorage so it
+ * survives a reload and can be pasted into the same field later. Rows are pasted without their
+ * `id` — the server assigns a fresh one, so a paste is a duplicate, never an alias.
+ */
+const CLIPBOARD_KEY = '_cmsClipboard';
+
+type ClipboardEntry = { field: string; kind: 'array' | 'blocks'; value: Row };
+
+function readClipboard(): ClipboardEntry | null {
+  try {
+    const raw = globalThis.localStorage?.getItem(CLIPBOARD_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ClipboardEntry;
+    return parsed && typeof parsed === 'object' && parsed.value ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeClipboard(entry: ClipboardEntry): void {
+  try {
+    globalThis.localStorage?.setItem(CLIPBOARD_KEY, JSON.stringify(entry));
+  } catch {
+    // Private mode / storage disabled: copy is a convenience, never a hard failure.
+  }
+}
+
+/**
+ * Clipboard state is read once from localStorage so the paste affordance is live in the same
+ * render as the copy (a copy alone would not re-render the field).
+ */
+function useClipboard() {
+  const [entry, setEntry] = useState<ClipboardEntry | null>(() => readClipboard());
+
+  const save = (next: ClipboardEntry) => {
+    writeClipboard(next);
+    setEntry(next);
+  };
+
+  return { clipboard: entry, save };
+}
+
+function withoutId(row: Row): Row {
+  const { id: _id, _order, ...rest } = row;
+  return JSON.parse(JSON.stringify(rest)) as Row;
+}
+
+function summaryOf(row: Row, fields: AdminField[]): string {
+  for (const field of fields) {
+    const value = row[field.name];
+    if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 48);
+  }
+  return '—';
+}
+
 function ScalarInput({
   field,
   value,
@@ -187,6 +243,21 @@ function useSortableRows(rows: Row[], onChange: (next: Row[]) => void) {
   return { ids, sensors, onDragEnd, move, remove, add };
 }
 
+/** Collapsed rows: a Set of row ids, so a reorder or an edit keeps the collapsed/expanded shape. */
+function useCollapsed() {
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+
+  const toggle = (id: string) =>
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  return { collapsed, toggle };
+}
+
 function Rows({
   ids,
   sensors,
@@ -215,23 +286,46 @@ function Rows({
 function RowHead({
   index,
   handle,
+  collapsed,
+  summary,
+  onToggle,
+  label,
+  onCopy,
   children,
 }: {
   index: number;
   handle: ReactNode;
+  collapsed: boolean;
+  summary: string;
+  onToggle: () => void;
+  label: string;
+  onCopy: () => void;
   children?: ReactNode;
 }) {
   return (
     <div className="row-head">
       {handle}
+      <button
+        type="button"
+        className="row-toggle"
+        aria-expanded={!collapsed}
+        aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${label}`}
+        onClick={onToggle}
+      >
+        {collapsed ? '▸' : '▾'}
+      </button>
       <span className="row-head__index">#{index + 1}</span>
+      {collapsed ? <span className="row-head__summary">{summary}</span> : null}
       <span className="row-head__spacer" />
+      <Button size="xs" tone="ghost" onClick={onCopy} title={`Copy ${label}`}>
+        Copy
+      </Button>
       {children}
     </div>
   );
 }
 
-/** Array field: ordered rows with drag reorder, add and remove. Nested containers use the registry. */
+/** Array field: ordered rows with drag reorder, collapse, copy/paste, add and remove. */
 export function ArrayBuilder({
   field,
   value,
@@ -246,65 +340,95 @@ export function ArrayBuilder({
   const canSort = field.admin?.isSortable !== false;
   const sortable = canSort && rows.length > 1;
   const { ids, sensors, onDragEnd, move, remove, add } = useSortableRows(rows, onChange);
+  const { collapsed, toggle } = useCollapsed();
+  const { clipboard, save } = useClipboard();
+  const atLimit = Boolean(field.maxRows && rows.length >= field.maxRows);
 
   const update = (index: number, row: Row) =>
     onChange(rows.map((current, position) => (position === index ? row : current)));
 
+  const copy = (row: Row) => save({ field: field.name, kind: 'array', value: row });
+
+  const paste = () => {
+    if (!clipboard || atLimit) return;
+    add(withoutId(clipboard.value));
+  };
+
   return (
     <Field label={field.name} description={field.admin?.description}>
       <Rows ids={ids} sensors={sensors} sortable={sortable} onDragEnd={onDragEnd}>
-        {rows.map((row, index) => (
-          <SortableRow
-            key={ids[index]}
-            id={ids[index] ?? `row-${index}`}
-            label={`row ${index + 1}`}
-            onMoveBy={(direction) => move(index, direction)}
-          >
-            {(handle) => (
-              <>
-                <RowHead index={index} handle={handle}>
-                  {canSort ? null : (
-                    <>
-                      <Button size="xs" tone="ghost" onClick={() => move(index, -1)}>
-                        ↑
-                      </Button>
-                      <Button size="xs" tone="ghost" onClick={() => move(index, 1)}>
-                        ↓
-                      </Button>
-                    </>
+        {rows.map((row, index) => {
+          const id = ids[index] ?? `row-${index}`;
+          const isCollapsed = collapsed.has(id);
+
+          return (
+            <SortableRow
+              key={id}
+              id={id}
+              label={`row ${index + 1}`}
+              onMoveBy={(direction) => move(index, direction)}
+            >
+              {(handle) => (
+                <>
+                  <RowHead
+                    index={index}
+                    handle={handle}
+                    collapsed={isCollapsed}
+                    summary={summaryOf(row, nested)}
+                    onToggle={() => toggle(id)}
+                    label={`row ${index + 1}`}
+                    onCopy={() => copy(row)}
+                  >
+                    {canSort ? null : (
+                      <>
+                        <Button size="xs" tone="ghost" onClick={() => move(index, -1)}>
+                          ↑
+                        </Button>
+                        <Button size="xs" tone="ghost" onClick={() => move(index, 1)}>
+                          ↓
+                        </Button>
+                      </>
+                    )}
+                    <Button size="xs" tone="destructive" onClick={() => remove(index)}>
+                      Remove
+                    </Button>
+                  </RowHead>
+                  {isCollapsed ? null : (
+                    <div className="row-body">
+                      <RowFields
+                        fields={nested}
+                        row={row}
+                        prefix={`${field.name}[${index}]`}
+                        onChange={(next) => update(index, next)}
+                      />
+                    </div>
                   )}
-                  <Button size="xs" tone="destructive" onClick={() => remove(index)}>
-                    Remove
-                  </Button>
-                </RowHead>
-                <div className="row-body">
-                  <RowFields
-                    fields={nested}
-                    row={row}
-                    prefix={`${field.name}[${index}]`}
-                    onChange={(next) => update(index, next)}
-                  />
-                </div>
-              </>
-            )}
-          </SortableRow>
-        ))}
+                </>
+              )}
+            </SortableRow>
+          );
+        })}
       </Rows>
 
       <div className="field-actions">
+        <Button size="sm" onClick={() => add({})} disabled={atLimit}>
+          Add row
+        </Button>
         <Button
           size="sm"
-          onClick={() => add({})}
-          disabled={Boolean(field.maxRows && rows.length >= field.maxRows)}
+          tone="ghost"
+          onClick={paste}
+          disabled={atLimit || clipboard?.kind !== 'array'}
+          title="Paste the copied row"
         >
-          Add row
+          Paste row
         </Button>
       </div>
     </Field>
   );
 }
 
-/** Blocks field: one row per block, reorderable by drag, with the block type as its own select. */
+/** Blocks field: one row per block, draggable, collapsible and copy/paste-able. */
 export function BlocksBuilder({
   field,
   value,
@@ -319,27 +443,49 @@ export function BlocksBuilder({
   const canSort = field.admin?.isSortable !== false;
   const sortable = canSort && rows.length > 1;
   const { ids, sensors, onDragEnd, move, remove, add } = useSortableRows(rows, onChange);
+  const { collapsed, toggle } = useCollapsed();
+  const { clipboard, save } = useClipboard();
+  const atLimit = Boolean(field.maxRows && rows.length >= field.maxRows);
+  const pasteable =
+    clipboard?.kind === 'blocks' && blocks.some((block) => block.slug === clipboard.value.type);
 
   const update = (index: number, row: Row) =>
     onChange(rows.map((current, position) => (position === index ? row : current)));
+
+  const copy = (row: Row) => save({ field: field.name, kind: 'blocks', value: row });
+
+  const paste = () => {
+    if (!clipboard || !pasteable || atLimit) return;
+    add(withoutId(clipboard.value));
+  };
 
   return (
     <Field label={field.name} description={field.admin?.description}>
       <Rows ids={ids} sensors={sensors} sortable={sortable} onDragEnd={onDragEnd}>
         {rows.map((row, index) => {
+          const id = ids[index] ?? `row-${index}`;
+          const isCollapsed = collapsed.has(id);
           const definition = blocks.find((block) => block.slug === row.type);
           const type = String(row.type ?? '');
 
           return (
             <SortableRow
-              key={ids[index]}
-              id={ids[index] ?? `row-${index}`}
+              key={id}
+              id={id}
               label={`block ${index + 1}`}
               onMoveBy={(direction) => move(index, direction)}
             >
               {(handle) => (
                 <>
-                  <RowHead index={index} handle={handle}>
+                  <RowHead
+                    index={index}
+                    handle={handle}
+                    collapsed={isCollapsed}
+                    summary={type ? `${type} — ${summaryOf(row, definition?.fields ?? [])}` : '—'}
+                    onToggle={() => toggle(id)}
+                    label={`block ${index + 1}`}
+                    onCopy={() => copy(row)}
+                  >
                     <Select
                       aria-label={`block ${index + 1} type`}
                       value={type}
@@ -361,18 +507,20 @@ export function BlocksBuilder({
                       Remove
                     </Button>
                   </RowHead>
-                  <div className="row-body">
-                    {definition ? (
-                      <RowFields
-                        fields={definition.fields}
-                        row={row}
-                        prefix={`${field.name}[${index}]`}
-                        onChange={(next) => update(index, next)}
-                      />
-                    ) : (
-                      <p className="row-body__empty">Pick a block type to edit its fields.</p>
-                    )}
-                  </div>
+                  {isCollapsed ? null : (
+                    <div className="row-body">
+                      {definition ? (
+                        <RowFields
+                          fields={definition.fields}
+                          row={row}
+                          prefix={`${field.name}[${index}]`}
+                          onChange={(next) => update(index, next)}
+                        />
+                      ) : (
+                        <p className="row-body__empty">Pick a block type to edit its fields.</p>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </SortableRow>
@@ -386,11 +534,20 @@ export function BlocksBuilder({
             key={block.slug}
             size="sm"
             onClick={() => add({ type: block.slug })}
-            disabled={Boolean(field.maxRows && rows.length >= field.maxRows)}
+            disabled={atLimit}
           >
             + {block.slug}
           </Button>
         ))}
+        <Button
+          size="sm"
+          tone="ghost"
+          onClick={paste}
+          disabled={atLimit || !pasteable}
+          title="Paste the copied block"
+        >
+          Paste block
+        </Button>
       </div>
     </Field>
   );

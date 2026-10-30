@@ -1,0 +1,33 @@
+import { expect, test } from '@playwright/test';
+
+/**
+ * Live preview marks what is editable: the page tags regions with `data-cms-field`, the admin
+ * injects the bridge for same-origin frames, and a click in the page focuses the matching field.
+ */
+test('preview marks editable regions and a click focuses the field', async ({ page, request }) => {
+  const title = `Preview ${Date.now().toString(36)}`;
+  const created = await request.post('/api/cms/collections/posts', {
+    data: { title, subtitle: 'Primeiro post', status: 'published' },
+  });
+  expect(created.status()).toBe(201);
+
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Posts' }).click();
+  await page
+    .getByRole('row')
+    .filter({ hasText: title })
+    .getByRole('button', { name: 'Edit' })
+    .click();
+
+  await page.getByRole('button', { name: 'Preview' }).click();
+
+  const frame = page.frameLocator('iframe');
+  const heading = frame.locator('h1[data-cms-field="title"]');
+  await expect(heading).toBeVisible();
+
+  // The injected bridge outlines every editable region.
+  await expect(heading).toHaveCSS('outline-style', 'dashed');
+
+  await heading.click();
+  await expect(page.getByRole('textbox', { name: /^title \*/ })).toBeFocused();
+});

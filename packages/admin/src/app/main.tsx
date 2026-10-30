@@ -12,12 +12,17 @@ const queryClient = new QueryClient({
 const adminLocale = import.meta.env.VITE_CMS_LOCALE === 'pt-BR' ? 'pt-BR' : 'en';
 const client = new AdminClient();
 
+// Drops on `upload` fields go through `POST /api/cms/uploads`; the app must configure
+// `cms.uploads.handler` for the endpoint to exist.
+const upload = (file: File, options: { field?: string; collection?: string }) =>
+  client.upload(file, options);
+
 const root = document.getElementById('root');
 if (root) {
   createRoot(root).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <CmsProvider client={client} locale={adminLocale}>
+        <CmsProvider client={client} locale={adminLocale} upload={upload}>
           <App />
         </CmsProvider>
       </QueryClientProvider>
