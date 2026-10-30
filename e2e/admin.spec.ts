@@ -43,6 +43,12 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
   await page.getByLabel('locale').selectOption('en');
   await expect(page.getByRole('textbox', { name: /^subtitle/ })).toHaveValue('First post');
 
+  // Version history uses the REST versions endpoint.
+  await page.getByRole('button', { name: 'History' }).click();
+  await expect(page.getByText(/#\d+/).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /Current|Restore/ }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Close' }).click();
+
   // Relation picker loads real options.
   await expect(page.getByLabel('author')).toHaveValue(authorId);
   await expect(

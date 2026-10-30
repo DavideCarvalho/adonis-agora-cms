@@ -9,6 +9,8 @@ export type { LivePreviewProps } from './organisms/live-preview.js';
 export { LivePreview } from './organisms/live-preview.js';
 export { RelationPicker } from './organisms/relation-picker.js';
 export { ArrayBuilder, BlocksBuilder } from './organisms/structured.js';
+export type { VersionsPanelProps } from './organisms/versions-panel.js';
+export { VersionsPanel } from './organisms/versions-panel.js';
 export {
   cmsKeys,
   useAdminSchema,

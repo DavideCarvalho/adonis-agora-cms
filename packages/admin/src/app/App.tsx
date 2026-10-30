@@ -6,6 +6,7 @@ import {
   CmsApiError,
   DataTable,
   EditForm,
+  Button as UiButton,
   useAdminSchema,
   useCreateDocument,
   useDeleteDocument,
@@ -35,6 +36,9 @@ export function App() {
   }, []);
 
   if (schema.isLoading) return <p className="p-8 text-zinc-500">Loading…</p>;
+  if (schema.error instanceof CmsApiError && schema.error.status === 401) {
+    return <SignIn />;
+  }
   if (schema.error) return <p className="p-8 text-red-600">{String(schema.error.message)}</p>;
   if (!schema.data) return null;
 
@@ -60,6 +64,25 @@ export function App() {
           />
         )}
       </main>
+    </div>
+  );
+}
+
+/** Shown when the API answers 401: the host app owns the login, the panel only links to it. */
+function SignIn() {
+  const loginUrl = import.meta.env.VITE_CMS_LOGIN_URL ?? '/login';
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-6">
+      <div className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-6 text-center">
+        <h1 className="text-lg font-semibold text-zinc-900">Sign in required</h1>
+        <p className="mt-2 text-sm text-zinc-600">
+          Your session expired or you are not authenticated.
+        </p>
+        <a href={loginUrl} className="mt-4 inline-block">
+          <UiButton variant="primary">Go to sign in</UiButton>
+        </a>
+      </div>
     </div>
   );
 }

@@ -57,6 +57,13 @@ export class CmsNotFoundError extends CmsError {
   }
 }
 
+/** No principal at all — the caller must authenticate (HTTP 401). */
+export class CmsUnauthorizedError extends CmsError {
+  constructor(message = 'Authentication required') {
+    super('CMS_UNAUTHORIZED', message);
+  }
+}
+
 export class CmsForbiddenError extends CmsError {
   constructor(message = 'Forbidden') {
     super('CMS_FORBIDDEN', message);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Badge, Button, Field } from '../atoms/index.js';
 import { LivePreview } from '../organisms/live-preview.js';
 import { ArrayBuilder, BlocksBuilder } from '../organisms/structured.js';
+import { VersionsPanel } from '../organisms/versions-panel.js';
 import { JsonField, resolveFieldComponent } from '../registry.js';
 import type { AdminCollection, AdminDocument, AdminField, AdminPermission } from '../types.js';
 
@@ -51,6 +52,7 @@ export function EditForm({
   }, [doc.id]);
   const [showJson, setShowJson] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [locale, setLocale] = useState<string>(locales[0] ?? '');
 
   const readOnly = useMemo(() => {
@@ -110,6 +112,11 @@ export function EditForm({
               ))}
             </select>
           ) : null}
+          {doc.id && collection.versioned ? (
+            <Button size="sm" onClick={() => setHistoryOpen(true)}>
+              History
+            </Button>
+          ) : null}
           {previewUrl ? (
             <Button size="sm" onClick={() => setPreviewOpen(true)}>
               Preview
@@ -152,15 +159,6 @@ export function EditForm({
         </div>
       )}
 
-      {previewUrl ? (
-        <LivePreview
-          url={previewUrl}
-          data={values}
-          open={previewOpen}
-          onClose={() => setPreviewOpen(false)}
-        />
-      ) : null}
-
       {errors && Object.keys(errors).length > 0 ? (
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {Object.entries(errors).map(([field, message]) => (
@@ -169,6 +167,23 @@ export function EditForm({
             </div>
           ))}
         </div>
+      ) : null}
+      {doc.id && collection.versioned ? (
+        <VersionsPanel
+          slug={collection.slug}
+          id={String(doc.id)}
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
+
+      {previewUrl ? (
+        <LivePreview
+          url={previewUrl}
+          data={values}
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+        />
       ) : null}
     </form>
   );

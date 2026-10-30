@@ -1,8 +1,10 @@
 import { resolveLocalization, versionsFor } from '../config/types.js';
 import {
   CmsConflictError,
+  CmsError,
   CmsForbiddenError,
   CmsNotFoundError,
+  CmsUnauthorizedError,
   CmsValidationError,
 } from '../errors.js';
 import type { TableSpec } from '../schema/types.js';
@@ -83,7 +85,7 @@ export async function createDocument(
     accessArgs(ctx),
     options.overrideAccess,
   );
-  if (!access.allowed) throw new CmsForbiddenError(`create "${slug}" is not allowed`);
+  if (!access.allowed) throw denied(ctx, `create "${slug}" is not allowed`);
 
   let payload = { ...data };
   payload = await runHooks(ctx, slug, 'beforeValidate', payload, { operation: 'create' });
@@ -250,7 +252,7 @@ export async function updateDocument(
     accessArgs(ctx, { id, data }),
     options.overrideAccess,
   );
-  if (!access.allowed) throw new CmsForbiddenError(`update "${slug}" is not allowed`);
+  if (!access.allowed) throw denied(ctx, `update "${slug}" is not allowed`);
 
   let payload = { ...data };
   payload = await runHooks(ctx, slug, 'beforeValidate', payload, {
@@ -318,7 +320,7 @@ export async function deleteDocument(
     accessArgs(ctx, { id }),
     options.overrideAccess,
   );
-  if (!access.allowed) throw new CmsForbiddenError(`delete "${slug}" is not allowed`);
+  if (!access.allowed) throw denied(ctx, `delete "${slug}" is not allowed`);
 
   await runHooks(ctx, slug, 'beforeDelete', doc, { operation: 'delete' });
 
@@ -871,6 +873,11 @@ function resolveColumnName(ctx: RepoContext, table: TableSpec, field: string): s
 }
 
 /* ------------------------------------------------------------------- access */
+
+/** 401 when there is no principal, 403 when there is one and it is denied. */
+function denied(ctx: RepoContext, message: string): CmsError {
+  return ctx.user ? new CmsForbiddenError(message) : new CmsUnauthorizedError(message);
+}
 
 function assertDraftAccess(
   ctx: RepoContext,

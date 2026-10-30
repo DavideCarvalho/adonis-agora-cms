@@ -3,6 +3,7 @@ import {
   CmsError,
   CmsForbiddenError,
   CmsNotFoundError,
+  CmsUnauthorizedError,
   CmsValidationError,
 } from '../errors.js';
 
@@ -27,6 +28,10 @@ export function toRestError(error: unknown): { status: number; body: RestErrorBo
 
   if (error instanceof CmsNotFoundError) {
     return { status: 404, body: { error: { code: error.code, message: error.message } } };
+  }
+
+  if (error instanceof CmsUnauthorizedError) {
+    return { status: 401, body: { error: { code: error.code, message: error.message } } };
   }
 
   if (error instanceof CmsForbiddenError) {
