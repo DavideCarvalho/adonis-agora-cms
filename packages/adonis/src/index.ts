@@ -11,6 +11,8 @@ export {
 } from './auth/api_tokens.js';
 export { collection, global, labels } from './config/collection.js';
 export { defineConfig } from './config/define_config.js';
+export type { DefineFieldOptions } from './config/define_field.js';
+export { defineField } from './config/define_field.js';
 export { block, fields } from './config/fields.js';
 export type * from './config/types.js';
 export {

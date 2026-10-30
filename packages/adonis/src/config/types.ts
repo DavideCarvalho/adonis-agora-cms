@@ -73,6 +73,30 @@ export type FieldHooks = {
   afterRead?: readonly FieldHook[];
 };
 
+/** Plain-data column metadata for a custom field type (serializable on purpose). */
+export type CustomColumn = {
+  type:
+    | 'string'
+    | 'text'
+    | 'integer'
+    | 'bigint'
+    | 'decimal'
+    | 'float'
+    | 'boolean'
+    | 'timestamp'
+    | 'json'
+    | 'binary';
+  length?: number;
+  precision?: number;
+  scale?: number;
+};
+
+export type CustomFieldConfig = FieldCommon & {
+  type: string;
+  /** Emitted by `defineField`; tells the compiler which column to create. */
+  __column: CustomColumn;
+};
+
 export type FieldCommon = {
   name: string;
   label?: string | Record<LocaleCode, string>;
@@ -86,6 +110,8 @@ export type FieldCommon = {
   access?: FieldAccess;
   validate?: FieldValidator;
   hooks?: FieldHooks;
+  /** Set by `defineField` on custom types; the compiler reads it to emit the column. */
+  __column?: CustomColumn;
 };
 
 export type SelectOption<Value extends string = string> = {

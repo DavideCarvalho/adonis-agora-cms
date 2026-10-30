@@ -144,17 +144,17 @@ function serializeField(field: FieldConfig, accessArgs: AccessArgs): AdminField 
   if (field.defaultValue !== undefined) serialized.defaultValue = field.defaultValue;
   if (field.admin !== undefined) serialized.admin = field.admin;
 
-  if (field.type === 'select' || field.type === 'radio') {
+  if ((field.type === 'select' || field.type === 'radio') && 'options' in field) {
     serialized.options = field.options;
-    if (field.type === 'select' && field.hasMany) serialized.hasMany = true;
+    if ('hasMany' in field && field.hasMany) serialized.hasMany = true;
   }
 
-  if (field.type === 'relation') {
+  if (field.type === 'relation' && 'relationTo' in field) {
     serialized.relationTo = field.relationTo;
-    if (field.hasMany) serialized.hasMany = true;
+    if ('hasMany' in field && field.hasMany) serialized.hasMany = true;
   }
 
-  if (field.type === 'upload') {
+  if (field.type === 'upload' && 'relationTo' in field) {
     serialized.relationTo = field.relationTo;
   }
 

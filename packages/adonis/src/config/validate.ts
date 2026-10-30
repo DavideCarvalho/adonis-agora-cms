@@ -298,11 +298,12 @@ function validateFields(
     }
     seen.add(label);
 
-    if (!BUILTIN_TYPES.has(field.type) && !ctx.customTypes.has(field.type)) {
+    const customColumn = (field as { __column?: unknown }).__column;
+    if (!BUILTIN_TYPES.has(field.type) && !customColumn) {
       errors.push(
         new CmsConfigError(
           `${fieldPath}.type`,
-          `unknown field type "${field.type}" (register it via config.fieldTypes)`,
+          `unknown field type "${field.type}" (use defineField or register it via config.fieldTypes)`,
         ),
       );
     }

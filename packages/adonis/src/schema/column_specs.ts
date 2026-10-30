@@ -223,8 +223,25 @@ export function scalarColumn(
       column.name = `${options.name}_id`;
       return column;
 
-    default:
-      return undefined;
+    default: {
+      const custom = (
+        field as {
+          __column?: {
+            type: ColumnSpec['type'];
+            length?: number;
+            precision?: number;
+            scale?: number;
+          };
+        }
+      ).__column;
+      if (!custom) return undefined;
+
+      column.type = custom.type;
+      if (custom.length !== undefined) column.length = custom.length;
+      if (custom.precision !== undefined) column.precision = custom.precision;
+      if (custom.scale !== undefined) column.scale = custom.scale;
+      return column;
+    }
   }
 }
 
