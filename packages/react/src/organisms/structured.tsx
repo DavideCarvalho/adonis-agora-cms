@@ -76,7 +76,7 @@ function summaryOf(row: Row, fields: AdminField[]): string {
   return '—';
 }
 
-function ScalarInput({
+export function ScalarInput({
   field,
   value,
   onChange,
@@ -99,7 +99,8 @@ function ScalarInput({
   );
 }
 
-function RowFields({
+/** Exported for the visual editor's inspector: the same inputs the block card renders. */
+export function StructuredRowFields({
   fields,
   row,
   onChange,
@@ -418,7 +419,7 @@ export function ArrayBuilder({
                   </RowHead>
                   {isCollapsed ? null : (
                     <div className="row-body">
-                      <RowFields
+                      <StructuredRowFields
                         fields={nested}
                         row={row}
                         prefix={`${field.name}[${index}]`}
@@ -533,7 +534,7 @@ export function BlocksBuilder({
                   {isCollapsed ? null : (
                     <div className="row-body">
                       {definition ? (
-                        <RowFields
+                        <StructuredRowFields
                           fields={definition.fields}
                           row={row}
                           prefix={`${field.name}[${index}]`}

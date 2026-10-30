@@ -355,6 +355,11 @@ export type VersionsConfig = {
 };
 
 export type CollectionAdmin = {
+  /**
+   * Open documents of this collection in the visual editor (page canvas + palette + inspector)
+   * instead of the form. Needs a blocks field and a live preview URL.
+   */
+  visualEditor?: boolean;
   useAsTitle?: string;
   defaultColumns?: readonly string[];
   group?: string;

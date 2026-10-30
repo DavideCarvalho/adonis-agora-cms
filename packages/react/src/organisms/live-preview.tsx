@@ -6,6 +6,7 @@ import {
   PREVIEW_DELETE_BLOCK_MESSAGE,
   PREVIEW_EDIT_BLOCK_MESSAGE,
   PREVIEW_EDIT_MESSAGE,
+  PREVIEW_INSERT_BLOCK_MESSAGE,
   PREVIEW_MOVE_BLOCK_MESSAGE,
 } from '../preview.js';
 
@@ -22,6 +23,12 @@ export type LivePreviewProps = {
   onMoveBlock?: ((field: string, from: number, to: number) => void) | undefined;
   /** Called when the block toolbar deletes a block. */
   onDeleteBlock?: ((field: string, index: number) => void) | undefined;
+  /** Called when a block is dropped from the palette into the page. */
+  onInsertBlock?: ((field: string, type: string, index: number) => void) | undefined;
+  /** `inline` drops the fixed panel chrome so the editor can place it in its own grid. */
+  variant?: 'panel' | 'inline';
+  /** Bump to reload the frame (a newly inserted block does not exist in the current DOM). */
+  refreshKey?: number;
 };
 
 /**
@@ -39,6 +46,9 @@ export function LivePreview({
   onEditBlock,
   onMoveBlock,
   onDeleteBlock,
+  onInsertBlock,
+  variant = 'panel',
+  refreshKey = 0,
 }: LivePreviewProps) {
   const t = useMessages();
   const frame = useRef<HTMLIFrameElement>(null);
@@ -58,6 +68,7 @@ export function LivePreview({
       const payload = event.data as {
         type?: string;
         field?: unknown;
+        blockType?: unknown;
         index?: unknown;
         from?: unknown;
         to?: unknown;
@@ -81,12 +92,17 @@ export function LivePreview({
       }
       if (payload.type === PREVIEW_MOVE_BLOCK_MESSAGE && field) {
         onMoveBlock?.(field, Number(payload.from), Number(payload.to));
+        return;
+      }
+      if (payload.type === PREVIEW_INSERT_BLOCK_MESSAGE && field) {
+        const type = typeof payload.blockType === 'string' ? payload.blockType : '';
+        if (type) onInsertBlock?.(field, type, Number(payload.index));
       }
     };
 
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [open, onFocusField, onEditBlock, onMoveBlock, onDeleteBlock]);
+  }, [open, onFocusField, onEditBlock, onMoveBlock, onDeleteBlock, onInsertBlock]);
 
   const injectBridge = useCallback(() => {
     const doc = frame.current?.contentDocument;
@@ -104,15 +120,26 @@ export function LivePreview({
   if (!open) return null;
 
   return (
-    <aside className="panel panel--preview" role="dialog" aria-label={t.preview}>
-      <header className="panel__head">
-        <h2>{t.preview}</h2>
-        <Button size="sm" tone="ghost" onClick={onClose}>
-          {t.close}
-        </Button>
-      </header>
+    <aside
+      className={`panel panel--preview${variant === 'inline' ? ' panel--inline' : ''}`}
+      role={variant === 'inline' ? undefined : 'dialog'}
+      aria-label={t.preview}
+    >
+      {variant === 'panel' ? (
+        <header className="panel__head">
+          <h2>{t.preview}</h2>
+          <Button size="sm" tone="ghost" onClick={onClose}>
+            {t.close}
+          </Button>
+        </header>
+      ) : null}
       <div className="panel__body">
-        <iframe ref={frame} src={url} title={t.preview} onLoad={injectBridge} />
+        <iframe
+          ref={frame}
+          src={refreshKey > 0 ? `${url}${url.includes('?') ? '&' : '?'}_r=${refreshKey}` : url}
+          title={t.preview}
+          onLoad={injectBridge}
+        />
       </div>
     </aside>
   );

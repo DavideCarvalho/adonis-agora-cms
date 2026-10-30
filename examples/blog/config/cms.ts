@@ -43,7 +43,11 @@ export default defineConfig({
     }),
     collection('pages', {
       labels: { singular: 'Page', plural: 'Pages' },
-      admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug', 'visibility'] },
+      admin: {
+        useAsTitle: 'title',
+        defaultColumns: ['title', 'slug', 'visibility'],
+        visualEditor: true,
+      },
       access: {
         /**
          * Per-document access, the Payload way: the stored document arrives as `doc`, so a page

@@ -29,7 +29,12 @@ export type AdminCollection = {
   slug: string;
   kind: 'collection' | 'global';
   labels?: { singular: string; plural: string };
-  admin?: { useAsTitle?: string; defaultColumns?: readonly string[]; group?: string };
+  admin?: {
+    useAsTitle?: string;
+    defaultColumns?: readonly string[];
+    group?: string;
+    visualEditor?: boolean;
+  };
   versioned: boolean;
   drafts: boolean;
   softDelete?: boolean;

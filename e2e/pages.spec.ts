@@ -102,12 +102,12 @@ test('live preview jumps from a block region to its field', async ({ page, reque
     .getByRole('button', { name: 'Edit' })
     .click();
 
-  // A block that contains an array renders the array builder, not a scalar fallback.
+  // Selecting a block fills the inspector with its fields; the nested array renders real rows.
+  await page.getByRole('button', { name: '#2 features' }).click();
   await expect(page.getByRole('textbox', { name: /^title$/ }).nth(0)).toHaveValue('Nested one');
   await expect(page.getByRole('textbox', { name: /^title$/ }).nth(1)).toHaveValue('Nested two');
 
-  await page.getByRole('button', { name: 'Preview' }).click();
-
+  // A page with blocks opens in the visual editor: the page is already on screen, no Preview click.
   const frame = page.frameLocator('iframe');
   const heading = frame.locator('[data-cms-field="layout[0].heading"]');
   await expect(heading).toBeVisible();
@@ -144,20 +144,21 @@ test('preview toolbar deletes and reorders blocks', async ({ page, request }) =>
     .getByRole('button', { name: 'Edit' })
     .click();
 
-  await page.getByRole('button', { name: 'Preview' }).click();
-
   const frame = page.frameLocator('iframe');
   const first = frame.locator('[data-cms-block="layout[0]"]');
   await first.waitFor();
 
-  // Delete the middle block from the page itself.
+  // Delete the middle block from the page itself; the palette mirrors the page order.
+  const pageBlocks = page.locator('.palette__item--row');
+  await expect(pageBlocks).toHaveCount(3);
+
   const second = frame.locator('[data-cms-block="layout[1]"]');
   await second.hover();
   await second.locator('.cms-block-bar button[data-act="delete"]').click();
 
-  await expect(page.getByLabel('block 1 type')).toHaveValue('hero');
-  await expect(page.getByLabel('block 2 type')).toHaveValue('cta');
-  await expect(page.getByLabel('block 3 type')).toHaveCount(0);
+  await expect(pageBlocks).toHaveCount(2);
+  await expect(pageBlocks.nth(0)).toContainText('hero');
+  await expect(pageBlocks.nth(1)).toContainText('cta');
 
   // Drag the first block below the last one.
   const hero = frame.locator('[data-cms-block="layout[0]"]');
@@ -174,11 +175,9 @@ test('preview toolbar deletes and reorders blocks', async ({ page, request }) =>
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
   await page.mouse.up();
 
-  await expect(page.getByLabel('block 1 type')).toHaveValue('cta');
-  await expect(page.getByLabel('block 2 type')).toHaveValue('hero');
+  await expect(pageBlocks.nth(0)).toContainText('cta');
+  await expect(pageBlocks.nth(1)).toContainText('hero');
 
-  // The preview panel covers the header actions; close it before saving.
-  await page.getByRole('button', { name: 'Close' }).click();
   await page.getByRole('button', { name: 'Save' }).click();
 
   await expect
@@ -191,4 +190,55 @@ test('preview toolbar deletes and reorders blocks', async ({ page, request }) =>
       { timeout: 15_000 },
     )
     .toEqual(['cta', 'hero']);
+});
+
+/**
+ * The palette is how a page is assembled: clicking appends a block, dragging drops it where the
+ * cursor is. Both land in the same form the Save sends.
+ */
+test('palette adds blocks by click and by drag', async ({ page, request }) => {
+  const title = `Palette ${Date.now().toString(36)}`;
+  const created = await request.post('/api/cms/collections/pages', {
+    data: { title, visibility: 'public', layout: [{ type: 'hero', heading: 'Start' }] },
+  });
+  expect(created.status()).toBe(201);
+  const id = ((await created.json()) as { id: string }).id;
+
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Pages' }).click();
+  await page
+    .getByRole('row')
+    .filter({ hasText: title })
+    .getByRole('button', { name: 'Edit' })
+    .click();
+
+  const pageBlocks = page.locator('.palette__item--row');
+  await expect(pageBlocks).toHaveCount(1);
+
+  // Click appends.
+  await page.locator('.palette__item').filter({ hasText: 'quote' }).first().click();
+  await expect(pageBlocks).toHaveCount(2);
+  await expect(pageBlocks.nth(1)).toContainText('quote');
+
+  // Drag drops after the block under the cursor.
+  const frame = page.frameLocator('iframe');
+  const firstBlock = frame.locator('[data-cms-block="layout[0]"]');
+  await firstBlock.waitFor();
+  await page.locator('.palette__item').filter({ hasText: 'text' }).first().dragTo(firstBlock);
+
+  await expect(pageBlocks).toHaveCount(3);
+  await expect(pageBlocks.nth(1)).toContainText('text');
+
+  await page.getByRole('button', { name: 'Save' }).click();
+
+  await expect
+    .poll(
+      async () => {
+        const response = await request.get(`/api/cms/collections/pages/${id}`);
+        const doc = (await response.json()) as { layout: { type: string }[] };
+        return doc.layout.map((block) => block.type);
+      },
+      { timeout: 15_000 },
+    )
+    .toEqual(['hero', 'text', 'quote']);
 });

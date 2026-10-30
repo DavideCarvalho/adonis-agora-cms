@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button } from '../atoms/index.js';
 import { useMessages } from '../context.js';
 import { LivePreview } from '../organisms/live-preview.js';
-import { ArrayBuilder, BlocksBuilder } from '../organisms/structured.js';
+import { ArrayBuilder, BlocksBuilder, StructuredRowFields } from '../organisms/structured.js';
 import { VersionsPanel } from '../organisms/versions-panel.js';
+import { PREVIEW_BLOCK_MIME } from '../preview.js';
 import { JsonField, resolveFieldComponent } from '../registry.js';
 import type { AdminCollection, AdminDocument, AdminField, AdminPermission } from '../types.js';
 
@@ -55,6 +56,17 @@ export function EditForm({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [locale, setLocale] = useState<string>(locales[0] ?? '');
+  const blocksField = collection.fields.find((field) => field.type === 'blocks');
+  const visualAllowed = Boolean(collection.admin?.visualEditor && blocksField);
+  // With a blocks field the page is the document: open on the visual editor unless it has no
+  // preview to render.
+  // `null` = follow the document: blocks + preview means visual. The preview URL arrives after
+  // mount, so the default cannot be computed once in `useState`.
+  const [visualPref, setVisualPref] = useState<boolean | null>(null);
+  const visual = visualPref ?? Boolean(visualAllowed && previewUrl);
+  const setVisual = setVisualPref;
+  const [selected, setSelected] = useState<{ field: string; index: number } | null>(null);
+  const [refresh, setRefresh] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
 
   // A click on a `data-cms-field` region in the preview brings that field into view here.
@@ -117,6 +129,21 @@ export function EditForm({
     if (first) focusField(first.id);
   };
 
+  const insertBlock = (field: string, type: string, index: number) => {
+    mutateRows(field, (rows) => {
+      const at = Math.max(0, Math.min(index, rows.length));
+      return [...rows.slice(0, at), { type }, ...rows.slice(at)];
+    });
+    setRefresh((value) => value + 1);
+  };
+
+  /** `layout[2].heading` -> { field: 'layout', index: 2 } */
+  const selectFromPath = (path: string) => {
+    // Non-greedy: `layout[1].items[0].title` belongs to block 1, not to `layout[1].items` row 0.
+    const match = /^(.*?)\[(\d+)\]/.exec(path);
+    if (match) setSelected({ field: match[1] as string, index: Number(match[2]) });
+  };
+
   const visibleFields = collection.fields.filter((field) => !field.hidden);
 
   return (
@@ -170,7 +197,17 @@ export function EditForm({
             </Button>
           ) : null}
 
-          {previewUrl ? (
+          {visualAllowed && previewUrl ? (
+            <Button
+              size="sm"
+              tone={visual ? 'selected' : 'neutral'}
+              onClick={() => setVisual((value) => !value)}
+            >
+              {visual ? t.form : 'Visual'}
+            </Button>
+          ) : null}
+
+          {previewUrl && !visual ? (
             <Button size="sm" onClick={() => setPreviewOpen(true)}>
               {t.preview}
             </Button>
@@ -199,6 +236,36 @@ export function EditForm({
           field={{ type: 'json', name: 'document' }}
           value={values}
           onChange={(next) => setValues((next ?? {}) as AdminDocument)}
+        />
+      ) : visual && blocksField && previewUrl ? (
+        <VisualEditor
+          collection={collection}
+          blocksField={blocksField}
+          values={values}
+          setValue={setValue}
+          previewUrl={previewUrl}
+          selected={selected}
+          onSelect={setSelected}
+          onSelectIndex={(index) => setSelected({ field: blocksField.name, index })}
+          onSetBlock={(index, row) =>
+            mutateRows(blocksField.name, (rows) =>
+              rows.map((current, position) => (position === index ? row : current)),
+            )
+          }
+          onInsert={insertBlock}
+          onDelete={deleteBlock}
+          onMove={moveBlock}
+          onFocusField={(path) => {
+            selectFromPath(path);
+            // The inspector renders the block's fields on the next paint, so the focus target
+            // does not exist yet at message time.
+            requestAnimationFrame(() => focusField(path));
+          }}
+          onEditBlock={(path) => {
+            selectFromPath(path);
+            focusBlock(path);
+          }}
+          refresh={refresh}
         />
       ) : (
         <div className="form-body">
@@ -249,6 +316,176 @@ export function EditForm({
         />
       ) : null}
     </form>
+  );
+}
+
+type VisualEditorProps = {
+  collection: AdminCollection;
+  blocksField: AdminField;
+  values: AdminDocument;
+  setValue: (path: string, value: unknown) => void;
+  previewUrl: string;
+  selected: { field: string; index: number } | null;
+  onSelect: (selection: { field: string; index: number } | null) => void;
+  onSelectIndex: (index: number) => void;
+  onSetBlock: (index: number, row: Record<string, unknown>) => void;
+  onInsert: (field: string, type: string, index: number) => void;
+  onDelete: (field: string, index: number) => void;
+  onMove: (field: string, from: number, to: number) => void;
+  onFocusField: (path: string) => void;
+  onEditBlock: (path: string) => void;
+  refresh: number;
+};
+
+/**
+ * Visual editor: the page is the canvas.
+ *
+ * - left: the block palette (`layout` blocks from the schema) — drag a block into the page or click
+ *   to append;
+ * - centre: the live page, where blocks can be dragged, edited or deleted in place;
+ * - right: the inspector, with only the selected block's fields.
+ */
+function VisualEditor({
+  collection,
+  blocksField,
+  values,
+  setValue,
+  previewUrl,
+  selected,
+  onSelect,
+  onSelectIndex,
+  onSetBlock,
+  onInsert,
+  onDelete,
+  onMove,
+  onFocusField,
+  onEditBlock,
+  refresh,
+}: VisualEditorProps) {
+  const t = useMessages();
+  const rows = Array.isArray(values[blocksField.name])
+    ? (values[blocksField.name] as Record<string, unknown>[])
+    : [];
+  const definitions = blocksField.blocks ?? [];
+  const current = selected && selected.field === blocksField.name ? selected : null;
+  const row = current ? rows[current.index] : undefined;
+  const definition = row ? definitions.find((item) => item.slug === row.type) : undefined;
+
+  return (
+    <div className="visual">
+      <aside className="visual__palette" aria-label="Blocos">
+        <h2 className="visual__title">Blocos</h2>
+        <p className="visual__hint">Arraste para a página ou clique para adicionar.</p>
+        <div className="palette">
+          {definitions.map((item) => (
+            <button
+              key={item.slug}
+              type="button"
+              className="palette__item"
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData(
+                  PREVIEW_BLOCK_MIME,
+                  JSON.stringify({ field: blocksField.name, blockType: item.slug }),
+                );
+                event.dataTransfer.effectAllowed = 'copy';
+              }}
+              onClick={() => {
+                onInsert(blocksField.name, item.slug, rows.length);
+                onSelectIndex(rows.length);
+              }}
+            >
+              <span className="palette__grip">⠿</span>
+              {item.slug}
+            </button>
+          ))}
+        </div>
+
+        <h2 className="visual__title" style={{ marginTop: 18 }}>
+          Página
+        </h2>
+        <div className="palette">
+          {rows.map((item, index) => (
+            <button
+              key={String(item.id ?? index)}
+              type="button"
+              className={`palette__item palette__item--row${
+                current?.index === index ? ' palette__item--active' : ''
+              }`}
+              onClick={() => onSelectIndex(index)}
+            >
+              <span className="palette__grip">#{index + 1}</span>
+              {String(item.type ?? '—')}
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      <div className="visual__stage">
+        <LivePreview
+          url={previewUrl}
+          data={values}
+          open
+          onClose={() => undefined}
+          variant="inline"
+          refreshKey={refresh}
+          onFocusField={onFocusField}
+          onEditBlock={onEditBlock}
+          onMoveBlock={onMove}
+          onDeleteBlock={onDelete}
+          onInsertBlock={onInsert}
+        />
+      </div>
+
+      <aside className="visual__inspector" aria-label="Propriedades">
+        <h2 className="visual__title">{t.edit}</h2>
+        {!row || !current ? (
+          <p className="visual__hint">Clique num bloco na página (ou na lista) para editar.</p>
+        ) : (
+          <div className="inspector">
+            <div className="inspector__head">
+              <span className="row-head__index">#{current.index + 1}</span>
+              <select
+                className="select"
+                aria-label="block type"
+                value={String(row.type ?? '')}
+                onChange={(event) =>
+                  onSetBlock(current.index, { ...row, type: event.target.value })
+                }
+              >
+                <option value="">— block —</option>
+                {definitions.map((item) => (
+                  <option key={item.slug} value={item.slug}>
+                    {item.slug}
+                  </option>
+                ))}
+              </select>
+              <Button
+                size="xs"
+                tone="destructive"
+                onClick={() => {
+                  onDelete(current.field, current.index);
+                  onSelect(null);
+                }}
+              >
+                Remove
+              </Button>
+            </div>
+
+            {definition ? (
+              <StructuredRowFields
+                fields={definition.fields}
+                row={row}
+                prefix={`${current.field}[${current.index}]`}
+                onChange={(next) => onSetBlock(current.index, next)}
+              />
+            ) : (
+              <p className="visual__hint">Escolha um tipo de bloco.</p>
+            )}
+          </div>
+        )}
+      </aside>
+    </div>
   );
 }
 

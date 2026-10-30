@@ -16,6 +16,9 @@ export const PREVIEW_EDIT_MESSAGE = 'cms:edit-field';
 export const PREVIEW_EDIT_BLOCK_MESSAGE = 'cms:edit-block';
 export const PREVIEW_DELETE_BLOCK_MESSAGE = 'cms:delete-block';
 export const PREVIEW_MOVE_BLOCK_MESSAGE = 'cms:move-block';
+export const PREVIEW_INSERT_BLOCK_MESSAGE = 'cms:insert-block';
+/** MIME used when a block is dragged from the palette into the page. */
+export const PREVIEW_BLOCK_MIME = 'application/x-cms-block';
 
 const STYLE = `
 [${PREVIEW_FIELD_ATTRIBUTE}] {
@@ -108,6 +111,8 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
   var EDIT_BLOCK = ${JSON.stringify(PREVIEW_EDIT_BLOCK_MESSAGE)};
   var DELETE_BLOCK = ${JSON.stringify(PREVIEW_DELETE_BLOCK_MESSAGE)};
   var MOVE_BLOCK = ${JSON.stringify(PREVIEW_MOVE_BLOCK_MESSAGE)};
+  var INSERT_BLOCK = ${JSON.stringify(PREVIEW_INSERT_BLOCK_MESSAGE)};
+  var MIME = ${JSON.stringify(PREVIEW_BLOCK_MIME)};
 
   if (document.querySelector('style[data-cms-preview-bridge]')) return;
 
@@ -217,6 +222,45 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
     renumber(ref.field);
     post(MOVE_BLOCK, { field: ref.field, from: ref.index, to: to.index });
     void dropped;
+  });
+
+  // --- palette drop: a block dragged from the admin sidebar into the page -----------------
+  document.addEventListener('dragover', function (event) {
+    if (!event.dataTransfer || event.dataTransfer.types.indexOf(MIME) === -1) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+
+    var under = document.elementFromPoint(event.clientX, event.clientY);
+    var candidate = under && under.closest ? under.closest('[' + BLOCK + ']') : null;
+    blocksOf((document.querySelector('[' + BLOCK + ']') && (parse(document.querySelector('[' + BLOCK + ']')) || {}).field) || 'layout').forEach(
+      function (node) {
+        node.removeAttribute('data-cms-drop');
+      },
+    );
+    if (candidate) candidate.setAttribute('data-cms-drop', '1');
+  });
+
+  document.addEventListener('drop', function (event) {
+    if (!event.dataTransfer || event.dataTransfer.types.indexOf(MIME) === -1) return;
+    event.preventDefault();
+
+    var payload = null;
+    try {
+      payload = JSON.parse(event.dataTransfer.getData(MIME) || 'null');
+    } catch (error) {
+      payload = null;
+    }
+    if (!payload || !payload.field || !payload.blockType) return;
+
+    var under = document.elementFromPoint(event.clientX, event.clientY);
+    var candidate = under && under.closest ? under.closest('[' + BLOCK + ']') : null;
+    var ref = candidate ? parse(candidate) : null;
+    var index = ref && ref.field === payload.field ? ref.index + 1 : 0;
+
+    blocksOf(payload.field).forEach(function (node) {
+      node.removeAttribute('data-cms-drop');
+    });
+    post(INSERT_BLOCK, { field: payload.field, blockType: payload.blockType, index: index });
   });
 
   document.addEventListener('click', function (event) {
