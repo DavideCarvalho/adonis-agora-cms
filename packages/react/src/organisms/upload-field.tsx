@@ -14,6 +14,7 @@ function asAsset(value: unknown): Partial<CmsUpload> | null {
 }
 
 function fileLabel(asset: Partial<CmsUpload>): string {
+  if (asset.filename) return asset.filename;
   if (asset.url) {
     const name = asset.url.split('/').pop() ?? asset.url;
     return decodeURIComponent(name);

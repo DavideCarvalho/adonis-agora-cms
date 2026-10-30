@@ -519,9 +519,16 @@ export type CmsUploadFile = {
 export type CmsUploadHandler = (
   file: CmsUploadFile,
   context: { field: string; collection: string },
-) =>
-  | { id: string; url?: string; mime?: string; width?: number; height?: number }
-  | Promise<{ id: string; url?: string; mime?: string; width?: number; height?: number }>;
+) => CmsUploadAsset | Promise<CmsUploadAsset>;
+
+export type CmsUploadAsset = {
+  id: string;
+  filename?: string;
+  url?: string;
+  mime?: string;
+  width?: number;
+  height?: number;
+};
 
 export type UploadsConfig = {
   handler: CmsUploadHandler;

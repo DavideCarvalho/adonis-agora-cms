@@ -23,9 +23,15 @@ export default defineConfig({
     async handler(file) {
       await mkdir(UPLOAD_DIR, { recursive: true });
       const safe = file.filename.replace(/[^a-zA-Z0-9._-]/g, '-');
-      const name = `${randomUUID()}-${safe}`;
-      await writeFile(join(UPLOAD_DIR, name), file.contents);
-      return { id: randomUUID(), url: `/uploads/${name}`, mime: file.mimeType };
+      const folder = randomUUID();
+      await mkdir(join(UPLOAD_DIR, folder), { recursive: true });
+      await writeFile(join(UPLOAD_DIR, folder, safe), file.contents);
+      return {
+        id: randomUUID(),
+        filename: file.filename,
+        url: `/uploads/${folder}/${safe}`,
+        mime: file.mimeType,
+      };
     },
   },
   collections: [

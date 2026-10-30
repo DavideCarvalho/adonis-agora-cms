@@ -58,6 +58,7 @@ export type AdminSchema = {
 /** An asset returned by the upload endpoint (matches the core `CmsUpload`). */
 export type CmsUpload = {
   id: string;
+  filename?: string;
   url?: string;
   mime?: string;
   width?: number;

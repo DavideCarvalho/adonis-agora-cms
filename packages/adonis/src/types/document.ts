@@ -13,6 +13,8 @@ export type RichTextValue = {
 
 export type CmsUpload = {
   id: string;
+  /** Original name of the dropped file, when the upload handler reports it. */
+  filename?: string;
   url?: string;
   mime?: string;
   width?: number;
