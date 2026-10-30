@@ -1,4 +1,5 @@
 import type { CmsConfig, FieldConfig } from '../config/types.js';
+import { resolveVersions } from '../config/types.js';
 import { decideAccess } from '../repository/access.js';
 
 export type AdminField = {
@@ -79,8 +80,8 @@ export function toAdminSchema(
       kind: 'collection' as const,
       labels: collection.labels,
       admin: collection.admin,
-      versioned: collection.versions?.drafts === true,
-      drafts: collection.versions?.drafts === true,
+      versioned: resolveVersions(config, collection.versions).drafts,
+      drafts: resolveVersions(config, collection.versions).drafts,
       fields: serializeFields(collection.fields, accessArgs),
     };
   });
