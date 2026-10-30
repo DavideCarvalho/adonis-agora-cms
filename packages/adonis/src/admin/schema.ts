@@ -32,6 +32,7 @@ export type AdminCollection = {
   admin?: unknown;
   versioned: boolean;
   drafts: boolean;
+  softDelete: boolean;
   fields: AdminField[];
 };
 
@@ -82,6 +83,7 @@ export function toAdminSchema(
       admin: collection.admin,
       versioned: resolveVersions(config, collection.versions).drafts,
       drafts: resolveVersions(config, collection.versions).drafts,
+      softDelete: collection.softDelete === true,
       fields: serializeFields(collection.fields, accessArgs),
     };
   });
@@ -101,6 +103,7 @@ export function toAdminSchema(
       admin: global.admin,
       versioned: false,
       drafts: false,
+      softDelete: false,
       fields: serializeFields(global.fields, accessArgs),
     };
   });

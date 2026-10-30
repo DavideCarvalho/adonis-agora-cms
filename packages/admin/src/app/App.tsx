@@ -14,6 +14,7 @@ import {
   useDocuments,
   usePreviewToken,
   usePublishDocument,
+  useRestoreDocument,
   useUpdateDocument,
 } from '@adonis-agora/cms-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -132,9 +133,14 @@ function ListView({
   onNavigate: (route: Route) => void;
 }) {
   const [page, setPage] = useState(1);
-  const query = useMemo(() => ({ page, limit: 20, depth: 0 }), [page]);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const query = useMemo(
+    () => ({ page, limit: 20, depth: 0, ...(showDeleted ? { deleted: true } : {}) }),
+    [page, showDeleted],
+  );
   const documents = useDocuments(collection.slug, query);
   const remove = useDeleteDocument(collection.slug);
+  const restore = useRestoreDocument(collection.slug);
 
   return (
     <div className="flex flex-col gap-4">
@@ -150,6 +156,9 @@ function ListView({
         onDelete={(doc) => {
           if (window.confirm('Delete this document?')) remove.mutate(String(doc.id));
         }}
+        onRestore={(doc) => restore.mutate(String(doc.id))}
+        showDeleted={showDeleted}
+        onToggleDeleted={() => setShowDeleted((value) => !value)}
       />
 
       <div className="flex items-center gap-3 text-sm text-zinc-600">

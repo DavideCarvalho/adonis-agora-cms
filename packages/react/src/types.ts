@@ -26,6 +26,7 @@ export type AdminCollection = {
   admin?: { useAsTitle?: string; defaultColumns?: readonly string[]; group?: string };
   versioned: boolean;
   drafts: boolean;
+  softDelete?: boolean;
   fields: AdminField[];
 };
 
@@ -71,6 +72,7 @@ export type ListQuery = {
   depth?: number;
   locale?: string;
   draft?: boolean;
+  deleted?: boolean;
 };
 
 export type VersionRecord = {

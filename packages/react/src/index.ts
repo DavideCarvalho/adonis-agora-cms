@@ -21,6 +21,7 @@ export {
   useDocuments,
   usePreviewToken,
   usePublishDocument,
+  useRestoreDocument,
   useRestoreVersion,
   useUpdateDocument,
   useVersions,

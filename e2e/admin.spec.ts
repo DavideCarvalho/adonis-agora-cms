@@ -64,4 +64,19 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
   await expect(
     page.getByLabel('author').locator('option', { hasText: 'Davi Carvalho' }),
   ).toHaveCount(1);
+
+  // Back to the list: soft delete, trash view and restore.
+  await page.getByRole('button', { name: '←' }).click();
+  await expect(page.getByRole('cell', { name: 'Hello world' })).toBeVisible();
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByRole('cell', { name: 'Hello world' })).toHaveCount(0);
+
+  await page.getByLabel('Show deleted').check();
+  await expect(page.getByRole('cell', { name: 'Hello world' })).toBeVisible();
+  await page.getByRole('button', { name: 'Restore' }).click();
+
+  await page.getByLabel('Show deleted').uncheck();
+  await expect(page.getByRole('cell', { name: 'Hello world' })).toBeVisible();
 });

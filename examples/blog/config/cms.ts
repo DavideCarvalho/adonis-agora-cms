@@ -11,6 +11,7 @@ export default defineConfig({
       fields: [fields.text('name', { required: true }), fields.text('bio')],
     }),
     collection('posts', {
+      softDelete: true,
       labels: { singular: 'Post', plural: 'Posts' },
       admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug'] },
       fields: [

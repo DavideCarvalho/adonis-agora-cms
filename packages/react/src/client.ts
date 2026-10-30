@@ -56,8 +56,13 @@ export class AdminClient {
     return this.request<AdminDocument>('PATCH', `/collections/${slug}/${id}`, data);
   }
 
-  async delete(slug: string, id: string): Promise<void> {
-    await this.request<void>('DELETE', `/collections/${slug}/${id}`);
+  async delete(slug: string, id: string, options: { force?: boolean } = {}): Promise<void> {
+    const suffix = options.force ? '?force=true' : '';
+    await this.request<void>('DELETE', `/collections/${slug}/${id}${suffix}`);
+  }
+
+  async restore(slug: string, id: string): Promise<AdminDocument> {
+    return this.request<AdminDocument>('POST', `/collections/${slug}/${id}/restore`);
   }
 
   async publish(slug: string, id: string): Promise<AdminDocument> {

@@ -9,6 +9,9 @@ export type DataTableProps = {
   onOpen: (doc: AdminDocument) => void;
   onCreate?: (() => void) | undefined;
   onDelete?: ((doc: AdminDocument) => void) | undefined;
+  onRestore?: ((doc: AdminDocument) => void) | undefined;
+  showDeleted?: boolean | undefined;
+  onToggleDeleted?: (() => void) | undefined;
   busy?: boolean | undefined;
 };
 
@@ -20,6 +23,9 @@ export function DataTable({
   onOpen,
   onCreate,
   onDelete,
+  onRestore,
+  showDeleted,
+  onToggleDeleted,
   busy,
 }: DataTableProps) {
   const columns = collection.admin?.defaultColumns?.length
@@ -32,11 +38,19 @@ export function DataTable({
         <h2 className="text-lg font-semibold text-zinc-900">
           {collection.labels?.plural ?? collection.slug}
         </h2>
-        {onCreate && permission?.create !== false ? (
-          <Button variant="primary" onClick={onCreate}>
-            New
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-3">
+          {collection.softDelete && onToggleDeleted ? (
+            <label className="flex items-center gap-2 text-sm text-zinc-600">
+              <input type="checkbox" checked={showDeleted ?? false} onChange={onToggleDeleted} />
+              Show deleted
+            </label>
+          ) : null}
+          {onCreate && permission?.create !== false ? (
+            <Button variant="primary" onClick={onCreate}>
+              New
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-zinc-200">
@@ -76,10 +90,26 @@ export function DataTable({
                   ) : null}
                   <td className={cn('px-3 py-2 text-right')}>
                     <div className="flex justify-end gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => onOpen(doc)} disabled={busy}>
-                        Edit
-                      </Button>
-                      {onDelete && permission?.delete ? (
+                      {showDeleted && onRestore ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onRestore(doc)}
+                          disabled={busy}
+                        >
+                          Restore
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => onOpen(doc)}
+                          disabled={busy}
+                        >
+                          Edit
+                        </Button>
+                      )}
+                      {!showDeleted && onDelete && permission?.delete ? (
                         <Button
                           size="sm"
                           variant="ghost"

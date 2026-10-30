@@ -90,6 +90,18 @@ export function useDeleteDocument(slug: string) {
   });
 }
 
+export function useRestoreDocument(slug: string) {
+  const { client } = useCms();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => client.restore(slug, id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...cmsKeys.all, 'list', slug] });
+    },
+  });
+}
+
 export function usePublishDocument(slug: string, id: string) {
   const { client } = useCms();
   const queryClient = useQueryClient();
