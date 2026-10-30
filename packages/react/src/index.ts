@@ -3,6 +3,8 @@ export { Badge, Button, Checkbox, Field, Input, Select, Textarea } from './atoms
 export type { AdminClientOptions } from './client.js';
 export { AdminClient, CmsApiError } from './client.js';
 export { CmsProvider, useCms } from './context.js';
+export type { DataTableProps } from './organisms/data-table.js';
+export { DataTable } from './organisms/data-table.js';
 export {
   cmsKeys,
   useAdminSchema,
@@ -22,6 +24,8 @@ export {
   resolveFieldComponent,
   TextField,
 } from './registry.js';
+export type { EditFormProps } from './templates/edit-form.js';
+export { EditForm } from './templates/edit-form.js';
 export type {
   AdminCollection,
   AdminDocument,
