@@ -1,11 +1,11 @@
 import { Badge, Button } from '../atoms/index.js';
-import { cn } from '../cn.js';
 import { useMessages } from '../context.js';
 import type { AdminCollection, AdminDocument, AdminPermission } from '../types.js';
 
 export type DataTableProps = {
   collection: AdminCollection;
   docs: AdminDocument[];
+  total?: number | undefined;
   permission?: AdminPermission | undefined;
   onOpen: (doc: AdminDocument) => void;
   onCreate?: (() => void) | undefined;
@@ -16,10 +16,11 @@ export type DataTableProps = {
   busy?: boolean | undefined;
 };
 
-/** Schema-driven list. Columns come from `admin.defaultColumns`, falling back to the title field. */
+/** Schema-driven list: columns from `admin.defaultColumns`, actions gated by permissions. */
 export function DataTable({
   collection,
   docs,
+  total,
   permission,
   onOpen,
   onCreate,
@@ -30,68 +31,73 @@ export function DataTable({
   busy,
 }: DataTableProps) {
   const t = useMessages();
+
   const columns = collection.admin?.defaultColumns?.length
     ? [...collection.admin.defaultColumns]
     : [collection.admin?.useAsTitle ?? 'id'];
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-900">
-          {collection.labels?.plural ?? collection.slug}
-        </h2>
-        <div className="flex items-center gap-3">
+    <div className="page-enter">
+      <div className="page-head">
+        <div>
+          <h1 className="page-title">{collection.labels?.plural ?? collection.slug}</h1>
+          <p className="page-sub">
+            {total === undefined ? '—' : `${total} ${total === 1 ? 'document' : 'documents'}`}
+          </p>
+        </div>
+
+        <div className="toolbar">
           {collection.softDelete && onToggleDeleted ? (
-            <label className="flex items-center gap-2 text-sm text-zinc-600">
+            <label className="check">
               <input type="checkbox" checked={showDeleted ?? false} onChange={onToggleDeleted} />
               {t.showDeleted}
             </label>
           ) : null}
+
           {onCreate && permission?.create !== false ? (
             <Button variant="primary" onClick={onCreate}>
-              New
+              {t.new}
             </Button>
           ) : null}
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-zinc-200">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
             <tr>
               {columns.map((column) => (
-                <th key={column} className="px-3 py-2 font-medium">
-                  {column}
-                </th>
+                <th key={column}>{column}</th>
               ))}
-              {collection.drafts ? <th className="px-3 py-2 font-medium">status</th> : null}
-              <th className="px-3 py-2" />
+              {collection.drafts ? <th>status</th> : null}
+              <th aria-label="actions" />
             </tr>
           </thead>
           <tbody>
             {docs.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 2} className="px-3 py-10 text-center text-zinc-500">
-                  {t.noDocuments}
+                <td colSpan={columns.length + 2}>
+                  <div className="empty">
+                    <strong>{t.noDocuments}</strong>
+                    Create the first one to see it here.
+                  </div>
                 </td>
               </tr>
             ) : (
               docs.map((doc) => (
-                <tr key={String(doc.id)} className="border-t border-zinc-100 hover:bg-zinc-50">
+                <tr key={String(doc.id)}>
                   {columns.map((column) => (
-                    <td key={column} className="px-3 py-2 text-zinc-800">
-                      {renderCell(doc[column])}
-                    </td>
+                    <td key={column}>{renderCell(doc[column])}</td>
                   ))}
                   {collection.drafts ? (
-                    <td className="px-3 py-2">
+                    <td>
                       <Badge tone={doc._status === 'published' ? 'success' : 'warning'}>
                         {String(doc._status ?? 'draft')}
                       </Badge>
                     </td>
                   ) : null}
-                  <td className={cn('px-3 py-2 text-right')}>
-                    <div className="flex justify-end gap-1">
+                  <td>
+                    <div className="toolbar" style={{ justifyContent: 'flex-end' }}>
                       {showDeleted && onRestore ? (
                         <Button
                           size="sm"
@@ -108,7 +114,7 @@ export function DataTable({
                           onClick={() => onOpen(doc)}
                           disabled={busy}
                         >
-                          Edit
+                          {t.edit}
                         </Button>
                       )}
                       {!showDeleted && onDelete && permission?.delete ? (
@@ -134,12 +140,13 @@ export function DataTable({
 }
 
 function renderCell(value: unknown): string {
-  if (value === null || value === undefined) return '—';
+  if (value === null || value === undefined || value === '') return '—';
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   if (typeof value === 'object') {
-    if ('title' in (value as Record<string, unknown>)) {
-      return String((value as Record<string, unknown>).title);
-    }
+    const record = value as Record<string, unknown>;
+    if (typeof record.title === 'string') return record.title;
+    if (typeof record.name === 'string') return record.name;
+    if (typeof record.slug === 'string') return record.slug;
     return Array.isArray(value) ? `${value.length} item(s)` : '…';
   }
   return String(value);

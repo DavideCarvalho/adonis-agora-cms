@@ -6,7 +6,6 @@ import {
   CmsApiError,
   DataTable,
   EditForm,
-  Button as UiButton,
   useAdminSchema,
   useCreateDocument,
   useDeleteDocument,
@@ -36,11 +35,19 @@ export function App() {
     setRoute(next);
   }, []);
 
-  if (schema.isLoading) return <p className="p-8 text-zinc-500">Loading…</p>;
-  if (schema.error instanceof CmsApiError && schema.error.status === 401) {
-    return <SignIn />;
-  }
-  if (schema.error) return <p className="p-8 text-red-600">{String(schema.error.message)}</p>;
+  if (schema.isLoading)
+    return (
+      <p className="skeleton" style={{ padding: 40 }}>
+        Loading…
+      </p>
+    );
+  if (schema.error instanceof CmsApiError && schema.error.status === 401) return <SignIn />;
+  if (schema.error)
+    return (
+      <p className="error" style={{ padding: 40 }}>
+        {String(schema.error.message)}
+      </p>
+    );
   if (!schema.data) return null;
 
   const data = schema.data;
@@ -48,44 +55,48 @@ export function App() {
     data.collections.find((item) => item.slug === route.slug) ?? data.collections[0] ?? null;
 
   return (
-    <div className="flex min-h-screen">
+    <div className="shell">
       <Sidebar schema={data} activeSlug={collection?.slug ?? ''} onNavigate={navigate} />
 
-      <main className="flex-1 p-6">
-        {!collection ? (
-          <p className="text-zinc-500">No collections configured.</p>
-        ) : route.view === 'list' ? (
-          <ListView collection={collection} schema={data} onNavigate={navigate} />
-        ) : (
-          <EditView
-            collection={collection}
-            schema={data}
-            id={route.view === 'edit' ? route.id : undefined}
-            onNavigate={navigate}
-          />
-        )}
-      </main>
+      <div className="main">
+        <header className="topbar">
+          <nav className="crumb">
+            <span>{data.admin.title}</span>
+            <span aria-hidden>/</span>
+            <strong>{collection?.labels?.plural ?? collection?.slug ?? '—'}</strong>
+            {route.view !== 'list' && collection ? (
+              <>
+                <span aria-hidden>/</span>
+                <span>{route.view === 'edit' ? 'edit' : 'new'}</span>
+              </>
+            ) : null}
+          </nav>
+          <span className="crumb">{Object.keys(data.collections).length} collections</span>
+        </header>
+
+        <main className="page">
+          {!collection ? (
+            <p className="skeleton">No collections configured.</p>
+          ) : route.view === 'list' ? (
+            <ListView collection={collection} schema={data} onNavigate={navigate} />
+          ) : (
+            <EditView
+              collection={collection}
+              schema={data}
+              id={route.view === 'edit' ? route.id : undefined}
+              onNavigate={navigate}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 }
 
-/** Shown when the API answers 401: the host app owns the login, the panel only links to it. */
-function SignIn() {
-  const loginUrl = import.meta.env.VITE_CMS_LOGIN_URL ?? '/login';
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-6">
-      <div className="w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-6 text-center">
-        <h1 className="text-lg font-semibold text-zinc-900">Sign in required</h1>
-        <p className="mt-2 text-sm text-zinc-600">
-          Your session expired or you are not authenticated.
-        </p>
-        <a href={loginUrl} className="mt-4 inline-block">
-          <UiButton variant="primary">Go to sign in</UiButton>
-        </a>
-      </div>
-    </div>
-  );
+function toggleTheme(): void {
+  const root = document.documentElement;
+  const light = root.classList.toggle('light');
+  localStorage.setItem('cms-theme', light ? 'light' : 'dark');
 }
 
 function Sidebar({
@@ -98,27 +109,46 @@ function Sidebar({
   onNavigate: (route: Route) => void;
 }) {
   return (
-    <aside className="w-60 shrink-0 border-r border-zinc-200 bg-white p-4">
-      <h1 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-        {schema.admin.title}
-      </h1>
+    <aside className="sidebar">
+      <div className="brand">
+        <span className="brand__name">{schema.admin.title}</span>
+        <span className="brand__tag">cms</span>
+      </div>
 
-      <nav className="flex flex-col gap-1">
+      <nav className="nav">
+        <span className="nav__label">Content</span>
         {schema.collections.map((collection) => (
-          <Button
+          <button
             key={collection.slug}
-            variant={collection.slug === activeSlug ? 'primary' : 'ghost'}
-            className="justify-start"
+            type="button"
+            className={`nav-item${collection.slug === activeSlug ? ' nav-item--active' : ''}`}
             onClick={() => onNavigate({ view: 'list', slug: collection.slug })}
           >
-            {collection.labels?.plural ?? collection.slug}
-          </Button>
+            <span>{collection.labels?.plural ?? collection.slug}</span>
+          </button>
         ))}
+
+        {schema.globals.length > 0 ? (
+          <>
+            <span className="nav__label" style={{ marginTop: 18 }}>
+              Globals
+            </span>
+            {schema.globals.map((item) => (
+              <button key={item.slug} type="button" className="nav-item">
+                <span>{item.labels?.plural ?? item.slug}</span>
+              </button>
+            ))}
+          </>
+        ) : null}
       </nav>
 
-      {schema.globals.length > 0 ? (
-        <p className="mt-6 text-xs text-zinc-400">Globals: {schema.globals.length}</p>
-      ) : null}
+      <div className="sidebar__foot">
+        {schema.locales.length > 1 ? `${schema.locales.length} locales · ` : ''}
+        {schema.tenancy.strategy}
+        <button type="button" className="theme-toggle" onClick={toggleTheme}>
+          theme
+        </button>
+      </div>
     </aside>
   );
 }
@@ -143,10 +173,11 @@ function ListView({
   const restore = useRestoreDocument(collection.slug);
 
   return (
-    <div className="flex flex-col gap-4">
+    <>
       <DataTable
         collection={collection}
         docs={documents.data?.docs ?? []}
+        total={documents.data?.totalDocs}
         permission={schema.permissions[collection.slug]}
         busy={documents.isFetching || remove.isPending}
         onOpen={(doc: AdminDocument) =>
@@ -161,7 +192,7 @@ function ListView({
         onToggleDeleted={() => setShowDeleted((value) => !value)}
       />
 
-      <div className="flex items-center gap-3 text-sm text-zinc-600">
+      <div className="pager">
         <Button
           size="sm"
           disabled={!documents.data?.hasPrevPage}
@@ -170,8 +201,8 @@ function ListView({
           Previous
         </Button>
         <span>
-          Page {documents.data?.page ?? 1} of {documents.data?.totalPages ?? 1} ·{' '}
-          {documents.data?.totalDocs ?? 0} docs
+          page <span className="num">{documents.data?.page ?? 1}</span> of{' '}
+          <span className="num">{documents.data?.totalPages ?? 1}</span>
         </span>
         <Button
           size="sm"
@@ -181,7 +212,7 @@ function ListView({
           Next
         </Button>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -204,22 +235,19 @@ function EditView({
   const preview = usePreviewToken(collection.slug, id);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-
   const back = () => onNavigate({ view: 'list', slug: collection.slug });
 
   const handleSubmit = (values: AdminDocument) => {
     setErrors({});
-
     const onError = (error: unknown) => {
       if (error instanceof CmsApiError && error.fields) setErrors(error.fields);
       else setErrors({ _: error instanceof Error ? error.message : 'Request failed' });
     };
-
     if (id) update.mutate(values, { onError, onSuccess: back });
     else create.mutate(values, { onError, onSuccess: back });
   };
 
-  if (id && document.isLoading) return <p className="text-zinc-500">Loading…</p>;
+  if (id && document.isLoading) return <p className="skeleton">Loading…</p>;
 
   return (
     <EditForm
@@ -246,5 +274,24 @@ function EditView({
           : undefined
       }
     />
+  );
+}
+
+/** Shown when the API answers 401: the host app owns the login, the panel only links to it. */
+function SignIn() {
+  const loginUrl = import.meta.env.VITE_CMS_LOGIN_URL ?? '/login';
+
+  return (
+    <div className="signin">
+      <div className="signin__card">
+        <h1 className="page-title" style={{ fontSize: 24 }}>
+          Sign in required
+        </h1>
+        <p>Your session expired or you are not authenticated.</p>
+        <a href={loginUrl} style={{ display: 'inline-block', marginTop: 18 }}>
+          <Button variant="primary">Go to sign in</Button>
+        </a>
+      </div>
+    </div>
   );
 }

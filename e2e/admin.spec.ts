@@ -42,7 +42,7 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
 
   await page.getByRole('button', { name: 'Edit' }).click();
 
-  await expect(page.getByRole('textbox', { name: /^title\*/ })).toHaveValue('Hello world');
+  await expect(page.getByRole('textbox', { name: /^title \*/ })).toHaveValue('Hello world');
 
   // Localized field follows the locale switcher instead of rendering the raw map.
   await expect(page.getByRole('textbox', { name: /^subtitle/ })).toHaveValue('Primeiro post');
@@ -55,7 +55,7 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
 
   // Version history uses the REST versions endpoint.
   await page.getByRole('button', { name: 'History' }).click();
-  await expect(page.getByText(/#\d+/).first()).toBeVisible();
+  await expect(page.getByText(/^v\d+$/).first()).toBeVisible();
   await expect(page.getByRole('button', { name: /Current|Restore/ }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Close' }).click();
 
@@ -66,7 +66,7 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
   ).toHaveCount(1);
 
   // Back to the list: soft delete, trash view and restore.
-  await page.getByRole('button', { name: '←' }).click();
+  await page.getByRole('button', { name: 'back' }).click();
   await expect(page.getByRole('cell', { name: 'Hello world' })).toBeVisible();
 
   page.once('dialog', (dialog) => dialog.accept());

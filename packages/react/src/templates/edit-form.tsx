@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Badge, Button, Field } from '../atoms/index.js';
+import { Badge, Button } from '../atoms/index.js';
 import { useMessages } from '../context.js';
 import { LivePreview } from '../organisms/live-preview.js';
 import { ArrayBuilder, BlocksBuilder } from '../organisms/structured.js';
@@ -17,20 +17,25 @@ export type EditFormProps = {
   onPublish?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
   onBack?: (() => void) | undefined;
-  /** Signed URL from `GET /collections/:slug/:id/preview-token`. */
   previewUrl?: string | undefined;
-  /** Locales from the schema; enables the locale switcher for localized fields. */
   locales?: readonly string[] | undefined;
 };
 
-const CONTAINERS = new Set(['group', 'row', 'collapsible']);
+const SHORT = new Set([
+  'text',
+  'email',
+  'slug',
+  'number',
+  'date',
+  'select',
+  'radio',
+  'checkbox',
+  'relation',
+  'upload',
+  'password',
+]);
 
-/**
- * Schema-driven form.
- *
- * Scalars render through the `FieldRegistry` (so custom fields just work). Groups render
- * recursively; arrays and blocks fall back to a JSON editor until their builders land.
- */
+/** Schema-driven form: scalars through the FieldRegistry, groups recursive, arrays/blocks built. */
 export function EditForm({
   collection,
   doc,
@@ -46,16 +51,16 @@ export function EditForm({
 }: EditFormProps) {
   const t = useMessages();
   const [values, setValues] = useState<AdminDocument>(doc);
-
-  // The document arrives after mount (query), so the form must adopt it once it lands.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed by identity, not by deep value
-  useEffect(() => {
-    setValues(doc);
-  }, [doc.id]);
   const [showJson, setShowJson] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [locale, setLocale] = useState<string>(locales[0] ?? '');
+
+  // The document arrives after mount (query), so the form must adopt it once it lands.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed by identity, not deep value
+  useEffect(() => {
+    setValues(doc);
+  }, [doc.id]);
 
   const readOnly = useMemo(() => {
     const id = doc.id;
@@ -70,40 +75,33 @@ export function EditForm({
 
   return (
     <form
-      className="flex flex-col gap-6"
+      className="form page-enter"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit(values);
       }}
     >
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+      <div className="form-head">
+        <div className="form-head__left">
           {onBack ? (
-            <Button variant="ghost" size="sm" onClick={onBack}>
+            <Button variant="ghost" size="sm" onClick={onBack} aria-label="back">
               ←
             </Button>
           ) : null}
-          <h2 className="text-lg font-semibold text-zinc-900">
+          <h1 className="page-title" style={{ fontSize: 26 }}>
             {doc.id ? t.edit : t.new} {collection.labels?.singular ?? collection.slug}
-          </h2>
+          </h1>
           {doc._status ? (
             <Badge tone={doc._status === 'published' ? 'success' : 'warning'}>{doc._status}</Badge>
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="ghost" onClick={() => setShowJson((value) => !value)}>
-            {showJson ? t.form : t.json}
-          </Button>
-          {onDelete && permission?.delete ? (
-            <Button size="sm" variant="danger" onClick={onDelete}>
-              {t.delete}
-            </Button>
-          ) : null}
+        <div className="toolbar">
           {locales.length > 1 ? (
             <select
               aria-label="locale"
-              className="h-9 rounded-md border border-zinc-300 px-2 text-sm"
+              className="select"
+              style={{ width: 'auto' }}
               value={locale}
               onChange={(event) => setLocale(event.target.value)}
             >
@@ -114,26 +112,40 @@ export function EditForm({
               ))}
             </select>
           ) : null}
+
+          <Button size="sm" variant="ghost" onClick={() => setShowJson((value) => !value)}>
+            {showJson ? t.form : t.json}
+          </Button>
+
           {doc.id && collection.versioned ? (
             <Button size="sm" onClick={() => setHistoryOpen(true)}>
               {t.history}
             </Button>
           ) : null}
+
           {previewUrl ? (
             <Button size="sm" onClick={() => setPreviewOpen(true)}>
               {t.preview}
             </Button>
           ) : null}
+
+          {onDelete && permission?.delete ? (
+            <Button size="sm" variant="danger" onClick={onDelete}>
+              {t.delete}
+            </Button>
+          ) : null}
+
           {onPublish && collection.drafts && permission?.update !== false ? (
             <Button size="sm" onClick={onPublish}>
               {doc._status === 'published' ? t.unpublish : t.publish}
             </Button>
           ) : null}
+
           <Button size="sm" variant="primary" type="submit" disabled={saving || readOnly}>
             {saving ? t.saving : t.save}
           </Button>
         </div>
-      </header>
+      </div>
 
       {showJson ? (
         <JsonField
@@ -142,12 +154,9 @@ export function EditForm({
           onChange={(next) => setValues((next ?? {}) as AdminDocument)}
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="form-body">
           {visibleFields.map((field) => (
-            <div
-              key={field.name}
-              className={field.admin?.position === 'sidebar' ? 'md:col-span-1' : 'md:col-span-2'}
-            >
+            <div key={field.name} className={spanFor(field)}>
               <FieldRenderer
                 field={field}
                 values={values}
@@ -162,14 +171,15 @@ export function EditForm({
       )}
 
       {errors && Object.keys(errors).length > 0 ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="alert">
           {Object.entries(errors).map(([field, message]) => (
             <div key={field}>
-              <strong>{field}</strong>: {message}
+              <strong>{field}</strong> — {message}
             </div>
           ))}
         </div>
       ) : null}
+
       {doc.id && collection.versioned ? (
         <VersionsPanel
           slug={collection.slug}
@@ -191,6 +201,18 @@ export function EditForm({
   );
 }
 
+function spanFor(field: AdminField): string {
+  if (
+    field.type === 'group' ||
+    field.type === 'array' ||
+    field.type === 'blocks' ||
+    field.type === 'tabs'
+  ) {
+    return 'field--wide';
+  }
+  return SHORT.has(field.type) ? 'field--half' : 'field--wide';
+}
+
 function FieldRenderer({
   field,
   values,
@@ -210,37 +232,44 @@ function FieldRenderer({
 }) {
   const fieldPath = path ? `${path}.${field.name}` : field.name;
 
-  if (CONTAINERS.has(field.type) && field.fields) {
+  if (field.type === 'group' && field.fields) {
     return (
-      <fieldset className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4">
-        <legend className="px-1 text-sm font-medium text-zinc-700">{field.name}</legend>
-        {field.fields.map((nested) => (
-          <FieldRenderer
-            key={nested.name}
-            field={nested}
-            values={values}
-            setValue={setValue}
-            readOnly={readOnly}
-            locale={locale}
-            path={fieldPath}
-          />
-        ))}
+      <fieldset className="group">
+        <legend>{field.name}</legend>
+        <div className="form-body">
+          {field.fields.map((nested) => (
+            <div key={nested.name} className={spanFor(nested)}>
+              <FieldRenderer
+                field={nested}
+                values={values}
+                setValue={setValue}
+                readOnly={readOnly}
+                locale={locale}
+                path={fieldPath}
+              />
+            </div>
+          ))}
+        </div>
       </fieldset>
     );
   }
 
-  if (field.type === 'array' || field.type === 'blocks' || field.type === 'tabs') {
+  if (field.type === 'array' || field.type === 'blocks') {
+    const current = getByPath(values, fieldPath);
+    return field.type === 'array' ? (
+      <ArrayBuilder field={field} value={current} onChange={(next) => setValue(fieldPath, next)} />
+    ) : (
+      <BlocksBuilder field={field} value={current} onChange={(next) => setValue(fieldPath, next)} />
+    );
+  }
+
+  if (field.type === 'tabs') {
     return (
-      <Field
-        label={`${field.name} (JSON)`}
-        description="Structured editor lands with the blocks builder."
-      >
-        <JsonField
-          field={field}
-          value={getByPath(values, fieldPath)}
-          onChange={(next) => setValue(fieldPath, next)}
-        />
-      </Field>
+      <JsonField
+        field={field}
+        value={getByPath(values, fieldPath)}
+        onChange={(next) => setValue(fieldPath, next)}
+      />
     );
   }
 

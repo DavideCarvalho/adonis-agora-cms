@@ -11,7 +11,7 @@ export type FieldProps = {
   children: ReactNode;
 };
 
-/** Molecule: label + control + hint/error. Every field component composes this. */
+/** Label + control + hint/error. Every field component composes this. */
 export function Field({
   label,
   description,
@@ -22,20 +22,20 @@ export function Field({
   children,
 }: FieldProps) {
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
+    <div className={cn('field', className)}>
       {label ? (
-        <label htmlFor={htmlFor} className="text-sm font-medium text-zinc-900">
+        <label htmlFor={htmlFor} className="label">
           {label}
-          {required ? <span className="ml-0.5 text-red-600">*</span> : null}
+          {required ? <span> *</span> : null}
         </label>
       ) : null}
 
       {children}
 
       {error ? (
-        <p className="text-xs text-red-600">{error}</p>
+        <p className="error">{error}</p>
       ) : description ? (
-        <p className="text-xs text-zinc-500">{description}</p>
+        <p className="hint">{description}</p>
       ) : null}
     </div>
   );
@@ -49,15 +49,11 @@ export function Badge({
   tone?: 'neutral' | 'success' | 'warning' | 'danger';
 }) {
   const tones = {
-    neutral: 'bg-zinc-100 text-zinc-700',
-    success: 'bg-emerald-50 text-emerald-700',
-    warning: 'bg-amber-50 text-amber-700',
-    danger: 'bg-red-50 text-red-700',
+    neutral: '',
+    success: 'badge--ok',
+    warning: 'badge--warn',
+    danger: 'badge--warn',
   } as const;
 
-  return (
-    <span className={cn('inline-flex rounded px-2 py-0.5 text-xs font-medium', tones[tone])}>
-      {children}
-    </span>
-  );
+  return <span className={cn('badge', tones[tone])}>{children}</span>;
 }

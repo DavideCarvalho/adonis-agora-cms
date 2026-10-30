@@ -18,45 +18,42 @@ export function VersionsPanel({ slug, id, open, onClose }: VersionsPanelProps) {
   if (!open) return null;
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-30 flex w-96 flex-col border-l border-zinc-200 bg-white shadow-xl">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
-        <span className="text-sm font-medium text-zinc-700">{t.history}</span>
+    <aside className="panel" role="dialog" aria-label={t.history}>
+      <header className="panel__head">
+        <h2>{t.history}</h2>
         <Button size="sm" variant="ghost" onClick={onClose}>
-          Close
+          {t.close}
         </Button>
       </header>
 
-      <div className="flex-1 overflow-auto p-3">
-        {versions.isLoading ? <p className="text-sm text-zinc-500">{t.loading}</p> : null}
-        {versions.error ? <p className="text-sm text-red-600">Failed to load versions.</p> : null}
+      <div className="panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {versions.isLoading ? <p className="skeleton">{t.loading}</p> : null}
+        {versions.error ? <p className="error">Failed to load versions.</p> : null}
 
-        <ul className="flex flex-col gap-2">
-          {(versions.data?.docs ?? []).map((version) => (
-            <li key={version.id} className="rounded-md border border-zinc-200 p-3 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">#{version.version}</span>
-                <Badge tone={version.status === 'published' ? 'success' : 'warning'}>
-                  {version.status}
-                </Badge>
-              </div>
-              <p className="mt-1 text-xs text-zinc-500">
-                {new Date(version.createdAt).toLocaleString()}
-                {version.autosave ? ' · autosave' : ''}
-              </p>
-              <Button
-                size="sm"
-                className="mt-2"
-                disabled={restore.isPending || version.isLatest}
-                onClick={() => restore.mutate(version.version, { onSuccess: onClose })}
-              >
-                {version.isLatest ? t.current : t.restore}
-              </Button>
-            </li>
-          ))}
-        </ul>
+        {(versions.data?.docs ?? []).map((version) => (
+          <div key={version.id} className="version">
+            <div className="version__row">
+              <span className="version__meta">v{version.version}</span>
+              <Badge tone={version.status === 'published' ? 'success' : 'warning'}>
+                {version.status}
+              </Badge>
+            </div>
+            <span className="version__meta">
+              {new Date(version.createdAt).toLocaleString()}
+              {version.autosave ? ' · autosave' : ''}
+            </span>
+            <Button
+              size="sm"
+              disabled={restore.isPending || version.isLatest}
+              onClick={() => restore.mutate(version.version, { onSuccess: onClose })}
+            >
+              {version.isLatest ? t.current : t.restore}
+            </Button>
+          </div>
+        ))}
 
         {versions.data && versions.data.docs.length === 0 ? (
-          <p className="text-sm text-zinc-500">{t.noVersions}</p>
+          <p className="skeleton">{t.noVersions}</p>
         ) : null}
       </div>
     </aside>
