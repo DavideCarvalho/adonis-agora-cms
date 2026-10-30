@@ -21,6 +21,12 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
       data: {
         title: 'Hello world',
         subtitle: { 'pt-BR': 'Primeiro post', en: 'First post' },
+        body: {
+          tiptap: {
+            type: 'doc',
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hello body' }] }],
+          },
+        },
         author: authorId,
         status: 'published',
       },
@@ -42,6 +48,10 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
   await expect(page.getByRole('textbox', { name: /^subtitle/ })).toHaveValue('Primeiro post');
   await page.getByLabel('locale').selectOption('en');
   await expect(page.getByRole('textbox', { name: /^subtitle/ })).toHaveValue('First post');
+
+  // Rich text renders a real editor, not a textarea.
+  await expect(page.locator('.ProseMirror')).toBeVisible();
+  await expect(page.locator('.ProseMirror')).toContainText('Hello body');
 
   // Version history uses the REST versions endpoint.
   await page.getByRole('button', { name: 'History' }).click();

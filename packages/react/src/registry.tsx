@@ -1,6 +1,7 @@
 import type { ChangeEvent, ComponentType } from 'react';
 import { Checkbox, Field, Input, Select, Textarea } from './atoms/index.js';
 import { RelationPicker } from './organisms/relation-picker.js';
+import { RichText } from './organisms/rich-text.js';
 import type { AdminField } from './types.js';
 
 export type FieldComponentProps = {
@@ -158,7 +159,7 @@ registerField('email', TextField);
 registerField('password', TextField);
 registerField('code', TextField);
 registerField('textarea', TextareaField);
-registerField('richText', TextareaField);
+registerField('richText', RichText);
 registerField('number', NumberField);
 registerField('checkbox', CheckboxField);
 registerField('date', DateField);

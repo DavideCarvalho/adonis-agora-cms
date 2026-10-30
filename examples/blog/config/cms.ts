@@ -16,6 +16,7 @@ export default defineConfig({
       fields: [
         fields.text('title', { required: true }),
         fields.text('subtitle', { localized: true }),
+        fields.richText('body'),
         fields.slug('slug', { from: 'title', unique: true }),
         fields.relation('author', { relationTo: 'authors' }),
         fields.select('status', {
