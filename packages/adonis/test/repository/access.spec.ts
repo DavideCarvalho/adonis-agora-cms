@@ -47,10 +47,26 @@ describe('access control', () => {
     ],
   });
 
-  test('create and update require a user; delete requires an admin', async () => {
+  test('create requires a user: 401 anonymous, 403 when denied', async () => {
     const anonymous = await setup(config);
 
     await expect(anonymous.cms.collection('posts').create({ title: 'x' })).rejects.toMatchObject({
+      code: 'CMS_UNAUTHORIZED',
+    });
+
+    const denied = await setup(
+      defineConfig({
+        collections: [
+          collection('posts', {
+            access: { create: () => false },
+            fields: [fields.text('title')],
+          }),
+        ],
+      }),
+      { user: { id: 'u1' } },
+    );
+
+    await expect(denied.cms.collection('posts').create({ title: 'x' })).rejects.toMatchObject({
       code: 'CMS_FORBIDDEN',
     });
   });
