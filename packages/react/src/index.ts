@@ -5,6 +5,7 @@ export { AdminClient, CmsApiError } from './client.js';
 export { CmsProvider, useCms } from './context.js';
 export type { DataTableProps } from './organisms/data-table.js';
 export { DataTable } from './organisms/data-table.js';
+export { ArrayBuilder, BlocksBuilder } from './organisms/structured.js';
 export {
   cmsKeys,
   useAdminSchema,

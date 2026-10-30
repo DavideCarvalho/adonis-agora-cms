@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Badge, Button, Field } from '../atoms/index.js';
+import { ArrayBuilder, BlocksBuilder } from '../organisms/structured.js';
 import { JsonField, resolveFieldComponent } from '../registry.js';
 import type { AdminCollection, AdminDocument, AdminField, AdminPermission } from '../types.js';
 

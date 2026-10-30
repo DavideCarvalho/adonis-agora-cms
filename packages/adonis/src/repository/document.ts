@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { CmsConfig, FieldConfig } from '../config/types.js';
 import { resolveLocalization } from '../config/types.js';
 import type { CmsKnex } from '../db/types.js';
+import type { CmsEventBus } from '../integrations/durable.js';
 import type { MediaAdapter } from '../integrations/media.js';
+import type { CmsObservation } from '../integrations/telescope.js';
 import type { ColumnSpec, Engine, SchemaSpec, TableSpec } from '../schema/types.js';
 import { ident, placeholders, selectRows } from './sql.js';
 
@@ -16,6 +18,8 @@ export type RepoContext = {
   req: unknown;
   locale: string;
   media?: MediaAdapter | undefined;
+  observer?: ((observation: CmsObservation) => void) | undefined;
+  events?: CmsEventBus | undefined;
 };
 
 export type Row = Record<string, unknown>;

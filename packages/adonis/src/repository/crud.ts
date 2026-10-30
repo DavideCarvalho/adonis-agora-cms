@@ -76,6 +76,7 @@ export async function createDocument(
   data: Record<string, unknown>,
   options: OperationOptions = {},
 ): Promise<Record<string, unknown>> {
+  const startedAt = Date.now();
   const table = documentTable(ctx.spec, slug);
   const access = decideAccess(
     collectionAccess(ctx, slug)?.create,
@@ -124,6 +125,8 @@ export async function createDocument(
     ...options,
     overrideAccess: true,
   });
+
+  publishSideEffects(ctx, slug, 'create', id, doc ?? { id }, startedAt);
 
   return doc ?? { id };
 }
@@ -237,6 +240,7 @@ export async function updateDocument(
   data: Record<string, unknown>,
   options: OperationOptions = {},
 ): Promise<Record<string, unknown>> {
+  const startedAt = Date.now();
   const table = documentTable(ctx.spec, slug);
   const previous = await findDocumentByID(ctx, slug, id, { depth: 0, overrideAccess: true });
   if (!previous) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
@@ -292,6 +296,7 @@ export async function updateDocument(
   });
 
   const doc = await findDocumentByID(ctx, slug, id, { ...options, overrideAccess: true });
+  publishSideEffects(ctx, slug, 'update', id, doc ?? { id }, startedAt);
   return doc ?? { id };
 }
 
@@ -303,6 +308,7 @@ export async function deleteDocument(
   id: string,
   options: OperationOptions = {},
 ): Promise<void> {
+  const startedAt = Date.now();
   const table = documentTable(ctx.spec, slug);
   const doc = await findDocumentByID(ctx, slug, id, { depth: 0, overrideAccess: true });
   if (!doc) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
@@ -327,6 +333,42 @@ export async function deleteDocument(
   });
 
   await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete' });
+  publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt);
+}
+
+/** Emits observation + post-commit event. Never inside the transaction. */
+function publishSideEffects(
+  ctx: RepoContext,
+  slug: string,
+  operation: 'create' | 'update' | 'delete',
+  documentId: string,
+  doc: Record<string, unknown> | undefined,
+  startedAt: number,
+): void {
+  ctx.observer?.({
+    collection: slug,
+    operation,
+    durationMs: Math.max(0, Date.now() - startedAt),
+    ok: true,
+    documentId,
+    tenant: ctx.tenant,
+    userId: userIdOf(ctx.user),
+  });
+
+  ctx.events?.emit({
+    collection: slug,
+    operation,
+    documentId,
+    tenant: ctx.tenant,
+    userId: userIdOf(ctx.user),
+    ...(doc ? { doc } : {}),
+  });
+}
+
+function userIdOf(user: unknown): string | null {
+  if (!user || typeof user !== 'object') return null;
+  const id = (user as { id?: unknown }).id;
+  return id === undefined || id === null ? null : String(id);
 }
 
 /* ------------------------------------------------------------------ loading */

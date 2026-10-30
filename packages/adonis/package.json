@@ -67,6 +67,16 @@
       "types": "./dist/src/integrations/authz.d.ts",
       "import": "./dist/src/integrations/authz.js",
       "default": "./dist/src/integrations/authz.js"
+    },
+    "./telescope": {
+      "types": "./dist/src/integrations/telescope.d.ts",
+      "import": "./dist/src/integrations/telescope.js",
+      "default": "./dist/src/integrations/telescope.js"
+    },
+    "./durable": {
+      "types": "./dist/src/integrations/durable.d.ts",
+      "import": "./dist/src/integrations/durable.js",
+      "default": "./dist/src/integrations/durable.js"
     }
   },
   "files": [

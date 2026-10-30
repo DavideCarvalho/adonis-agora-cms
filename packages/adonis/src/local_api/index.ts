@@ -2,7 +2,9 @@ import type { CmsConfig } from '../config/types.js';
 import { resolveLocalization, resolveVersions } from '../config/types.js';
 import { detectEngine } from '../db/sync.js';
 import type { CmsKnex } from '../db/types.js';
+import type { CmsEventBus } from '../integrations/durable.js';
 import type { MediaAdapter } from '../integrations/media.js';
+import type { CmsObservation } from '../integrations/telescope.js';
 import {
   createDocument,
   deleteDocument,
@@ -38,6 +40,10 @@ export type CreateCmsOptions = {
   locale?: string;
   /** Resolves `upload` ids into `{ id, url, … }` on read. */
   media?: MediaAdapter;
+  /** Called after every committed write (telescope wiring). */
+  observer?: (observation: CmsObservation) => void;
+  /** Post-commit events (durable wiring). */
+  events?: CmsEventBus;
 };
 
 export type CmsCollectionApi<C, S extends string> = {
@@ -125,6 +131,8 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
       req: overrides.req ?? options.req ?? null,
       locale: overrides.locale ?? defaultLocale,
       media: options.media,
+      observer: options.observer,
+      events: options.events,
     };
   }
 
