@@ -5,17 +5,20 @@ import router from '@adonisjs/core/services/router';
 import db from '@adonisjs/lucid/services/db';
 import cmsConfig from '#config/cms';
 
-const cms = createCms({
-  config: cmsConfig,
-  client: db.connection().getWriteClient() as unknown as CmsKnex,
-});
-const yoga = createCmsYoga(cms);
+// Built lazily: routes are preloaded before the database provider boots.
+let yoga: ReturnType<typeof createCmsYoga> | undefined;
+const getYoga = () => {
+  yoga ??= createCmsYoga(
+    createCms({ config: cmsConfig, client: db.connection().getWriteClient() as unknown as CmsKnex }),
+  );
+  return yoga;
+};
 
 router.get('/', async () => ({ hello: 'blog example' }));
 // The Adonis bodyparser already consumed the stream, so the parsed body is re-wrapped in a
 // Request for Yoga instead of handing it the raw stream.
 router.post('/graphql', async ({ request, response }) => {
-  const result = await yoga.fetch('http://localhost/graphql', {
+  const result = await getYoga().fetch('http://localhost/graphql', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(request.body()),
