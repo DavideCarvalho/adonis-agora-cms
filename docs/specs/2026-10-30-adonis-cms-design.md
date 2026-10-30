@@ -29,17 +29,17 @@ tempo.
 
 ### Dentro do escopo (paridade Payload menos GraphQL)
 
-| Área | Incluído |
-|---|---|
-| Content modeling | collections, globals, todos os field types, blocks, arrays, groups, tabs |
-| Banco | DDL gerado/diffado, 3 modos de sync, introspecção, drift detection |
-| API | Local API tipada, REST automático, query grammar via `@adonis-agora/filter` |
-| Segurança | access control por operação e por campo, field-level read stripping, scoped reads |
-| Ciclo de vida | hooks (validate/change/read/delete), transações |
-| Versões | drafts, autosave, publish/unpublish, restore, retenção, document locks |
-| i18n | locales por coluna, fallback, campos localizados |
-| Painel | SPA React embutida, schema-driven, blocks builder, live preview |
-| Integrações | filter (obrigatória); media, authkit, authz, telescope, durable (opcionais) |
+| Área             | Incluído                                                                          |
+| ---------------- | --------------------------------------------------------------------------------- |
+| Content modeling | collections, globals, todos os field types, blocks, arrays, groups, tabs          |
+| Banco            | DDL gerado/diffado, 3 modos de sync, introspecção, drift detection                |
+| API              | Local API tipada, REST automático, query grammar via `@adonis-agora/filter`       |
+| Segurança        | access control por operação e por campo, field-level read stripping, scoped reads |
+| Ciclo de vida    | hooks (validate/change/read/delete), transações                                   |
+| Versões          | drafts, autosave, publish/unpublish, restore, retenção, document locks            |
+| i18n             | locales por coluna, fallback, campos localizados                                  |
+| Painel           | SPA React embutida, schema-driven, blocks builder, live preview                   |
+| Integrações      | filter (obrigatória); media, authkit, authz, telescope, durable (opcionais)       |
 
 ### Fora do escopo
 
@@ -180,23 +180,23 @@ Espelha `adonis-media` em scripts (`build`, `test`, `typecheck`, `lint`, `change
 
 ```ts
 // config/cms.ts
-import { defineConfig, collection, global, fields } from '@adonis-agora/cms'
+import { defineConfig, collection, global, fields } from '@adonis-agora/cms';
 
 export default defineConfig({
   db: {
-    schema: 'managed',        // 'managed' | 'migrations' | 'manual'
+    schema: 'managed', // 'managed' | 'migrations' | 'manual'
     tablePrefix: 'cms_',
-    id: 'uuid',               // 'uuid' | 'increment'
-    prune: false,             // permite DROP de tabela/coluna órfã do CMS
-    renames: {},              // { 'posts.old_field': 'new_field' } — evita drop+add
+    id: 'uuid', // 'uuid' | 'increment'
+    prune: false, // permite DROP de tabela/coluna órfã do CMS
+    renames: {}, // { 'posts.old_field': 'new_field' } — evita drop+add
   },
 
   admin: {
     path: '/admin',
-    auth: 'cms',              // 'cms' | 'authkit' | adapter próprio
+    auth: 'cms', // 'cms' | 'authkit' | adapter próprio
     title: 'Painel',
     livePreview: {
-      url: '/preview',        // base do site; o painel acrescenta ?token=&collection=&id=
+      url: '/preview', // base do site; o painel acrescenta ?token=&collection=&id=
     },
   },
 
@@ -208,9 +208,16 @@ export default defineConfig({
   },
 
   versions: {
-    retention: null,          // null = histórico completo; número = poda por documento
-    autosave: false,          // default por collection, sobrescrevível
-    lockTtl: 300,             // segundos
+    retention: null, // null = histórico completo; número = poda por documento
+    autosave: false, // default por collection, sobrescrevível
+    lockTtl: 300, // segundos
+  },
+
+  tenancy: {
+    strategy: 'row', // 'row' (coluna _tenant_id) | 'database' (uma conexão por tenant)
+    required: true,
+    resolve: ({ hostname }) => hostname.split('.')[0] ?? null, // default: subdomínio
+    overrides: { acme: { collections: { only: ['posts'] } } },
   },
 
   collections: [
@@ -237,12 +244,18 @@ export default defineConfig({
         fields.slug('slug', { from: 'title', unique: true }),
         fields.richText('body', { localized: true }),
         fields.select('status', {
-          options: [{ label: 'Rascunho', value: 'draft' }, { label: 'Publicado', value: 'published' }],
+          options: [
+            { label: 'Rascunho', value: 'draft' },
+            { label: 'Publicado', value: 'published' },
+          ],
           defaultValue: 'draft',
         }),
         fields.select('channels', {
-          options: [{ label: 'Web', value: 'web' }, { label: 'RSS', value: 'rss' }],
-          hasMany: true,        // tabela filha, filtrável e ordenável
+          options: [
+            { label: 'Web', value: 'web' },
+            { label: 'RSS', value: 'rss' },
+          ],
+          hasMany: true, // tabela filha, filtrável e ordenável
         }),
         fields.date('publishedAt', { admin: { position: 'sidebar' } }),
         fields.relation('author', { relationTo: 'users' }),
@@ -260,7 +273,7 @@ export default defineConfig({
       fields: [fields.text('siteName'), fields.upload('logo', { relationTo: 'media' })],
     }),
   ],
-})
+});
 ```
 
 ### Regras de validação da config
@@ -282,28 +295,28 @@ Falham no boot (dev) e no `cms:diff` (CI), com erro `CmsConfigError` apontando o
 
 ### Catálogo completo
 
-| Field | Armazenamento | Admin component | Notas |
-|---|---|---|---|
-| `text` | `varchar(len)` | `TextInput` | `maxLength`, `minLength`, `pattern` |
-| `textarea` | `text` | `Textarea` | |
-| `email` | `varchar(320)` | `EmailInput` | validação de formato |
-| `password` | `varchar(255)` | `PasswordInput` | hash via hook; nunca serializado |
-| `number` | `int`/`numeric` | `NumberInput` | `format: 'int' \| 'float' \| 'decimal'`, `min`, `max` |
-| `checkbox` | `boolean` | `Checkbox` | |
-| `date` | `timestamptz` | `DatePicker` | `withTime: true` default |
-| `select` | `varchar(255)` ou tabela filha | `Select` / `MultiSelect` | `hasMany: true` → tabela filha ordenada; valor fora das options rejeitado |
-| `radio` | `varchar(255)` | `RadioGroup` | |
-| `json` | `jsonb` | `JsonEditor` | validação de JSON no server |
-| `code` | `text` | `CodeEditor` | `language`, highlight |
-| `slug` | `varchar(255)` | `SlugInput` | `from`, gera no `beforeValidate` se vazio; unique por locale |
-| `richText` | `jsonb` | `RichText` (SPI) | documento do editor, não HTML |
-| `relation` | `<name>_id` / tabela filha | `RelationPicker` | `hasMany`, `relationTo: string \| string[]` (polimórfico suportado) |
-| `upload` | `<name>_id` + meta | `UploadPicker` | precisa do adapter media |
-| `array` | tabela filha | `ArrayField` | `fields[]`, `minRows`, `maxRows`, aninhamento recursivo |
-| `group` | colunas prefixadas na tabela pai | `GroupField` | `fields[]`, recursivo |
-| `blocks` | tabela filha com `type` | `BlocksBuilder` | `blocks: BlockDefinition[]`, aninhamento recursivo |
-| `tabs` | (estrutural) | `Tabs` | `fields[]` por tab |
-| `row` / `collapsible` | (estrutural) | layout | só afeta o admin |
+| Field                 | Armazenamento                    | Admin component          | Notas                                                                     |
+| --------------------- | -------------------------------- | ------------------------ | ------------------------------------------------------------------------- |
+| `text`                | `varchar(len)`                   | `TextInput`              | `maxLength`, `minLength`, `pattern`                                       |
+| `textarea`            | `text`                           | `Textarea`               |                                                                           |
+| `email`               | `varchar(320)`                   | `EmailInput`             | validação de formato                                                      |
+| `password`            | `varchar(255)`                   | `PasswordInput`          | hash via hook; nunca serializado                                          |
+| `number`              | `int`/`numeric`                  | `NumberInput`            | `format: 'int' \| 'float' \| 'decimal'`, `min`, `max`                     |
+| `checkbox`            | `boolean`                        | `Checkbox`               |                                                                           |
+| `date`                | `timestamptz`                    | `DatePicker`             | `withTime: true` default                                                  |
+| `select`              | `varchar(255)` ou tabela filha   | `Select` / `MultiSelect` | `hasMany: true` → tabela filha ordenada; valor fora das options rejeitado |
+| `radio`               | `varchar(255)`                   | `RadioGroup`             |                                                                           |
+| `json`                | `jsonb`                          | `JsonEditor`             | validação de JSON no server                                               |
+| `code`                | `text`                           | `CodeEditor`             | `language`, highlight                                                     |
+| `slug`                | `varchar(255)`                   | `SlugInput`              | `from`, gera no `beforeValidate` se vazio; unique por locale              |
+| `richText`            | `jsonb`                          | `RichText` (SPI)         | documento do editor, não HTML                                             |
+| `relation`            | `<name>_id` / tabela filha       | `RelationPicker`         | `hasMany`, `relationTo: string \| string[]` (polimórfico suportado)       |
+| `upload`              | `<name>_id` + meta               | `UploadPicker`           | precisa do adapter media                                                  |
+| `array`               | tabela filha                     | `ArrayField`             | `fields[]`, `minRows`, `maxRows`, aninhamento recursivo                   |
+| `group`               | colunas prefixadas na tabela pai | `GroupField`             | `fields[]`, recursivo                                                     |
+| `blocks`              | tabela filha com `type`          | `BlocksBuilder`          | `blocks: BlockDefinition[]`, aninhamento recursivo                        |
+| `tabs`                | (estrutural)                     | `Tabs`                   | `fields[]` por tab                                                        |
+| `row` / `collapsible` | (estrutural)                     | layout                   | só afeta o admin                                                          |
 
 `tabs`, `row` e `collapsible` são **estruturais**: não geram coluna, apenas reorganizam o
 formulário. O compilador achata seus filhos preservando o caminho para o admin.
@@ -312,27 +325,27 @@ formulário. O compilador achata seus filhos preservando o caminho para o admin.
 
 ```ts
 interface BaseField {
-  type: FieldType
-  name: string
-  label?: string | Record<string, string>
-  required?: boolean
-  unique?: boolean
-  index?: boolean
-  localized?: boolean
-  defaultValue?: unknown
+  type: FieldType;
+  name: string;
+  label?: string | Record<string, string>;
+  required?: boolean;
+  unique?: boolean;
+  index?: boolean;
+  localized?: boolean;
+  defaultValue?: unknown;
   admin?: {
-    position?: 'main' | 'sidebar'
-    description?: string
-    component?: string            // id no FieldRegistry do admin
-    condition?: (data: Record<string, unknown>) => boolean
-  }
-  access?: { read?: FieldAccess; update?: FieldAccess }
-  validate?: (args: { value: unknown; data: Record<string, unknown> }) => string | void
+    position?: 'main' | 'sidebar';
+    description?: string;
+    component?: string; // id no FieldRegistry do admin
+    condition?: (data: Record<string, unknown>) => boolean;
+  };
+  access?: { read?: FieldAccess; update?: FieldAccess };
+  validate?: (args: { value: unknown; data: Record<string, unknown> }) => string | void;
   hooks?: {
-    beforeValidate?: FieldHook[]
-    beforeChange?: FieldHook[]
-    afterRead?: FieldHook[]
-  }
+    beforeValidate?: FieldHook[];
+    beforeChange?: FieldHook[];
+    afterRead?: FieldHook[];
+  };
 }
 ```
 
@@ -341,10 +354,10 @@ interface BaseField {
 ```ts
 // package do usuário
 export const colorField = defineField({
-  type: 'color',                        // id livre
+  type: 'color', // id livre
   toColumn: () => ({ type: 'string', length: 9 }),
-  admin: { component: 'color' },        // registrado no React
-})
+  admin: { component: 'color' }, // registrado no React
+});
 ```
 
 `defineField` é açúcar sobre o contrato acima; o compilador não tem `switch` fechado — ele
@@ -361,38 +374,48 @@ nenhum `process.env`, nenhuma leitura de arquivo. Isso é o que torna o diff tes
 
 ```ts
 interface SchemaSpec {
-  hash: string                     // sha256 do spec canônico (sem timestamps)
-  engine: 'pg' | 'mysql' | 'sqlite'
-  idKind: 'uuid' | 'increment'
-  tablePrefix: string
-  locales: string[]
-  defaultLocale: string
-  tables: TableSpec[]
+  hash: string; // sha256 do spec canônico (sem timestamps)
+  engine: 'pg' | 'mysql' | 'sqlite';
+  idKind: 'uuid' | 'increment';
+  tablePrefix: string;
+  locales: string[];
+  defaultLocale: string;
+  tables: TableSpec[];
 }
 
 interface TableSpec {
-  name: string                     // cms_posts
-  kind: 'collection' | 'global' | 'child' | 'system'
-  slug: string                     // 'posts', 'tags', 'layout'
-  owner?: string                   // tabela pai, quando kind = 'child'
-  path?: string                    // 'tags', 'layout.gallery'
-  columns: ColumnSpec[]
-  indexes: IndexSpec[]
-  uniques: UniqueSpec[]
-  foreignKeys: ForeignKeySpec[]
+  name: string; // cms_posts
+  kind: 'collection' | 'global' | 'child' | 'system';
+  slug: string; // 'posts', 'tags', 'layout'
+  owner?: string; // tabela pai, quando kind = 'child'
+  path?: string; // 'tags', 'layout.gallery'
+  columns: ColumnSpec[];
+  indexes: IndexSpec[];
+  uniques: UniqueSpec[];
+  foreignKeys: ForeignKeySpec[];
 }
 
 interface ColumnSpec {
-  name: string                     // title, title_pt_br, author_id
-  type: 'uuid' | 'increment' | 'string' | 'text' | 'integer' | 'bigint'
-      | 'decimal' | 'float' | 'boolean' | 'timestamp' | 'json'
-  length?: number
-  precision?: number
-  scale?: number
-  nullable: boolean
-  default?: unknown
-  json?: boolean                   // marca coluna JSON (GIN index opcional)
-  references?: { table: string; column: string; onDelete: 'cascade' | 'set null' | 'restrict' }
+  name: string; // title, title_pt_br, author_id
+  type:
+    | 'uuid'
+    | 'increment'
+    | 'string'
+    | 'text'
+    | 'integer'
+    | 'bigint'
+    | 'decimal'
+    | 'float'
+    | 'boolean'
+    | 'timestamp'
+    | 'json';
+  length?: number;
+  precision?: number;
+  scale?: number;
+  nullable: boolean;
+  default?: unknown;
+  json?: boolean; // marca coluna JSON (GIN index opcional)
+  references?: { table: string; column: string; onDelete: 'cascade' | 'set null' | 'restrict' };
 }
 ```
 
@@ -444,7 +467,8 @@ N+1.
 ### Colunas de sistema (toda tabela de collection/global)
 
 `id`, `created_at`, `updated_at`, `_status` (sempre presente; só muda de significado quando a
-collection tem drafts), `_deleted_at` (soft delete opcional, default off).
+collection tem drafts), `_deleted_at` (soft delete opcional, default off) e, em tenancy `row`,
+`_tenant_id` (ver §24).
 
 Tabelas filhas têm `id`, `_parent_id`, `_order`, `_locale` (só quando localizado) e
 `created_at`/`updated_at` quando o field pede `timestamps: true`.
@@ -453,13 +477,13 @@ Tabelas filhas têm `id`, `_parent_id`, `_order`, `_locale` (só quando localiza
 
 ### Tabelas de sistema do CMS
 
-| Tabela | Colunas |
-|---|---|
-| `cms_versions` | `id`, `collection`, `document_id`, `locale`, `version`, `status`, `autosave` bool, `snapshot` json, `created_by`, `created_at`, `is_latest` bool |
-| `cms_schema_state` | `id`, `spec_hash`, `engine`, `plan` json, `applied_at` |
-| `cms_preferences` | `id`, `user_id`, `key`, `value` json |
-| `cms_document_locks` | `id`, `collection`, `document_id`, `user_id`, `expires_at` |
-| `cms_users` | quando `admin.auth: 'cms'` (id, email, password, name, role, created_at) |
+| Tabela               | Colunas                                                                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cms_versions`       | `id`, `collection`, `document_id`, `locale`, `version`, `status`, `autosave` bool, `snapshot` json, `created_by`, `created_at`, `is_latest` bool |
+| `cms_schema_state`   | `id`, `spec_hash`, `engine`, `plan` json, `applied_at`                                                                                           |
+| `cms_preferences`    | `id`, `user_id`, `key`, `value` json                                                                                                             |
+| `cms_document_locks` | `id`, `collection`, `document_id`, `user_id`, `expires_at`                                                                                       |
+| `cms_users`          | quando `admin.auth: 'cms'` (id, email, password, name, role, created_at)                                                                         |
 
 Não existe mais `cms_relations`: relação hasMany tem tabela filha própria (FK quando
 monomórfica), e polimorfismo usa `related_collection` na mesma tabela filha.
@@ -468,26 +492,29 @@ monomórfica), e polimorfismo usa `related_collection` na mesma tabela filha.
 `(parent_id, type)` em blocks; versões `(collection, document_id, locale, version desc)`;
 locks `(collection, document_id)` único.
 
-
 ---
 
 ## 9. Sincronização de schema
 
 ### Modos
 
-| Modo | Boot | Produção | Quando usar |
-|---|---|---|---|
-| `managed` | compara hash; se divergir, aplica o plano em dev/test | **não aplica**; loga erro e exige `node ace cms:sync` | default; DX de Payload |
-| `migrations` | só verifica drift (hash + introspecção) e avisa | drift = erro no boot | quem versiona schema em PR |
-| `manual` | não toca em nada | não toca em nada | quem escreve migration na mão com as funções exportadas |
+| Modo         | Boot                                                  | Produção                                              | Quando usar                                             |
+| ------------ | ----------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| `managed`    | compara hash; se divergir, aplica o plano em dev/test | **não aplica**; loga erro e exige `node ace cms:sync` | default; DX de Payload                                  |
+| `migrations` | só verifica drift (hash + introspecção) e avisa       | drift = erro no boot                                  | quem versiona schema em PR                              |
+| `manual`     | não toca em nada                                      | não toca em nada                                      | quem escreve migration na mão com as funções exportadas |
 
 ### Funções exportadas (contrato público)
 
 ```ts
 // idêntico em espírito ao @adonis-agora/media
-export function createCmsTables(knex: Knex, spec?: SchemaSpec): Promise<void>
-export function dropCmsTables(knex: Knex): Promise<void>
-export function syncCmsSchema(knex: Knex, spec: SchemaSpec, opts?: SyncOptions): Promise<SchemaPlan>
+export function createCmsTables(knex: Knex, spec?: SchemaSpec): Promise<void>;
+export function dropCmsTables(knex: Knex): Promise<void>;
+export function syncCmsSchema(
+  knex: Knex,
+  spec: SchemaSpec,
+  opts?: SyncOptions,
+): Promise<SchemaPlan>;
 ```
 
 `syncCmsSchema` é idempotente e roda o mesmo DDL que o modo `managed`, exatamente como o
@@ -499,13 +526,18 @@ export function syncCmsSchema(knex: Knex, spec: SchemaSpec, opts?: SyncOptions):
 
 ```ts
 interface SchemaPlan {
-  creates: TableSpec[]
-  alters: Array<{ table: string; addColumns: ColumnSpec[]; dropColumns: string[]; alterColumns: ColumnAlter[] }>
-  indexes: Array<{ table: string; add: IndexSpec[]; drop: string[] }>
-  foreignKeys: Array<{ table: string; add: ForeignKeySpec[]; drop: string[] }>
-  drops: string[]
-  destructive: boolean
-  warnings: string[]
+  creates: TableSpec[];
+  alters: Array<{
+    table: string;
+    addColumns: ColumnSpec[];
+    dropColumns: string[];
+    alterColumns: ColumnAlter[];
+  }>;
+  indexes: Array<{ table: string; add: IndexSpec[]; drop: string[] }>;
+  foreignKeys: Array<{ table: string; add: ForeignKeySpec[]; drop: string[] }>;
+  drops: string[];
+  destructive: boolean;
+  warnings: string[];
 }
 ```
 
@@ -535,12 +567,12 @@ interface SchemaPlan {
 `@adonis-agora/cms/commands` (array de command classes, registrado pelo `configure` via
 `rcFile.addCommand`):
 
-| Comando | O que faz |
-|---|---|
-| `cms:diff` | imprime o plano; exit 1 se houver drift (gate de CI) |
-| `cms:sync` | aplica o plano (`--dry-run`, `--allow-destructive`, `--force`) |
+| Comando        | O que faz                                                                              |
+| -------------- | -------------------------------------------------------------------------------------- |
+| `cms:diff`     | imprime o plano; exit 1 se houver drift (gate de CI)                                   |
+| `cms:sync`     | aplica o plano (`--dry-run`, `--allow-destructive`, `--force`)                         |
 | `cms:generate` | emite migration Lucid com timestamp + `syncCmsSchema(knex, spec)` e o spec serializado |
-| `cms:status` | hash aplicado vs. atual, contagem de docs/versões por collection |
+| `cms:status`   | hash aplicado vs. atual, contagem de docs/versões por collection                       |
 
 `cms:generate` grava o spec **serializado no arquivo**, não o import da config: migrations
 antigas precisam continuar reproduzíveis mesmo depois que a config mudar (é o mesmo motivo
@@ -551,9 +583,9 @@ pelo qual o Payload gera SQL, e não importa o schema TS).
 ## 10. Tipos sem codegen
 
 ```ts
-const config = defineConfig({ collections: [postsCollection] })  // 'const' generic
+const config = defineConfig({ collections: [postsCollection] }); // 'const' generic
 
-type Post = CmsDocument<typeof config, 'posts'>
+type Post = CmsDocument<typeof config, 'posts'>;
 // { id: string; title: string; slug: string
 //   body: RichTextValue | Record<Locale, RichTextValue>
 //   status: 'draft' | 'published'; channels: Array<'web' | 'rss'>
@@ -565,9 +597,9 @@ type Post = CmsDocument<typeof config, 'posts'>
 //   seo: { title: string | null; description: string | null }
 //   createdAt: Date; updatedAt: Date; _status: 'draft' | 'published' }
 
-const posts = cms.collection('posts')
-await posts.create({ title: 'Oi', body: doc })      // erro: falta `status`? não — tem default
-await posts.find({ where: { status: 'published' } }) // `status` tipado como união
+const posts = cms.collection('posts');
+await posts.create({ title: 'Oi', body: doc }); // erro: falta `status`? não — tem default
+await posts.find({ where: { status: 'published' } }); // `status` tipado como união
 ```
 
 Regras da inferência:
@@ -598,20 +630,26 @@ para usar o CMS.
 
 ```ts
 // server-side, sem HTTP
-const posts = cms.collection('posts')
+const posts = cms.collection('posts');
 
-await posts.create({ data: { title: 'Oi' }, draft: true, locale: 'pt-BR', req })
-await posts.update({ id, data: { title: 'Oi 2' }, draft: true })
-await posts.find({ where: { status: 'published' }, sort: '-publishedAt', limit: 10, page: 1, depth: 2 })
-await posts.findByID(id, { depth: 1, locale: 'en', draft: false })
-await posts.delete({ id })
-await posts.publish({ id })
-await posts.unpublish({ id })
-await posts.versions({ id })
-await posts.restoreVersion({ id, version: 3 })
+await posts.create({ data: { title: 'Oi' }, draft: true, locale: 'pt-BR', req });
+await posts.update({ id, data: { title: 'Oi 2' }, draft: true });
+await posts.find({
+  where: { status: 'published' },
+  sort: '-publishedAt',
+  limit: 10,
+  page: 1,
+  depth: 2,
+});
+await posts.findByID(id, { depth: 1, locale: 'en', draft: false });
+await posts.delete({ id });
+await posts.publish({ id });
+await posts.unpublish({ id });
+await posts.versions({ id });
+await posts.restoreVersion({ id, version: 3 });
 
-await cms.global('site_settings').get({ locale: 'pt-BR' })
-await cms.global('site_settings').update({ data: { siteName: 'X' } })
+await cms.global('site_settings').get({ locale: 'pt-BR' });
+await cms.global('site_settings').update({ data: { siteName: 'X' } });
 ```
 
 Contrato:
@@ -632,23 +670,23 @@ Contrato:
 
 Base: `/api/cms` (configurável). Rotas geradas para toda collection/global.
 
-| Método | Rota |
-|---|---|
-| GET | `/collections/:slug` |
-| POST | `/collections/:slug` |
-| GET | `/collections/:slug/:id` |
-| PATCH | `/collections/:slug/:id` |
-| DELETE | `/collections/:slug/:id` |
-| POST | `/collections/:slug/:id/publish` |
-| POST | `/collections/:slug/:id/unpublish` |
-| GET | `/collections/:slug/:id/versions` |
-| GET | `/collections/:slug/:id/versions/:version` |
-| POST | `/collections/:slug/:id/versions/:version/restore` |
-| GET | `/globals/:slug` |
-| PATCH | `/globals/:slug` |
-| GET | `/schema` (contrato do admin) |
-| GET | `/me` |
-| GET/PATCH | `/preferences` |
+| Método    | Rota                                               |
+| --------- | -------------------------------------------------- |
+| GET       | `/collections/:slug`                               |
+| POST      | `/collections/:slug`                               |
+| GET       | `/collections/:slug/:id`                           |
+| PATCH     | `/collections/:slug/:id`                           |
+| DELETE    | `/collections/:slug/:id`                           |
+| POST      | `/collections/:slug/:id/publish`                   |
+| POST      | `/collections/:slug/:id/unpublish`                 |
+| GET       | `/collections/:slug/:id/versions`                  |
+| GET       | `/collections/:slug/:id/versions/:version`         |
+| POST      | `/collections/:slug/:id/versions/:version/restore` |
+| GET       | `/globals/:slug`                                   |
+| PATCH     | `/globals/:slug`                                   |
+| GET       | `/schema` (contrato do admin)                      |
+| GET       | `/me`                                              |
+| GET/PATCH | `/preferences`                                     |
 
 ### Query grammar
 
@@ -692,12 +730,12 @@ exigido), `403` (access negado), `404`, `409` (unique/lock), `422` (validação 
 
 ```ts
 type AccessFn = (args: {
-  req: HttpContext | null
-  user: unknown
-  id?: string
-  data?: Record<string, unknown>
-  locale?: string
-}) => boolean | WhereConstraint
+  req: HttpContext | null;
+  user: unknown;
+  id?: string;
+  data?: Record<string, unknown>;
+  locale?: string;
+}) => boolean | WhereConstraint;
 ```
 
 - `read` pode devolver `WhereConstraint` (mesmo shape do filter) → leitura escopada sem
@@ -790,8 +828,11 @@ Regras:
 
 ```ts
 const heroBlock = block('hero', {
-  fields: [fields.text('heading', { required: true }), fields.upload('image', { relationTo: 'media' })],
-})
+  fields: [
+    fields.text('heading', { required: true }),
+    fields.upload('image', { relationTo: 'media' }),
+  ],
+});
 ```
 
 - Armazenamento: tabela filha com `id`, `_parent_id`, `_order`, `_locale`, `type` + união de
@@ -818,14 +859,18 @@ JSON serializável derivado do mesmo `SchemaSpec` + config (sem funções):
   "admin": { "title": "Painel", "path": "/admin" },
   "locales": ["pt-BR", "en"],
   "defaultLocale": "pt-BR",
-  "collections": [{
-    "slug": "posts",
-    "labels": { "singular": "Post", "plural": "Posts" },
-    "useAsTitle": "title",
-    "defaultColumns": ["title", "status"],
-    "versioned": true,
-    "fields": [{ "type": "text", "name": "title", "required": true, "admin": { "position": "main" } }]
-  }],
+  "collections": [
+    {
+      "slug": "posts",
+      "labels": { "singular": "Post", "plural": "Posts" },
+      "useAsTitle": "title",
+      "defaultColumns": ["title", "status"],
+      "versioned": true,
+      "fields": [
+        { "type": "text", "name": "title", "required": true, "admin": { "position": "main" } }
+      ]
+    }
+  ],
   "globals": [],
   "user": { "id": "...", "name": "...", "role": "admin" },
   "permissions": { "posts": { "create": true, "update": true, "delete": false } }
@@ -854,14 +899,14 @@ esconde botões sem duplicar a lógica.
 
 ## 18. Integrações
 
-| Pacote | Tipo | Subpath | O que faz |
-|---|---|---|---|
-| `@adonis-agora/filter` | **obrigatória** | — | query grammar da REST e do painel |
-| `@adonis-agora/media` | opcional | `cms/media` | adapter de upload; `fields.upload` resolve URL/thumb |
-| `@adonis-agora/authkit` | opcional | `cms/authkit` | `CmsAuthAdapter` sobre a sessão do authkit |
-| `@adonis-agora/authz` | opcional | `cms/authz` | traduz `AccessFn` em abilities |
-| `@adonis-agora/telescope` | opcional | `cms/telescope` | watcher de queries do CMS, hooks lentos, drift |
-| `@adonis-agora/durable` | opcional | `cms/durable` | jobs de autosave/retention/webhooks pós-commit |
+| Pacote                    | Tipo            | Subpath         | O que faz                                            |
+| ------------------------- | --------------- | --------------- | ---------------------------------------------------- |
+| `@adonis-agora/filter`    | **obrigatória** | —               | query grammar da REST e do painel                    |
+| `@adonis-agora/media`     | opcional        | `cms/media`     | adapter de upload; `fields.upload` resolve URL/thumb |
+| `@adonis-agora/authkit`   | opcional        | `cms/authkit`   | `CmsAuthAdapter` sobre a sessão do authkit           |
+| `@adonis-agora/authz`     | opcional        | `cms/authz`     | traduz `AccessFn` em abilities                       |
+| `@adonis-agora/telescope` | opcional        | `cms/telescope` | watcher de queries do CMS, hooks lentos, drift       |
+| `@adonis-agora/durable`   | opcional        | `cms/durable`   | jobs de autosave/retention/webhooks pós-commit       |
 
 Regra: o core **não importa** os opcionais. Cada subpath exporta uma função de wiring
 (`mediaAdapter()`, `authkitAdapter()`, `telescopeWatcher()`) que o usuário passa na config.
@@ -897,23 +942,23 @@ CmsError (base: code, message, context)
 
 ## 20. Testes
 
-| Camada | Estratégia |
-|---|---|
-| `schema/compileSchema` | unit puro, snapshot do `SchemaSpec` por fixture de config |
-| `db/diff` | unit com introspecção fake + integração sqlite/pg |
-| `db/sync` | integração: cria, altera, dropa, idempotência, rollback |
-| `repository` | integração sqlite in-memory; contract test por engine |
-| `access` | unit: boolean, constraint, field stripping, override |
-| `hooks` | unit: ordem, transformação, rollback |
-| `versions` | integração: draft, publish, restore, retenção, autosave |
-| `rest` | e2e com `@adonisjs/http-server` + Japa/test client |
-| `admin` | vitest + Testing Library nos field components; e2e Playwright no `examples/blog` |
+| Camada                 | Estratégia                                                                       |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `schema/compileSchema` | unit puro, snapshot do `SchemaSpec` por fixture de config                        |
+| `db/diff`              | unit com introspecção fake + integração sqlite/pg                                |
+| `db/sync`              | integração: cria, altera, dropa, idempotência, rollback                          |
+| `repository`           | integração sqlite in-memory; contract test por engine                            |
+| `access`               | unit: boolean, constraint, field stripping, override                             |
+| `hooks`                | unit: ordem, transformação, rollback                                             |
+| `versions`             | integração: draft, publish, restore, retenção, autosave                          |
+| `rest`                 | e2e com `@adonisjs/http-server` + Japa/test client                               |
+| `admin`                | vitest + Testing Library nos field components; e2e Playwright no `examples/blog` |
 
 Kit:
 
 ```ts
-const { cms, db, destroy, actAs } = await createTestCms({ config, engine: 'sqlite' })
-await actAs({ id: 'u1', role: 'admin' })
+const { cms, db, destroy, actAs } = await createTestCms({ config, engine: 'sqlite' });
+await actAs({ id: 'u1', role: 'admin' });
 ```
 
 `createTestCms` sobe better-sqlite3 em memória, roda `syncCmsSchema`, injeta relógio
@@ -928,26 +973,33 @@ Marcos são granularidade de **revisão e release**, não corte de escopo. Cada 
 features completas e permanentes; nada aqui é descartado depois.
 
 ### Marco 1 — Fundação
+
 `defineConfig` + todos os field types + `compileSchema` + `SchemaSpec` + query plan de
 caminhos + diff/introspecção sqlite/pg/mysql + `syncCmsSchema`/`createTables`/`dropTables` +
 3 modos + `cms:diff`/`cms:sync`/`cms:generate`/`cms:status` + tipos por inferência +
+tenancy no compilador (`row` com `_tenant_id` e unique composto; `database` sem coluna) +
 `createTestCms` + `configure`.
 
 **Aceite:** config de blog compila; `cms:diff` em banco vazio == plano de criação; aplicar
 duas vezes não muda nada (idempotente); adicionar campo gera alter; adicionar block gera
 alter na tabela filha; remover campo sem `--allow-destructive` falha com warning; tipos de
-`CmsDocument` batem com a config (type test com `expectTypeOf`), incluindo blocks aninhados.
+`CmsDocument` batem com a config (type test com `expectTypeOf`), incluindo blocks aninhados;
+tenancy `row` gera `_tenant_id` em pai e filhas com unique composto (`slug`, `_tenant_id`).
 
 ### Marco 2 — Dados e API
+
 Repositório relacional (pai + filhas), Local API, REST, access, hooks, filter, validação,
-transações, population batched, soft delete.
+transações, population batched, soft delete, escopo de tenant (`cms.forTenant`, `_tenant_id`
+injetado em toda query, `allowCrossTenant` restrito).
 
 **Aceite:** CRUD completo via REST e Local API; array/block persistem em tabela filha e
 respeitam `_order`; `where[layout.type]=hero` funciona; access constraint esconde docs;
 field-level read remove chave; hook que lança faz rollback de pai e filhas; `depth` popula
-relation e estruturas aninhadas sem N+1 (assert de contagem de queries).
+relation e estruturas aninhadas sem N+1 (assert de contagem de queries); em tenancy `row`,
+nenhuma query sai sem `_tenant_id` e um tenant não enxerga documento de outro.
 
 ### Marco 3 — Versionamento
+
 Drafts, publish/unpublish, restore, autosave, retenção (default ilimitada), locks, diff de
 versões.
 
@@ -956,6 +1008,7 @@ recria estado completo (incluindo filhas) e gera nova versão; diff entre versõ
 mudança dentro de block; retenção configurada preserva a última publicada.
 
 ### Marco 4 — i18n
+
 Colunas por locale, `_locale` em filhas, fallback, `localizedRequired`, unique por locale,
 merge de linhas filhas por `id`.
 
@@ -964,6 +1017,7 @@ localizado tem ordem independente por locale; `localizedRequired: 'all'` bloquei
 deve.
 
 ### Marco 5 — Painel
+
 SPA embutida, schema JSON, FieldRegistry, list/edit/versions/diff, blocks builder, media
 browser, live preview, auth adapters.
 
@@ -972,6 +1026,7 @@ browser, live preview, auth adapters.
 preview reflete edição sem reload.
 
 ### Marco 6 — Integrações e endurecimento
+
 Adapters media/authkit/authz/telescope/durable, `cms:types` opcional, e2e no `examples/blog`,
 matriz Postgres/MySQL/SQLite no CI, docs por tópico.
 
@@ -982,23 +1037,143 @@ PII; durable recebe eventos pós-commit; e2e do blog verde.
 
 ## 22. Decisões e riscos
 
-| # | Item | Decisão/risco |
-|---|---|---|
-| 1 | Rich text | SPI `RichTextEditor`; **Tiptap** como default (Lexical fica como adapter). O snapshot guarda `editor: 'tiptap@x'` para restore fiel entre versões do editor. |
-| 2 | Auth do painel | Interface `CmsAuthAdapter`; implementações `cms_users` e `authkit` no mesmo marco. Adapter de teste desde o Marco 1. |
-| 3 | JSON por engine | `jsonb` no pg, `json` no mysql/sqlite. Igualdade em chave JSON só é uniforme no pg; **estruturas filtráveis não usam JSON** — para isso existem as tabelas filhas. `json` field é livre e não é filtrável por chave em engine não-pg (documentado). |
-| 4 | DDL no MySQL | Sem transação; plano parcial é possível. `cms:sync` é idempotente, então re-rodar converge. Exigir `--dry-run` em prod. |
-| 5 | `afterChange` em trx | Difere do Payload (pós-commit). Efeito externo vai para durable. Documentado em destaque. |
-| 6 | Crescimento de `cms_versions` | Default é histórico completo; snapshot inclui filhas. `cms:status` reporta tamanho por collection; `retention` numérico existe para quem precisar podar. |
-| 7 | Bundle do admin | Tiptap + TanStack pode passar de 600 kB gzip. Code-split por rota e editor em chunk separado (carregado só ao abrir um campo richText). |
-| 8 | Inferência de tipos profunda | Configs muito grandes podem estourar o TS. `cms:types` materializa os tipos como escape hatch (implementado no Marco 6), mantendo a inferência como caminho default. |
-| 9 | Renomear campo | Só via `db.renames` explícito, incluindo caminhos de filha (`posts.layout.heading`). Sem heurística. |
-| 10 | FKs em DDL destrutivo | Drop de tabela pai com filhas exige ordem inversa e `ON DELETE CASCADE` nas filhas. O plano já ordena; o teste cobre drop de collection inteira. |
-| 11 | `_order` concorrente | Reordenação usa `_order` esparso (100, 200, 300) e normaliza no write, evitando reescrever a lista inteira a cada drag. |
+| #   | Item                          | Decisão/risco                                                                                                                                                                                                                                       |
+| --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Rich text                     | SPI `RichTextEditor`; **Tiptap** como default (Lexical fica como adapter). O snapshot guarda `editor: 'tiptap@x'` para restore fiel entre versões do editor.                                                                                        |
+| 2   | Auth do painel                | Interface `CmsAuthAdapter`; implementações `cms_users` e `authkit` no mesmo marco. Adapter de teste desde o Marco 1.                                                                                                                                |
+| 3   | JSON por engine               | `jsonb` no pg, `json` no mysql/sqlite. Igualdade em chave JSON só é uniforme no pg; **estruturas filtráveis não usam JSON** — para isso existem as tabelas filhas. `json` field é livre e não é filtrável por chave em engine não-pg (documentado). |
+| 4   | DDL no MySQL                  | Sem transação; plano parcial é possível. `cms:sync` é idempotente, então re-rodar converge. Exigir `--dry-run` em prod.                                                                                                                             |
+| 5   | `afterChange` em trx          | Difere do Payload (pós-commit). Efeito externo vai para durable. Documentado em destaque.                                                                                                                                                           |
+| 6   | Crescimento de `cms_versions` | Default é histórico completo; snapshot inclui filhas. `cms:status` reporta tamanho por collection; `retention` numérico existe para quem precisar podar.                                                                                            |
+| 7   | Bundle do admin               | Tiptap + TanStack pode passar de 600 kB gzip. Code-split por rota e editor em chunk separado (carregado só ao abrir um campo richText).                                                                                                             |
+| 8   | Inferência de tipos profunda  | Configs muito grandes podem estourar o TS. `cms:types` materializa os tipos como escape hatch (implementado no Marco 6), mantendo a inferência como caminho default.                                                                                |
+| 9   | Renomear campo                | Só via `db.renames` explícito, incluindo caminhos de filha (`posts.layout.heading`). Sem heurística.                                                                                                                                                |
+| 10  | FKs em DDL destrutivo         | Drop de tabela pai com filhas exige ordem inversa e `ON DELETE CASCADE` nas filhas. O plano já ordena; o teste cobre drop de collection inteira.                                                                                                    |
+| 11  | `_order` concorrente          | Reordenação usa `_order` esparso (100, 200, 300) e normaliza no write, evitando reescrever a lista inteira a cada drag.                                                                                                                             |
 
 ---
 
-## 23. Convenções de repo
+## 23. Tenancy e instâncias
+
+### Duas estratégias, um contrato
+
+| `tenancy.strategy`                      | Banco                                  | Escopo                        | Config por tenant                       |
+| --------------------------------------- | -------------------------------------- | ----------------------------- | --------------------------------------- |
+| `row` (default quando `tenancy` existe) | um schema, `_tenant_id` em toda tabela | toda query inclui o tenant    | só admin/labels/visibilidade            |
+| `database`                              | uma conexão por tenant                 | conexão resolvida por request | config completa (pode divergir colunas) |
+
+Sem `tenancy` no config, o CMS é `single`: uma instância, sem coluna e sem resolução. Esse é o
+caso "plataforma só minha" e continua sendo o default.
+
+### Uma instância, muitos tenants
+
+O provider registra **uma** instância (`cms`). Instâncias por tenant são facades leves e
+memoizadas:
+
+```ts
+cms.forTenant('acme'); // mesma config, escopo de dados = acme
+cms.forTenant('globex');
+cms.current; // instância sem tenant (só válida em `single` ou `database`)
+```
+
+`forTenant` não recompila o schema nem abre conexão: em `row` a única coisa que muda é o valor
+que vai para `_tenant_id`; em `database` muda a conexão.
+
+### Resolução por domínio/subdomínio
+
+O resolver recebe o contexto do request e é o único lugar que conhece sua topologia:
+
+```ts
+tenancy: {
+  strategy: 'row',
+  resolve: ({ hostname }) => hostname.split('.')[0] ?? null,
+}
+```
+
+No Adonis, o painel é montado com `router.group(...).domain(...)`; um grupo por padrão de
+domínio, cada request resolve o tenant e o `admin_provider` injeta `ctx.cms` escopado:
+
+```ts
+// o provider faz isso, não o usuário
+router
+  .group(() => {
+    adminRoutes();
+  })
+  .domain(':tenant.example.com'); // ou domínios explícitos em admin.domains
+```
+
+Se o resolver devolver `null` e `required: true`, a request falha com `CmsForbiddenError` antes
+de tocar no banco. `www` e `admin` são ignorados pelo resolver default.
+
+### Isolamento (row)
+
+- Toda tabela — inclusive as filhas de `array`/`blocks` — carrega `_tenant_id`. Filtrar filha
+  sem join é o que evita N+1 e vazamento por `EXISTS` mal escrito.
+- Toda leitura/escrita do repositório injeta `_tenant_id = <tenant>`; não existe query sem
+  escopo no caminho público.
+- `unique` vira composto: `(campo, _tenant_id)`. Slug único é único **por tenant**.
+- `access` roda **depois** do escopo de tenant e não pode ampliá-lo. `overrideAccess` ignora
+  access, nunca tenancy; cruzar tenant exige `allowCrossTenant: true`, aceito apenas em
+  contexto server-side explícito (seed, migração, job administrativo).
+- Tenant em falta com `required: false` grava `_tenant_id = null` (dado compartilhado), e a
+  leitura pública inclui esses documentos.
+
+### Overrides por tenant (row)
+
+```ts
+overrides: {
+  acme: {
+    admin: { title: 'Acme CMS' },
+    collections: { only: ['posts'], labels: { posts: { singular: 'Matéria', plural: 'Matérias' } } },
+    globals: { only: ['site_settings'] },
+  },
+}
+```
+
+Em `row` o DDL é compartilhado, então override **não pode** adicionar/remover campo: a
+validação rejeita `only` com slug inexistente e a config compila uma vez só. Em `database` o
+override pode ser um config completo e cada conexão tem seu próprio `SchemaSpec`/migration.
+
+### Banco por tenant (database)
+
+```ts
+tenancy: {
+  strategy: 'database',
+  connection: (tenant) => `tenant_${tenant}`,  // conexão Lucid
+}
+```
+
+`cms:sync --tenant=acme` aplica o schema naquela conexão; `cms:status --all-tenants` lista
+drift por conexão. O caminho de migração (`cms:generate`) emite uma migration que itera as
+conexões configuradas, para que um deploy não esqueça um tenant.
+
+### Testes
+
+```ts
+const kit = await createTestCms({
+  config,
+  tenants: ['acme', 'globex'],
+});
+await kit.actAsTenant('acme');
+expect(await kit.cms.collection('posts').find()).toHaveLength(1); // só o doc da acme
+```
+
+O kit cria os dois escopos no mesmo SQLite e falha o teste se qualquer query não filtrar
+`_tenant_id` (asserção por contagem de queries + plano).
+
+### Riscos
+
+| Item                              | Risco/mitigação                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `_tenant_id` duplicado nas filhas | ocupa espaço; ganha isolamento sem join. Aceito em troca de queries simples.                      |
+| Row mode sem schema por tenant    | tenant não pode ter campo próprio; quem precisa usa `database`.                                   |
+| Custo operacional de `database`   | N conexões e N migrações; `cms:status` e a migration multi-tenant cobrem o esquecimento.          |
+| Resolver default por subdomínio   | domínios de dois níveis (`acme.com.br`) quebram a heurística; configure `resolve` explicitamente. |
+| `overrideAccess`                  | documentado como "não cruza tenant"; teste garante que não vaza.                                  |
+
+---
+
+## 24. Convenções de repo
 
 - pnpm workspace + turbo + biome + changesets + vitest, espelhando `adonis-media`.
 - `pnpm-workspace.yaml` com `allowBuilds` (better-sqlite3, sharp se usado).

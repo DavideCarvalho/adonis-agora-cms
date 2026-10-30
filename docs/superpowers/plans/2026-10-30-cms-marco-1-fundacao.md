@@ -408,7 +408,6 @@ git commit -m "feat(cms): compile collections and globals into table specs"
 ---
 
 ## Task 7: Compilador — tabelas filhas + query plan
-
 **Files:**
 - Create: `packages/adonis/src/schema/compile_children.ts`, `schema/query_plan.ts`
 - Test: `packages/adonis/test/schema/children.spec.ts`
@@ -466,6 +465,31 @@ test('nested array inside blocks gets its own table and query plan', () => {
 pnpm --filter @adonis-agora/cms test test/schema/children.spec.ts
 git add packages/adonis/src/schema packages/adonis/test/schema
 git commit -m "feat(cms): compile arrays, blocks and hasMany into child tables with query plan"
+```
+
+---
+
+## Task 7.5: Tenancy no compilador
+
+**Files:**
+- Modify: `packages/adonis/src/config/types.ts` (`TenancyConfig`, `resolveTenancy`)
+- Modify: `packages/adonis/src/schema/column_specs.ts` (coluna `_tenant_id`)
+- Modify: `packages/adonis/src/schema/compile.ts` (unique composto, tenancy no spec)
+- Modify: `packages/adonis/src/schema/types.ts` (`SchemaTenancy`)
+- Test: `packages/adonis/test/schema/tenancy.spec.ts`
+
+- [ ] **Step 1: testes** — row: `_tenant_id` em pai e filhas, `nullable: false`, índice,
+  unique composto `(slug, _tenant_id)`; database: sem coluna; single: sem coluna; override
+  com slug inexistente falha a validação; `database` sem `connection` falha.
+- [ ] **Step 2: implementar** — `resolveTenancy` (single/row/database), `_tenant_id` em
+  `systemColumns` e `childSystemColumns`, unique composto em `finalizeIndexes`, tenancy no
+  `SchemaSpec` e no hash.
+- [ ] **Step 3: rodar + commit**
+
+```bash
+pnpm --filter @adonis-agora/cms test test/schema/tenancy.spec.ts
+git add packages/adonis/src packages/adonis/test/schema/tenancy.spec.ts
+git commit -m "feat(cms): row/database tenancy in the schema compiler"
 ```
 
 ---

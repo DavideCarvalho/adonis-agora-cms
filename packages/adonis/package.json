@@ -1,0 +1,98 @@
+{
+  "name": "@adonis-agora/cms",
+  "version": "0.0.0",
+  "description": "Config-first CMS for AdonisJS — collections, globals, every field type, drafts, i18n, access control, hooks, REST and a schema-driven admin. Part of the Agora ecosystem.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DavideCarvalho/adonis-agora-cms.git",
+    "directory": "packages/adonis"
+  },
+  "author": "Davi Carvalho <davi@goflip.ai>",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    },
+    "./commands": {
+      "types": "./dist/commands/main.d.ts",
+      "import": "./dist/commands/main.js",
+      "default": "./dist/commands/main.js"
+    },
+    "./testing": {
+      "types": "./dist/src/testing/index.d.ts",
+      "import": "./dist/src/testing/index.js",
+      "default": "./dist/src/testing/index.js"
+    },
+    "./schema": {
+      "types": "./dist/src/schema/index.d.ts",
+      "import": "./dist/src/schema/index.js",
+      "default": "./dist/src/schema/index.js"
+    },
+    "./cms_provider": {
+      "types": "./dist/providers/cms_provider.d.ts",
+      "import": "./dist/providers/cms_provider.js",
+      "default": "./dist/providers/cms_provider.js"
+    },
+    "./configure": {
+      "types": "./dist/configure.d.ts",
+      "import": "./dist/configure.js",
+      "default": "./dist/configure.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json && pnpm run copy:stubs",
+    "copy:stubs": "mkdir -p dist/stubs && cp -r stubs/. dist/stubs/",
+    "prepack": "pnpm run build",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "@adonisjs/core": "^7.3.0",
+    "@adonisjs/lucid": "^22.4.0"
+  },
+  "peerDependenciesMeta": {
+    "@adonisjs/lucid": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@adonisjs/assembler": "^8.5.0",
+    "@adonisjs/core": "7.5.0",
+    "@adonisjs/lucid": "^22.4.2",
+    "@swc/core": "1.16.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.4.0",
+    "better-sqlite3": "^13.0.3",
+    "knex": "^3.3.0",
+    "mysql2": "^3.24.6",
+    "pg": "^8.23.1",
+    "typescript": "^7.0.2",
+    "unplugin-swc": "1.5.11",
+    "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "keywords": [
+    "adonisjs",
+    "adonis",
+    "cms",
+    "content",
+    "collections",
+    "headless-cms",
+    "schema",
+    "agora"
+  ]
+}

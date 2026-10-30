@@ -1,0 +1,11 @@
+packages:
+  - "packages/*"
+
+# pnpm >= 10 nao roda build script de dependencia sem permissao explicita, e em CI ele
+# ERRA (ERR_PNPM_IGNORED_BUILDS) em vez de so avisar. better-sqlite3 compila/baixa binario,
+# biome e esbuild idem — liberar preserva o comportamento esperado sem permissao nova.
+allowBuilds:
+  "@biomejs/biome": true
+  "@swc/core": true
+  better-sqlite3: true
+  esbuild: true

@@ -15,7 +15,7 @@ Part of the [Agora](https://github.com/DavideCarvalho) ecosystem, alongside
 
 ```ts
 // config/cms.ts
-import { defineConfig, collection, fields } from '@adonis-agora/cms'
+import { defineConfig, collection, fields } from '@adonis-agora/cms';
 
 export default defineConfig({
   collections: [
@@ -29,26 +29,26 @@ export default defineConfig({
       ],
     }),
   ],
-})
+});
 ```
 
 That config is the single source of truth for:
 
-| Surface | Derived from the config |
-|---|---|
-| Database | `node ace cms:diff` prints a plan, `cms:sync` applies it (or generates a Lucid migration) |
-| Types | `CmsDocument<typeof config, 'posts'>` — no codegen |
-| REST | `/api/cms/collections/posts` with filter/sort/pagination |
-| Local API | `cms.collection('posts').find({ where: ... })` |
-| Admin panel | React SPA, one field component per field type |
+| Surface     | Derived from the config                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------- |
+| Database    | `node ace cms:diff` prints a plan, `cms:sync` applies it (or generates a Lucid migration) |
+| Types       | `CmsDocument<typeof config, 'posts'>` — no codegen                                        |
+| REST        | `/api/cms/collections/posts` with filter/sort/pagination                                  |
+| Local API   | `cms.collection('posts').find({ where: ... })`                                            |
+| Admin panel | React SPA, one field component per field type                                             |
 
 ## Packages
 
-| Package | Role |
-|---|---|
-| `@adonis-agora/cms` | config, schema compiler, DDL/diff, repository, Local API, REST, access, hooks, versions, i18n |
-| `@adonis-agora/cms-react` | field components, `FieldRegistry`, admin hooks |
-| `@adonis-agora/cms-admin` | the admin SPA (Vite), embedded into the core at build time |
+| Package                   | Role                                                                                          |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| `@adonis-agora/cms`       | config, schema compiler, DDL/diff, repository, Local API, REST, access, hooks, versions, i18n |
+| `@adonis-agora/cms-react` | field components, `FieldRegistry`, admin hooks                                                |
+| `@adonis-agora/cms-admin` | the admin SPA (Vite), embedded into the core at build time                                    |
 
 ## License
 
