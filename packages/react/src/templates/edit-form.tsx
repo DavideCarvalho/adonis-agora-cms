@@ -66,7 +66,6 @@ export function EditForm({
   const visual = visualPref ?? Boolean(visualAllowed && previewUrl);
   const setVisual = setVisualPref;
   const [selected, setSelected] = useState<{ field: string; index: number } | null>(null);
-  const [refresh, setRefresh] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
 
   // A click on a `data-cms-field` region in the preview brings that field into view here.
@@ -131,7 +130,6 @@ export function EditForm({
       delete copy._order;
       return [...rows.slice(0, index + 1), copy, ...rows.slice(index + 1)];
     });
-    setRefresh((value) => value + 1);
   };
 
   const focusBlock = (path: string) => {
@@ -146,7 +144,6 @@ export function EditForm({
       const at = Math.max(0, Math.min(index, rows.length));
       return [...rows.slice(0, at), { type }, ...rows.slice(at)];
     });
-    setRefresh((value) => value + 1);
   };
 
   /** `layout[2].heading` -> { field: 'layout', index: 2 } */
@@ -278,7 +275,6 @@ export function EditForm({
             selectFromPath(path);
             focusBlock(path);
           }}
-          refresh={refresh}
         />
       ) : (
         <div className="form-body">
@@ -348,7 +344,6 @@ type VisualEditorProps = {
   onMove: (field: string, from: number, to: number) => void;
   onFocusField: (path: string) => void;
   onEditBlock: (path: string) => void;
-  refresh: number;
 };
 
 /**
@@ -375,7 +370,6 @@ function VisualEditor({
   onMove,
   onFocusField,
   onEditBlock,
-  refresh,
 }: VisualEditorProps) {
   const t = useMessages();
   const rows = Array.isArray(values[blocksField.name])
@@ -443,7 +437,6 @@ function VisualEditor({
           open
           onClose={() => undefined}
           variant="inline"
-          refreshKey={refresh}
           onFocusField={onFocusField}
           onEditBlock={onEditBlock}
           onMoveBlock={onMove}

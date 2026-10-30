@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 /**
  * Frontend half of the live-preview editing bridge.
  *
@@ -10,6 +12,8 @@
  * (local dev). A site on another origin imports `previewBridge` from
  * `@adonis-agora/cms-react/preview` and calls it on load.
  */
+/** The admin posts the whole document with this type on every edit. */
+export const PREVIEW_PREVIEW_MESSAGE = 'cms:preview';
 export const PREVIEW_FIELD_ATTRIBUTE = 'data-cms-field';
 export const PREVIEW_BLOCK_ATTRIBUTE = 'data-cms-block';
 export const PREVIEW_EDIT_MESSAGE = 'cms:edit-field';
@@ -54,9 +58,9 @@ const STYLE = `
 }
 
 .cms-block-bar {
-  position: absolute;
-  top: 6px;
-  right: 6px;
+  position: fixed;
+  top: calc(var(--cms-top) + 6px);
+  left: calc(var(--cms-left) + var(--cms-width) - 90px);
   z-index: 2147483000;
   display: flex;
   gap: 2px;
@@ -70,7 +74,7 @@ const STYLE = `
   transition: opacity 120ms ease, transform 120ms ease;
   font-family: ui-monospace, monospace;
 }
-[${PREVIEW_BLOCK_ATTRIBUTE}]:hover > .cms-block-bar {
+[data-cms-overlay][data-visible] .cms-block-bar {
   opacity: 1;
   transform: none;
 }
@@ -105,9 +109,9 @@ const STYLE = `
 }
 
 .cms-block-add {
-  position: absolute;
-  left: 50%;
-  top: -12px;
+  position: fixed;
+  left: calc(var(--cms-left) + var(--cms-width) / 2 - 11px);
+  top: calc(var(--cms-top) - 12px);
   transform: translateX(-50%);
   z-index: 2147483000;
   display: none;
@@ -121,7 +125,7 @@ const STYLE = `
   line-height: 1;
   cursor: pointer;
 }
-[${PREVIEW_BLOCK_ATTRIBUTE}]:hover > .cms-block-add {
+[data-cms-overlay][data-visible] .cms-block-add {
   display: grid;
   place-items: center;
 }
@@ -146,7 +150,7 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
   var BLOCK_MENU = ${JSON.stringify(PREVIEW_BLOCK_MENU_MESSAGE)};
   var MIME = ${JSON.stringify(PREVIEW_BLOCK_MIME)};
 
-  if (document.querySelector('style[data-cms-preview-bridge]')) return;
+  if (document.getElementById('cms-preview-overlay')) return;
 
   var style = document.createElement('style');
   style.setAttribute('data-cms-preview-bridge', '');
@@ -158,23 +162,26 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
     window.parent.postMessage(payload, '*');
   }
 
-  /** "layout[2]" -> { field: "layout", index: 2 } */
+  /** "layout[2]" -> { field: "layout", index: 2, path: "layout[2]" } */
   function parse(node) {
     var raw = node.getAttribute(BLOCK) || '';
-    var match = /^(.*)\\[(\\d+)\\]$/.exec(raw);
-    return match ? { field: match[1], index: Number(match[2]), path: raw } : null;
+    var last = raw.lastIndexOf('[');
+    if (last < 0) return null;
+    var field = raw.slice(0, last);
+    var index = Number(raw.slice(last + 1, -1));
+    if (!field || !isFinite(index)) return null;
+    return { field: field, index: index, path: raw };
   }
 
   function blocksOf(field) {
-    return Array.prototype.slice.call(
-      document.querySelectorAll('[' + BLOCK + ']'),
-    ).filter(function (node) {
-      var ref = parse(node);
-      return ref && ref.field === field;
-    });
+    return Array.prototype.slice
+      .call(document.querySelectorAll('[' + BLOCK + ']'))
+      .filter(function (node) {
+        var ref = parse(node);
+        return ref && ref.field === field;
+      });
   }
 
-  /** Keeps block and field paths in DOM order after a delete or a drag. */
   function renumber(field) {
     blocksOf(field).forEach(function (node, index) {
       var ref = parse(node);
@@ -194,21 +201,61 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
     });
   }
 
+  // --- overlay: the toolbar lives outside the app's React tree -----------------------------
+  // Injecting it inside the block made React drop the buttons on every preview re-render.
+  var overlay = document.createElement('div');
+  overlay.id = 'cms-preview-overlay';
+  overlay.setAttribute('data-cms-overlay', '');
+  overlay.innerHTML =
+    '<div class="cms-block-bar">' +
+    '<button type="button" data-act="drag" title="Drag to reorder">⠿</button>' +
+    '<button type="button" data-act="edit" title="Edit block">✎</button>' +
+    '<button type="button" data-act="delete" title="Delete block">🗑</button>' +
+    '</div>' +
+    '<button type="button" class="cms-block-add" title="Insert a block here">+</button>';
+  document.body.appendChild(overlay);
+
+  var active = null;
   var drag = null;
 
-  document.addEventListener('pointerdown', function (event) {
-    var handle = event.target && event.target.closest
-      ? event.target.closest('.cms-block-bar button[data-act="drag"]')
-      : null;
-    if (!handle) return;
-
-    var node = handle.closest('[' + BLOCK + ']');
+  function place(node) {
     var ref = node ? parse(node) : null;
-    if (!node || !ref) return;
+    if (!node || !ref) {
+      overlay.removeAttribute('data-visible');
+      active = null;
+      return;
+    }
+
+    active = node;
+    var rect = node.getBoundingClientRect();
+    overlay.style.setProperty('--cms-left', rect.left + 'px');
+    overlay.style.setProperty('--cms-top', rect.top + 'px');
+    overlay.style.setProperty('--cms-width', rect.width + 'px');
+    overlay.style.setProperty('--cms-height', rect.height + 'px');
+    overlay.setAttribute('data-visible', '');
+  }
+
+  document.addEventListener('mousemove', function (event) {
+    if (drag) return;
+
+    var target = event.target;
+    if (target && target.closest && target.closest('#cms-preview-overlay')) return;
+
+    var node = target && target.closest ? target.closest('[' + BLOCK + ']') : null;
+    if (node) place(node);
+  }, true);
+
+  document.addEventListener('mouseleave', function () {
+    if (!drag) overlay.removeAttribute('data-visible');
+  });
+
+  overlay.addEventListener('pointerdown', function (event) {
+    var handle = event.target && event.target.closest ? event.target.closest('button[data-act="drag"]') : null;
+    if (!handle || !active) return;
 
     event.preventDefault();
-    drag = { node: node, ref: ref, target: null };
-    node.setAttribute('data-cms-dragging', '1');
+    drag = { node: active, ref: parse(active), target: null };
+    active.setAttribute('data-cms-dragging', '1');
     handle.setPointerCapture(event.pointerId);
   });
 
@@ -233,30 +280,81 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
     var node = drag.node;
     var ref = drag.ref;
     var target = drag.target;
+    var to = target ? parse(target) : null;
 
     node.removeAttribute('data-cms-dragging');
     blocksOf(ref.field).forEach(function (item) {
       item.removeAttribute('data-cms-drop');
     });
-
-    var dropped = drag;
     drag = null;
 
-    if (!target || target === node) return;
+    if (!target || target === node || !to) return;
 
-    var to = parse(target);
-    if (!to) return;
-
-    // Move the node in place so the preview matches immediately; the admin updates the form and
-    // the next save/reload renders the same order from the server.
     var forward = to.index > ref.index;
     target.parentNode.insertBefore(node, forward ? target.nextSibling : target);
     renumber(ref.field);
     post(MOVE_BLOCK, { field: ref.field, from: ref.index, to: to.index });
-    void dropped;
   });
 
-  // --- palette drop: a block dragged from the admin sidebar into the page -----------------
+  overlay.addEventListener('click', function (event) {
+    var button = event.target && event.target.closest ? event.target.closest('button') : null;
+    if (!button || !active) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    var ref = parse(active);
+    if (!ref) return;
+
+    var act = button.getAttribute('data-act');
+    if (act === 'delete') {
+      active.remove();
+      renumber(ref.field);
+      post(DELETE_BLOCK, { field: ref.field, index: ref.index });
+      overlay.removeAttribute('data-visible');
+      active = null;
+      return;
+    }
+    if (act === 'edit') {
+      post(EDIT_BLOCK, { field: ref.field, index: ref.index, path: ref.path });
+      return;
+    }
+    if (button.classList.contains('cms-block-add')) {
+      var rect = button.getBoundingClientRect();
+      post(INSERT_HERE, {
+        field: ref.field,
+        index: ref.index,
+        x: rect.left,
+        y: rect.bottom + 6,
+      });
+    }
+  }, true);
+
+  // Right-click a block: duplicate / move / delete, mirrored in the admin.
+  document.addEventListener('contextmenu', function (event) {
+    var node = event.target && event.target.closest ? event.target.closest('[' + BLOCK + ']') : null;
+    var ref = node ? parse(node) : null;
+    if (!ref) return;
+
+    event.preventDefault();
+    post(BLOCK_MENU, { field: ref.field, index: ref.index, x: event.clientX, y: event.clientY });
+  }, true);
+
+  // Clicking a field asks the admin to focus it (and select its block).
+  document.addEventListener('click', function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+    if (target.closest('#cms-preview-overlay')) return;
+
+    var region = target.closest('[' + FIELD + ']');
+    if (!region) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    post(EDIT, { field: region.getAttribute(FIELD) });
+  }, true);
+
+  // Palette drop: a block dragged from the admin sidebar into the page.
   document.addEventListener('dragover', function (event) {
     if (!event.dataTransfer || event.dataTransfer.types.indexOf(MIME) === -1) return;
     event.preventDefault();
@@ -264,11 +362,9 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
 
     var under = document.elementFromPoint(event.clientX, event.clientY);
     var candidate = under && under.closest ? under.closest('[' + BLOCK + ']') : null;
-    blocksOf((document.querySelector('[' + BLOCK + ']') && (parse(document.querySelector('[' + BLOCK + ']')) || {}).field) || 'layout').forEach(
-      function (node) {
-        node.removeAttribute('data-cms-drop');
-      },
-    );
+    document.querySelectorAll('[' + BLOCK + '][data-cms-drop]').forEach(function (node) {
+      node.removeAttribute('data-cms-drop');
+    });
     if (candidate) candidate.setAttribute('data-cms-drop', '1');
   });
 
@@ -289,108 +385,11 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
     var ref = candidate ? parse(candidate) : null;
     var index = ref && ref.field === payload.field ? ref.index + 1 : 0;
 
-    blocksOf(payload.field).forEach(function (node) {
+    document.querySelectorAll('[' + BLOCK + '][data-cms-drop]').forEach(function (node) {
       node.removeAttribute('data-cms-drop');
     });
     post(INSERT_BLOCK, { field: payload.field, blockType: payload.blockType, index: index });
   });
-
-  document.addEventListener('click', function (event) {
-    var target = event.target;
-    if (!target || !target.closest) return;
-
-    var action = target.closest('.cms-block-bar button');
-    if (action) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      var node = action.closest('[' + BLOCK + ']');
-      var ref = node ? parse(node) : null;
-      if (!ref) return;
-
-      var act = action.getAttribute('data-act');
-      if (act === 'delete') {
-        node.remove();
-        renumber(ref.field);
-        post(DELETE_BLOCK, { field: ref.field, index: ref.index });
-        return;
-      }
-      if (act === 'edit') {
-        post(EDIT_BLOCK, { field: ref.field, index: ref.index, path: ref.path });
-        return;
-      }
-      return;
-    }
-
-    var region = target.closest('[' + FIELD + ']');
-    if (!region) return;
-
-    // In preview a click edits; it must not navigate away from the page being previewed.
-    event.preventDefault();
-    event.stopPropagation();
-    post(EDIT, { field: region.getAttribute(FIELD) });
-  }, true);
-
-  var decorate = function () {
-    document.querySelectorAll('[' + BLOCK + ']').forEach(function (node) {
-      if (!node.querySelector(':scope > .cms-block-bar')) {
-        var bar = document.createElement('div');
-        bar.className = 'cms-block-bar';
-        bar.innerHTML =
-          '<button type="button" data-act="drag" title="Drag to reorder">⠿</button>' +
-          '<button type="button" data-act="edit" title="Edit block">✎</button>' +
-          '<button type="button" data-act="delete" title="Delete block">🗑</button>';
-        node.appendChild(bar);
-      }
-
-      if (!node.querySelector(':scope > .cms-block-add')) {
-        var add = document.createElement('button');
-        add.type = 'button';
-        add.className = 'cms-block-add';
-        add.title = 'Insert a block here';
-        add.textContent = '+';
-        node.appendChild(add);
-      }
-    });
-  };
-
-  // "+" above a block: the admin opens the block-type menu at that spot.
-  document.addEventListener('click', function (event) {
-    var add = event.target && event.target.closest ? event.target.closest('.cms-block-add') : null;
-    if (!add) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    var node = add.closest('[' + BLOCK + ']');
-    var ref = node ? parse(node) : null;
-    if (!ref) return;
-
-    var rect = add.getBoundingClientRect();
-    post(INSERT_HERE, {
-      field: ref.field,
-      index: ref.index,
-      x: rect.left,
-      y: rect.bottom + 6,
-    });
-  }, true);
-
-  // Right-click a block: duplicate / move / delete, mirrored in the admin.
-  document.addEventListener('contextmenu', function (event) {
-    var node = event.target && event.target.closest ? event.target.closest('[' + BLOCK + ']') : null;
-    var ref = node ? parse(node) : null;
-    if (!ref) return;
-
-    event.preventDefault();
-    post(BLOCK_MENU, { field: ref.field, index: ref.index, x: event.clientX, y: event.clientY });
-  }, true);
-
-  decorate();
-
-  // The site can re-render its own DOM when it receives new data; keep decorating new blocks.
-  if (window.MutationObserver) {
-    new MutationObserver(decorate).observe(document.body, { childList: true, subtree: true });
-  }
 })();`;
 
 let installed = false;
@@ -440,6 +439,33 @@ export function editable(path: string, field?: string): { 'data-cms-field': stri
 /** Props for the wrapper of a block: `<div {...editableBlock('layout', index)}>`. */
 export function editableBlock(path: string, index: number): { 'data-cms-block': string } {
   return { 'data-cms-block': `${path}[${index}]` };
+}
+
+/**
+ * React side of the live preview: the admin posts the whole document on every edit
+ * (`{ type: 'cms:preview', data }`), so returning the latest data makes the page re-render as you
+ * type, move, delete or insert — including changes made from the admin's own menus.
+ *
+ * ```tsx
+ * const doc = useLivePreviewData(page);
+ * ```
+ */
+export function useLivePreviewData<T>(initial: T): T {
+  const [data, setData] = useState<T>(initial);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const payload = event.data as { type?: string; data?: unknown } | null;
+      if (payload?.type !== PREVIEW_PREVIEW_MESSAGE) return;
+      if (payload.data === undefined) return;
+      setData(payload.data as T);
+    };
+
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  return data;
 }
 
 /** Parses `layout[2]` into the array field and the row index. */

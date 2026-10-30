@@ -1070,9 +1070,13 @@ th,
 }
 
 /* Floating menu inside the preview ("+" insert, right-click on a block). */
+.preview-menu__positioner {
+  z-index: 2147483001;
+  isolation: isolate;
+}
 .preview-menu {
-  position: absolute;
-  z-index: 40;
+  position: fixed;
+  z-index: 2147483001;
   display: flex;
   flex-direction: column;
   min-width: 150px;

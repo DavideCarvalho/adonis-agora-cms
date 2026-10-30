@@ -20,6 +20,7 @@ export {
   PREVIEW_BRIDGE_SOURCE,
   PREVIEW_EDIT_MESSAGE,
   PREVIEW_FIELD_ATTRIBUTE,
+  PREVIEW_PREVIEW_MESSAGE,
   parseBlockPath,
   previewBridge,
 } from './preview.js';

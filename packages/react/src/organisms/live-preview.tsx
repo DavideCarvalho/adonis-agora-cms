@@ -33,8 +33,6 @@ export type LivePreviewProps = {
   onDuplicateBlock?: ((field: string, index: number) => void) | undefined;
   /** `inline` drops the fixed panel chrome so the editor can place it in its own grid. */
   variant?: 'panel' | 'inline';
-  /** Bump to reload the frame (a newly inserted block does not exist in the current DOM). */
-  refreshKey?: number;
 };
 
 /**
@@ -56,11 +54,11 @@ export function LivePreview({
   blockTypes = [],
   onDuplicateBlock,
   variant = 'panel',
-  refreshKey = 0,
 }: LivePreviewProps) {
   const t = useMessages();
   const frame = useRef<HTMLIFrameElement>(null);
   const body = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<
     | { kind: 'insert'; field: string; index: number; x: number; y: number }
     | { kind: 'block'; field: string; index: number; x: number; y: number }
@@ -74,6 +72,30 @@ export function LivePreview({
     const origin = new URL(url, window.location.origin).origin;
     target.postMessage({ type: 'cms:preview', data }, origin);
   }, [data, open, url]);
+
+  // Dismissal: pointer outside, Escape, or any interaction reported by the page itself (clicks
+  // inside the iframe never bubble here, so the bridge is the only source for those).
+  useEffect(() => {
+    if (!menu) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (menuRef.current && event.target instanceof Node) {
+        if (menuRef.current.contains(event.target)) return;
+      }
+      setMenu(null);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenu(null);
+    };
+
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menu]);
 
   useEffect(() => {
     if (!open) return;
@@ -91,6 +113,14 @@ export function LivePreview({
         path?: unknown;
       } | null;
       if (!payload || typeof payload.type !== 'string') return;
+
+      // Any interaction coming from the page closes whatever menu is open.
+      if (
+        payload.type !== PREVIEW_INSERT_HERE_MESSAGE &&
+        payload.type !== PREVIEW_BLOCK_MENU_MESSAGE
+      ) {
+        setMenu(null);
+      }
 
       const field = typeof payload.field === 'string' ? payload.field : null;
 
@@ -122,13 +152,12 @@ export function LivePreview({
       ) {
         // The frame reports coordinates in its own viewport; the menu lives in the admin's.
         const frameRect = frame.current?.getBoundingClientRect();
-        const hostRect = body.current?.getBoundingClientRect();
         setMenu({
           kind: payload.type === PREVIEW_INSERT_HERE_MESSAGE ? 'insert' : 'block',
           field,
           index: Number(payload.index),
-          x: (frameRect?.left ?? 0) - (hostRect?.left ?? 0) + Number(payload.x ?? 0),
-          y: (frameRect?.top ?? 0) - (hostRect?.top ?? 0) + Number(payload.y ?? 0),
+          x: (frameRect?.left ?? 0) + Number(payload.x ?? 0),
+          y: (frameRect?.top ?? 0) + Number(payload.y ?? 0),
         });
       }
     };
@@ -150,6 +179,10 @@ export function LivePreview({
     }
   }, []);
 
+  // Captured at render time: the menu closes (state -> null) *before* an item's onClick runs, so
+  // the handler must not read `menu` again.
+  const target = menu;
+
   if (!open) return null;
 
   return (
@@ -167,13 +200,14 @@ export function LivePreview({
         </header>
       ) : null}
       <div className="panel__body" ref={body}>
-        {menu ? (
+        {target ? (
           <div
+            ref={menuRef}
             className="preview-menu"
-            style={{ left: Math.max(8, menu.x), top: Math.max(8, menu.y) }}
             role="menu"
+            style={{ left: Math.max(8, target.x), top: Math.max(8, target.y) }}
           >
-            {menu.kind === 'insert' ? (
+            {target.kind === 'insert' ? (
               blockTypes.length === 0 ? (
                 <span className="preview-menu__empty">no blocks</span>
               ) : (
@@ -181,8 +215,10 @@ export function LivePreview({
                   <button
                     key={type}
                     type="button"
+                    role="menuitem"
+                    className="preview-menu__item"
                     onClick={() => {
-                      onInsertBlock?.(menu.field, type, menu.index);
+                      onInsertBlock?.(target.field, type, target.index);
                       setMenu(null);
                     }}
                   >
@@ -194,8 +230,10 @@ export function LivePreview({
               <>
                 <button
                   type="button"
+                  role="menuitem"
+                  className="preview-menu__item"
                   onClick={() => {
-                    onEditBlock?.(`${menu.field}[${menu.index}]`);
+                    onEditBlock?.(`${target.field}[${target.index}]`);
                     setMenu(null);
                   }}
                 >
@@ -203,8 +241,10 @@ export function LivePreview({
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
+                  className="preview-menu__item"
                   onClick={() => {
-                    onDuplicateBlock?.(menu.field, menu.index);
+                    onDuplicateBlock?.(target.field, target.index);
                     setMenu(null);
                   }}
                 >
@@ -212,8 +252,10 @@ export function LivePreview({
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
+                  className="preview-menu__item"
                   onClick={() => {
-                    onMoveBlock?.(menu.field, menu.index, menu.index - 1);
+                    onMoveBlock?.(target.field, target.index, target.index - 1);
                     setMenu(null);
                   }}
                 >
@@ -221,8 +263,10 @@ export function LivePreview({
                 </button>
                 <button
                   type="button"
+                  role="menuitem"
+                  className="preview-menu__item"
                   onClick={() => {
-                    onMoveBlock?.(menu.field, menu.index, menu.index + 1);
+                    onMoveBlock?.(target.field, target.index, target.index + 1);
                     setMenu(null);
                   }}
                 >
@@ -230,9 +274,10 @@ export function LivePreview({
                 </button>
                 <button
                   type="button"
-                  className="preview-menu__danger"
+                  role="menuitem"
+                  className="preview-menu__item preview-menu__danger"
                   onClick={() => {
-                    onDeleteBlock?.(menu.field, menu.index);
+                    onDeleteBlock?.(target.field, target.index);
                     setMenu(null);
                   }}
                 >
@@ -242,12 +287,7 @@ export function LivePreview({
             )}
           </div>
         ) : null}
-        <iframe
-          ref={frame}
-          src={refreshKey > 0 ? `${url}${url.includes('?') ? '&' : '?'}_r=${refreshKey}` : url}
-          title={t.preview}
-          onLoad={injectBridge}
-        />
+        <iframe ref={frame} src={url} title={t.preview} onLoad={injectBridge} />
       </div>
     </aside>
   );

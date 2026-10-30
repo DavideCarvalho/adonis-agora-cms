@@ -154,7 +154,10 @@ test('preview toolbar deletes and reorders blocks', async ({ page, request }) =>
 
   const second = frame.locator('[data-cms-block="layout[1]"]');
   await second.hover();
-  await second.locator('.cms-block-bar button[data-act="delete"]').click();
+  // The toolbar lives in an overlay outside the page's React tree, positioned over the hovered
+  // block (injecting it inside the block made React drop it on every re-render).
+  const frameOverlay = frame.locator('#cms-preview-overlay');
+  await frameOverlay.locator('button[data-act="delete"]').click();
 
   await expect(pageBlocks).toHaveCount(2);
   await expect(pageBlocks.nth(0)).toContainText('hero');
@@ -163,7 +166,7 @@ test('preview toolbar deletes and reorders blocks', async ({ page, request }) =>
   // Drag the first block below the last one.
   const hero = frame.locator('[data-cms-block="layout[0]"]');
   await hero.hover();
-  const handle = hero.locator('.cms-block-bar button[data-act="drag"]');
+  const handle = frame.locator('#cms-preview-overlay button[data-act="drag"]');
   const from = await handle.boundingBox();
   // The bridge renumbers the blocks after the delete, so the remaining blocks are 0 and 1.
   const target = frame.locator('[data-cms-block="layout[1]"]');
@@ -241,4 +244,50 @@ test('palette adds blocks by click and by drag', async ({ page, request }) => {
       { timeout: 15_000 },
     )
     .toEqual(['hero', 'text', 'quote']);
+});
+
+/** The preview's own menus: a right-click palette and the "+" insert, both dismissing on outside click. */
+test('preview block menu acts on the page and closes on outside click', async ({
+  page,
+  request,
+}) => {
+  const title = `Menu ${Date.now().toString(36)}`;
+  const created = await request.post('/api/cms/collections/pages', {
+    data: {
+      title,
+      visibility: 'public',
+      layout: [
+        { type: 'hero', heading: 'One' },
+        { type: 'quote', quote: 'Two' },
+        { type: 'cta', heading: 'Three' },
+      ],
+    },
+  });
+  expect(created.status()).toBe(201);
+
+  await page.goto('/admin');
+  await page.getByRole('button', { name: 'Pages' }).click();
+  await page
+    .getByRole('row')
+    .filter({ hasText: title })
+    .getByRole('button', { name: 'Edit' })
+    .click();
+
+  const frame = page.frameLocator('iframe');
+  const blocks = frame.locator('[data-cms-block]');
+  await expect(blocks).toHaveCount(3);
+
+  const second = frame.locator('[data-cms-block="layout[1]"]');
+  await second.click({ button: 'right' });
+  await expect(page.getByRole('menuitem')).toHaveCount(5);
+
+  // Outside click dismisses.
+  await page.mouse.click(page.viewportSize()!.width - 40, 20);
+  await expect(page.getByRole('menuitem')).toHaveCount(0);
+
+  // Delete from the menu removes the row. (The page re-rendering from the posted data needs the
+  // site to call `useLivePreviewData`, which the string renderer in this example does not.)
+  await second.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Excluir' }).click();
+  await expect(page.locator('.palette__item--row')).toHaveCount(2);
 });
