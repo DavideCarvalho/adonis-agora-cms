@@ -402,6 +402,8 @@ async function populateRelations(
     (column) => column.references && column.path && !column.locale,
   );
 
+  await populateUploads(ctx, table, docs);
+
   for (const column of relationColumns) {
     const field = column.path ?? '';
     const targetSlug = ctx.spec.tables.find((item) => item.name === column.references?.table)?.slug;
@@ -433,6 +435,32 @@ async function populateRelations(
           locale: options.locale,
         }),
       );
+    }
+  }
+}
+
+async function populateUploads(
+  ctx: RepoContext,
+  table: TableSpec,
+  docs: Record<string, unknown>[],
+): Promise<void> {
+  if (!ctx.media) return;
+
+  const uploadFields = documentFields(ctx.config, table.slug).filter(
+    (field) => field.type === 'upload',
+  );
+
+  for (const field of uploadFields) {
+    const ids = docs
+      .map((doc) => doc[field.name])
+      .filter((value): value is string => typeof value === 'string' && value.length > 0);
+    if (ids.length === 0) continue;
+
+    const resolved = await ctx.media.resolveMany(ids);
+    for (const doc of docs) {
+      const id = doc[field.name];
+      if (typeof id !== 'string') continue;
+      doc[field.name] = resolved.get(id) ?? { id };
     }
   }
 }

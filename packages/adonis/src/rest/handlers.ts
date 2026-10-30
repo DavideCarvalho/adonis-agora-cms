@@ -1,3 +1,4 @@
+import { toAdminSchema } from '../admin/schema.js';
 import type { CmsConfig } from '../config/types.js';
 import { CmsNotFoundError } from '../errors.js';
 import type { Cms } from '../local_api/index.js';
@@ -23,6 +24,13 @@ const NO_CONTENT = 204;
  * The Adonis routes are a thin translation layer over these, which keeps the whole REST
  * surface testable without booting a server.
  */
+export async function handleAdminSchema(cms: Cms<CmsConfig>): Promise<RestResponse> {
+  return run(async () => ({
+    status: 200,
+    body: toAdminSchema(cms.config, { user: cms.user }),
+  }));
+}
+
 export async function handleCollectionFind(
   cms: Cms<CmsConfig>,
   request: RestRequest,

@@ -1,3 +1,5 @@
+export type { AdminCollection, AdminField, AdminPermission, AdminSchema } from './admin/schema.js';
+export { toAdminSchema } from './admin/schema.js';
 export { collection, global, labels } from './config/collection.js';
 export { defineConfig } from './config/define_config.js';
 export { block, fields } from './config/fields.js';
@@ -12,6 +14,8 @@ export { assertValidConfig, validateConfig } from './config/validate.js';
 export { createCmsTables, diffSchema, dropCmsTables, syncCmsSchema } from './db/index.js';
 export type * from './db/types.js';
 export { CmsConfigError, CmsError, CmsSchemaError, CmsValidationError } from './errors.js';
+export type { MediaAdapter, MediaAsset } from './integrations/media.js';
+export { createMediaAdapter, mediaLibraryAdapter } from './integrations/media.js';
 export type { Cms, CmsCollectionApi, CmsGlobalApi, CreateCmsOptions } from './local_api/index.js';
 export { createCms } from './local_api/index.js';
 export { constraintToSql, decideAccess } from './repository/access.js';

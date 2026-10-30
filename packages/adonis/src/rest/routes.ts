@@ -1,6 +1,7 @@
 import type { CmsConfig } from '../config/types.js';
 import type { Cms } from '../local_api/index.js';
 import {
+  handleAdminSchema,
   handleCollectionCreate,
   handleCollectionDelete,
   handleCollectionFind,
@@ -85,6 +86,10 @@ export function registerCmsRoutes(
     writer.json(response.body);
   };
 
+  router.get(
+    `${prefix}/schema`,
+    dispatch((cms) => handleAdminSchema(cms)),
+  );
   router.get(`${prefix}/collections/:slug`, dispatch(handleCollectionFind));
   router.post(`${prefix}/collections/:slug`, dispatch(handleCollectionCreate));
   router.get(`${prefix}/collections/:slug/:id`, dispatch(handleCollectionFindOne));

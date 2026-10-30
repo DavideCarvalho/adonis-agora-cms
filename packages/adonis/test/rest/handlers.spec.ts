@@ -200,6 +200,7 @@ describe('route wiring', () => {
     registerCmsRoutes(router, cms);
 
     expect(routes.map((route) => `${route.method} ${route.path}`)).toEqual([
+      'GET /api/cms/schema',
       'GET /api/cms/collections/:slug',
       'POST /api/cms/collections/:slug',
       'GET /api/cms/collections/:slug/:id',
@@ -240,7 +241,7 @@ describe('route wiring', () => {
       }),
     });
 
-    const find = routes[0];
+    const find = routes.find((route) => route.path === '/api/cms/collections/:slug');
     const acme = fakeContext({ slug: 'posts' });
     await find?.handler(acme.ctx);
     expect((acme.captured.body as { docs: { title: string }[] }).docs.map((d) => d.title)).toEqual([

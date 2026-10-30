@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { CmsConfig, FieldConfig } from '../config/types.js';
 import { resolveLocalization } from '../config/types.js';
 import type { CmsKnex } from '../db/types.js';
+import type { MediaAdapter } from '../integrations/media.js';
 import type { ColumnSpec, Engine, SchemaSpec, TableSpec } from '../schema/types.js';
 import { ident, placeholders, selectRows } from './sql.js';
 
@@ -14,6 +15,7 @@ export type RepoContext = {
   user: unknown;
   req: unknown;
   locale: string;
+  media?: MediaAdapter | undefined;
 };
 
 export type Row = Record<string, unknown>;

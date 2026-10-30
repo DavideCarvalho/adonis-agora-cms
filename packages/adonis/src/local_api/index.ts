@@ -2,6 +2,7 @@ import type { CmsConfig } from '../config/types.js';
 import { resolveLocalization, resolveVersions } from '../config/types.js';
 import { detectEngine } from '../db/sync.js';
 import type { CmsKnex } from '../db/types.js';
+import type { MediaAdapter } from '../integrations/media.js';
 import {
   createDocument,
   deleteDocument,
@@ -35,6 +36,8 @@ export type CreateCmsOptions = {
   tenant?: string | null;
   req?: unknown;
   locale?: string;
+  /** Resolves `upload` ids into `{ id, url, … }` on read. */
+  media?: MediaAdapter;
 };
 
 export type CmsCollectionApi<C, S extends string> = {
@@ -81,6 +84,9 @@ export type CmsGlobalApi<C, S extends string> = {
 
 export type Cms<C extends CmsConfig = CmsConfig> = {
   readonly spec: SchemaSpec;
+  readonly config: C;
+  readonly user: unknown;
+  readonly tenant: string | null;
   collection<S extends string>(slug: S): CmsCollectionApi<C, S>;
   global<S extends string>(slug: S): CmsGlobalApi<C, S>;
   /** A scoped instance sharing the same schema and connection. */
@@ -118,6 +124,7 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
       user: overrides.user !== undefined ? overrides.user : options.user,
       req: overrides.req ?? options.req ?? null,
       locale: overrides.locale ?? defaultLocale,
+      media: options.media,
     };
   }
 
@@ -127,6 +134,18 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
     return {
       get spec() {
         return spec;
+      },
+
+      get config() {
+        return ctx.config as C;
+      },
+
+      get user() {
+        return ctx.user;
+      },
+
+      get tenant() {
+        return ctx.tenant;
       },
 
       collection<S extends string>(slug: S): CmsCollectionApi<C, S> {

@@ -13,8 +13,8 @@ export type RichTextValue = {
 
 export type CmsUpload = {
   id: string;
-  url: string;
-  mime: string;
+  url?: string;
+  mime?: string;
   width?: number;
   height?: number;
 };

@@ -2,6 +2,7 @@ export type { RestErrorBody } from './errors.js';
 export { toRestError } from './errors.js';
 export type { RestRequest, RestResponse } from './handlers.js';
 export {
+  handleAdminSchema,
   handleCollectionCreate,
   handleCollectionDelete,
   handleCollectionFind,
