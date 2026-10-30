@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge, Button, Field } from '../atoms/index.js';
 import { LivePreview } from '../organisms/live-preview.js';
 import { ArrayBuilder, BlocksBuilder } from '../organisms/structured.js';
@@ -40,6 +40,11 @@ export function EditForm({
   previewUrl,
 }: EditFormProps) {
   const [values, setValues] = useState<AdminDocument>(doc);
+
+  // The document arrives after mount (query), so the form must adopt it once it lands.
+  useEffect(() => {
+    setValues(doc);
+  }, [doc.id]);
   const [showJson, setShowJson] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 

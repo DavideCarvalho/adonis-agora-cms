@@ -1,0 +1,12 @@
+{
+  "name": "cms-example-blog",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "knex": "^3.3.0"
+  }
+}

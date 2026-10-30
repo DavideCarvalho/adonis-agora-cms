@@ -1,5 +1,6 @@
 packages:
   - "packages/*"
+  - "examples/*"
 
 # pnpm >= 10 nao roda build script de dependencia sem permissao explicita, e em CI ele
 # ERRA (ERR_PNPM_IGNORED_BUILDS) em vez de so avisar. better-sqlite3 compila/baixa binario,
