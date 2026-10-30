@@ -382,7 +382,7 @@ async function decorateRows(
   const docs = rows.map((row) => rowToDocument(ctx, table, row, children, options));
 
   if ((options.depth ?? 1) > 0) {
-    await populateRelations(ctx, table, docs);
+    await populateRelations(ctx, table, docs, options);
   }
 
   for (const doc of docs) {
@@ -396,6 +396,7 @@ async function populateRelations(
   ctx: RepoContext,
   table: TableSpec,
   docs: Record<string, unknown>[],
+  options: DocumentOptions,
 ): Promise<void> {
   const relationColumns = table.columns.filter(
     (column) => column.references && column.path && !column.locale,
@@ -424,7 +425,14 @@ async function populateRelations(
       if (!id) continue;
       const targetRow = byId.get(id);
       if (!targetRow) continue;
-      setByPath(doc, field, rowToDocument(ctx, targetTable, targetRow, new Map(), { depth: 0 }));
+      setByPath(
+        doc,
+        field,
+        rowToDocument(ctx, targetTable, targetRow, new Map(), {
+          depth: 0,
+          locale: options.locale,
+        }),
+      );
     }
   }
 }
@@ -868,16 +876,35 @@ async function runHooks(
 
 /* ------------------------------------------------------------------ helpers */
 
+/**
+ * PATCH semantics: plain objects merge (so a partial locale map keeps the other locales),
+ * arrays and scalars replace.
+ */
 function mergeDocument(
   previous: Record<string, unknown>,
   patch: Record<string, unknown>,
 ): Record<string, unknown> {
-  const merged = { ...previous };
+  const merged: Record<string, unknown> = { ...previous };
+
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
+
+    const current = merged[key];
+    if (isPlainObject(current) && isPlainObject(value)) {
+      merged[key] = mergeDocument(current, value);
+      continue;
+    }
+
     merged[key] = value;
   }
+
   return merged;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)
+  );
 }
 
 export function tenantCondition(ctx: RepoContext, column: string): string {

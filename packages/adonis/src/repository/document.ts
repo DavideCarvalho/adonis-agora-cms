@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { CmsConfig, FieldConfig } from '../config/types.js';
+import { resolveLocalization } from '../config/types.js';
 import type { CmsKnex } from '../db/types.js';
 import type { ColumnSpec, Engine, SchemaSpec, TableSpec } from '../schema/types.js';
 import { ident, placeholders, selectRows } from './sql.js';
@@ -209,6 +210,7 @@ export function rowToDocument(
   options: DocumentOptions,
 ): Record<string, unknown> {
   const doc: Record<string, unknown> = {};
+  const localized = new Map<string, Record<string, unknown>>();
 
   for (const column of table.columns) {
     if (!column.path) {
@@ -222,13 +224,27 @@ export function rowToDocument(
     if (value === undefined) continue;
 
     if (column.locale) {
-      const existing = (doc[column.path] as Record<string, unknown> | undefined) ?? {};
-      existing[column.locale] = value;
-      doc[column.path] = existing;
+      const bucket = localized.get(column.path) ?? {};
+      bucket[column.locale] = value;
+      localized.set(column.path, bucket);
       continue;
     }
 
     setByPath(doc, column.path, value);
+  }
+
+  const localization = resolveLocalization(ctx.config);
+
+  for (const [path, bucket] of localized) {
+    if (options.locale) {
+      setByPath(
+        doc,
+        path,
+        pickLocale(bucket, options.locale, ctx.spec.defaultLocale, localization.fallback),
+      );
+    } else {
+      setByPath(doc, path, completeLocaleMap(bucket, ctx.spec.locales));
+    }
   }
 
   doc.id = row.id;
@@ -238,18 +254,45 @@ export function rowToDocument(
 
   for (const [childTable, byParent] of children) {
     const child = ctx.spec.tables.find((item) => item.name === childTable);
-    const rows = byParent.get(String(row.id)) ?? [];
     if (!child) continue;
 
     const fieldName = child.path?.split('.').at(-1) ?? '';
-    const nested =
-      options.depth === 0
-        ? []
-        : rows.map((childRow) => rowToChildValue(ctx, child, childRow, children));
-    setByPath(doc, fieldName, nested);
+    const rows = byParent.get(String(row.id)) ?? [];
+    setByPath(doc, fieldName, childValue(ctx, child, rows, children, options));
   }
 
   return doc;
+}
+
+/** Localized child rows: one array per requested locale, or a `{ locale: rows }` map. */
+function childValue(
+  ctx: RepoContext,
+  table: TableSpec,
+  rows: Row[],
+  children: Map<string, Map<string, Row[]>>,
+  options: DocumentOptions,
+): unknown {
+  const localizedTable = table.columns.some((column) => column.name === '_locale');
+
+  if (!localizedTable) {
+    return rows.map((row) => rowToChildValue(ctx, table, row, children, options));
+  }
+
+  const localization = resolveLocalization(ctx.config);
+
+  if (options.locale) {
+    return pickLocaleRows(rows, options.locale, ctx.spec.defaultLocale, localization.fallback).map(
+      (row) => rowToChildValue(ctx, table, row, children, options),
+    );
+  }
+
+  const grouped: Record<string, unknown[]> = {};
+  for (const locale of ctx.spec.locales) {
+    grouped[locale] = rows
+      .filter((row) => row._locale === locale)
+      .map((row) => rowToChildValue(ctx, table, row, children, options));
+  }
+  return grouped;
 }
 
 function rowToChildValue(
@@ -257,6 +300,7 @@ function rowToChildValue(
   table: TableSpec,
   row: Row,
   children: Map<string, Map<string, Row[]>>,
+  options: DocumentOptions = {},
 ): unknown {
   if (table.columns.some((column) => column.name === 'value')) return row.value;
   if (table.columns.some((column) => column.name === 'related_id')) {
@@ -267,7 +311,9 @@ function rowToChildValue(
 
   const value: Record<string, unknown> = { id: row.id };
   if (row.type !== undefined) value.type = row.type;
-  if (table.columns.some((column) => column.name === '_locale')) value._locale = row._locale;
+  if (table.columns.some((column) => column.name === '_locale') && !options.locale) {
+    value._locale = row._locale;
+  }
 
   for (const column of table.columns) {
     if (!column.path || column.name.startsWith('_') || column.name === 'id') continue;
@@ -288,7 +334,7 @@ function rowToChildValue(
     if (child.owner !== table.name) continue;
     const fieldName = child.path?.split('.').at(-1) ?? '';
     const rows = children.get(child.name)?.get(String(row.id)) ?? [];
-    value[fieldName] = rows.map((childRow) => rowToChildValue(ctx, child, childRow, children));
+    value[fieldName] = childValue(ctx, child, rows, children, options);
   }
 
   return value;
@@ -436,6 +482,42 @@ export function decodeValue(value: unknown, column: ColumnSpec): unknown {
     default:
       return value;
   }
+}
+
+function pickLocale(
+  bucket: Record<string, unknown>,
+  locale: string,
+  defaultLocale: string,
+  fallback: boolean,
+): unknown {
+  const value = bucket[locale];
+  if (!isEmptyValue(value)) return value;
+  if (fallback) return bucket[defaultLocale] ?? null;
+  return value ?? null;
+}
+
+function completeLocaleMap(
+  bucket: Record<string, unknown>,
+  locales: readonly string[],
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const locale of locales) out[locale] = bucket[locale] ?? null;
+  return out;
+}
+
+function pickLocaleRows(
+  rows: Row[],
+  locale: string,
+  defaultLocale: string,
+  fallback: boolean,
+): Row[] {
+  const scoped = rows.filter((row) => row._locale === locale);
+  if (scoped.length > 0 || !fallback) return scoped;
+  return rows.filter((row) => row._locale === defaultLocale);
+}
+
+function isEmptyValue(value: unknown): boolean {
+  return value === undefined || value === null || value === '';
 }
 
 function toDate(value: unknown): Date | undefined {
