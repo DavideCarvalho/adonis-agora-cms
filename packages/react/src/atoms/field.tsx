@@ -40,20 +40,3 @@ export function Field({
     </div>
   );
 }
-
-export function Badge({
-  children,
-  tone = 'neutral',
-}: {
-  children: ReactNode;
-  tone?: 'neutral' | 'success' | 'warning' | 'danger';
-}) {
-  const tones = {
-    neutral: '',
-    success: 'badge--ok',
-    warning: 'badge--warn',
-    danger: 'badge--warn',
-  } as const;
-
-  return <span className={cn('badge', tones[tone])}>{children}</span>;
-}

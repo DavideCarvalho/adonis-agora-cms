@@ -1,4 +1,4 @@
-export type { ButtonProps, ButtonSize, ButtonVariant, FieldProps } from './atoms/index.js';
+export type { ButtonProps, ButtonSize, ButtonTone, FieldProps } from './atoms/index.js';
 export { Badge, Button, Checkbox, Field, Input, Select, Textarea } from './atoms/index.js';
 export type { AdminClientOptions } from './client.js';
 export { AdminClient, CmsApiError } from './client.js';

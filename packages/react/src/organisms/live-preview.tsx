@@ -28,7 +28,7 @@ export function LivePreview({ url, data, open, onClose }: LivePreviewProps) {
     <aside className="panel panel--preview" role="dialog" aria-label={t.preview}>
       <header className="panel__head">
         <h2>{t.preview}</h2>
-        <Button size="sm" variant="ghost" onClick={onClose}>
+        <Button size="sm" tone="ghost" onClick={onClose}>
           {t.close}
         </Button>
       </header>

@@ -86,15 +86,15 @@ export function ArrayBuilder({
             <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
               <span>#{index + 1}</span>
               <div className="flex gap-1">
-                <Button size="sm" variant="ghost" onClick={() => move(index, -1)}>
+                <Button size="sm" tone="ghost" onClick={() => move(index, -1)}>
                   ↑
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => move(index, 1)}>
+                <Button size="sm" tone="ghost" onClick={() => move(index, 1)}>
                   ↓
                 </Button>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  tone="ghost"
                   onClick={() => onChange(rows.filter((_, i) => i !== index))}
                 >
                   Remove
@@ -165,7 +165,7 @@ export function BlocksBuilder({
                 </Select>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  tone="ghost"
                   onClick={() => onChange(rows.filter((_, i) => i !== index))}
                 >
                   Remove

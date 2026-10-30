@@ -55,7 +55,7 @@ export function DataTable({
           ) : null}
 
           {onCreate && permission?.create !== false ? (
-            <Button variant="primary" onClick={onCreate}>
+            <Button tone="accent" onClick={onCreate}>
               {t.new}
             </Button>
           ) : null}
@@ -91,7 +91,7 @@ export function DataTable({
                   ))}
                   {collection.drafts ? (
                     <td>
-                      <Badge tone={doc._status === 'published' ? 'success' : 'warning'}>
+                      <Badge tone={doc._status === 'published' ? 'good' : 'warn'}>
                         {String(doc._status ?? 'draft')}
                       </Badge>
                     </td>
@@ -101,26 +101,21 @@ export function DataTable({
                       {showDeleted && onRestore ? (
                         <Button
                           size="sm"
-                          variant="ghost"
+                          tone="ghost"
                           onClick={() => onRestore(doc)}
                           disabled={busy}
                         >
                           {t.restore}
                         </Button>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => onOpen(doc)}
-                          disabled={busy}
-                        >
+                        <Button size="sm" tone="ghost" onClick={() => onOpen(doc)} disabled={busy}>
                           {t.edit}
                         </Button>
                       )}
                       {!showDeleted && onDelete && permission?.delete ? (
                         <Button
                           size="sm"
-                          variant="ghost"
+                          tone="ghost"
                           onClick={() => onDelete(doc)}
                           disabled={busy}
                         >

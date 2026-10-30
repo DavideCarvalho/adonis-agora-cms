@@ -21,7 +21,7 @@ export function VersionsPanel({ slug, id, open, onClose }: VersionsPanelProps) {
     <aside className="panel" role="dialog" aria-label={t.history}>
       <header className="panel__head">
         <h2>{t.history}</h2>
-        <Button size="sm" variant="ghost" onClick={onClose}>
+        <Button size="sm" tone="ghost" onClick={onClose}>
           {t.close}
         </Button>
       </header>
@@ -34,7 +34,7 @@ export function VersionsPanel({ slug, id, open, onClose }: VersionsPanelProps) {
           <div key={version.id} className="version">
             <div className="version__row">
               <span className="version__meta">v{version.version}</span>
-              <Badge tone={version.status === 'published' ? 'success' : 'warning'}>
+              <Badge tone={version.status === 'published' ? 'good' : 'warn'}>
                 {version.status}
               </Badge>
             </div>

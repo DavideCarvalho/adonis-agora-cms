@@ -31,28 +31,28 @@ export function RichText({ field, value, onChange, error, id }: FieldComponentPr
         <div className="flex flex-wrap gap-1">
           <Button
             size="sm"
-            variant={editor?.isActive('bold') ? 'primary' : 'ghost'}
+            tone={editor?.isActive('bold') ? 'accent' : 'ghost'}
             onClick={() => editor?.chain().focus().toggleBold().run()}
           >
             B
           </Button>
           <Button
             size="sm"
-            variant={editor?.isActive('italic') ? 'primary' : 'ghost'}
+            tone={editor?.isActive('italic') ? 'accent' : 'ghost'}
             onClick={() => editor?.chain().focus().toggleItalic().run()}
           >
             I
           </Button>
           <Button
             size="sm"
-            variant="ghost"
+            tone="ghost"
             onClick={() => editor?.chain().focus().toggleBulletList().run()}
           >
             •
           </Button>
           <Button
             size="sm"
-            variant="ghost"
+            tone="ghost"
             onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
           >
             H2

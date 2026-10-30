@@ -289,7 +289,7 @@ function SignIn() {
         </h1>
         <p>Your session expired or you are not authenticated.</p>
         <a href={loginUrl} style={{ display: 'inline-block', marginTop: 18 }}>
-          <Button variant="primary">Go to sign in</Button>
+          <Button tone="accent">Go to sign in</Button>
         </a>
       </div>
     </div>

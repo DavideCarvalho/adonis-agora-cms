@@ -84,7 +84,7 @@ export function EditForm({
       <div className="form-head">
         <div className="form-head__left">
           {onBack ? (
-            <Button variant="ghost" size="sm" onClick={onBack} aria-label="back">
+            <Button tone="ghost" size="sm" onClick={onBack} aria-label="back">
               ←
             </Button>
           ) : null}
@@ -92,7 +92,7 @@ export function EditForm({
             {doc.id ? t.edit : t.new} {collection.labels?.singular ?? collection.slug}
           </h1>
           {doc._status ? (
-            <Badge tone={doc._status === 'published' ? 'success' : 'warning'}>{doc._status}</Badge>
+            <Badge tone={doc._status === 'published' ? 'good' : 'warn'}>{doc._status}</Badge>
           ) : null}
         </div>
 
@@ -113,7 +113,7 @@ export function EditForm({
             </select>
           ) : null}
 
-          <Button size="sm" variant="ghost" onClick={() => setShowJson((value) => !value)}>
+          <Button size="sm" tone="ghost" onClick={() => setShowJson((value) => !value)}>
             {showJson ? t.form : t.json}
           </Button>
 
@@ -130,7 +130,7 @@ export function EditForm({
           ) : null}
 
           {onDelete && permission?.delete ? (
-            <Button size="sm" variant="danger" onClick={onDelete}>
+            <Button size="sm" tone="destructive" onClick={onDelete}>
               {t.delete}
             </Button>
           ) : null}
@@ -141,7 +141,7 @@ export function EditForm({
             </Button>
           ) : null}
 
-          <Button size="sm" variant="primary" type="submit" disabled={saving || readOnly}>
+          <Button size="sm" tone="accent" type="submit" disabled={saving || readOnly}>
             {saving ? t.saving : t.save}
           </Button>
         </div>
