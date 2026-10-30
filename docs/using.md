@@ -1,0 +1,188 @@
+# Using the CMS in an app
+
+What a developer writes, in order. Everything below is what `examples/blog` and the Entre Textos
+integration actually do — the snippets compile and run.
+
+## 1. Install
+
+```bash
+node ace add @adonisjs/lucid
+node ace configure @adonis-agora/cms          # provider, cms:* commands, config stub, migration
+node ace configure @adonis-agora/cms-admin    # the provider that serves the admin SPA
+```
+
+## 2. Declare the content
+
+`config/cms.ts` — the collections are code, and the editor form, the tables, the REST routes and
+the types all come from here:
+
+```ts
+import { collection, defineConfig, fields } from '@adonis-agora/cms';
+
+export default defineConfig({
+  db: { id: 'uuid', tablePrefix: 'cms_' },
+
+  collections: [
+    collection('posts', {
+      admin: { useAsTitle: 'title', defaultColumns: ['title', 'status'] },
+      fields: [
+        fields.text('title', { required: true }),
+        fields.slug('slug', { from: 'title', unique: true }),
+        fields.richText('body'),
+        fields.select('status', {
+          defaultValue: 'draft',
+          options: [
+            { label: 'Draft', value: 'draft' },
+            { label: 'Published', value: 'published' },
+          ],
+        }),
+      ],
+    }),
+
+    collection('pages', {
+      admin: { useAsTitle: 'title' },
+      fields: [
+        fields.text('title', { required: true }),
+        fields.slug('slug', { from: 'title', unique: true }),
+        fields.blocks('layout', {
+          blocks: [
+            { slug: 'hero', fields: [fields.text('heading'), fields.textarea('subheading')] },
+            {
+              slug: 'features',
+              fields: [
+                fields.text('heading'),
+                fields.array('items', { fields: [fields.text('title'), fields.textarea('text')] }),
+              ],
+            },
+          ],
+        }),
+      ],
+    }),
+  ],
+});
+```
+
+## 3. Create the tables
+
+```bash
+node ace cms:sync        # print the plan: node ace cms:diff
+```
+
+In `managed` mode (the default) the provider applies the schema on boot in development and only
+warns about drift in production.
+
+## 4. Read it
+
+```ts
+// app/controllers/pages_controller.ts
+import type { CmsDocument } from '@adonis-agora/cms';
+import cms from '@adonis-agora/cms/services/main';
+import type cmsConfig from '#config/cms';
+
+type Page = CmsDocument<typeof cmsConfig, 'pages'>;
+
+export default class PagesController {
+  async show({ params, response }) {
+    const { docs } = await cms.collection('pages').find({
+      where: { slug: { equals: params.slug } },
+    });
+
+    const page = docs[0] as Page | undefined;
+    if (!page) return response.notFound();
+
+    return response.type('html').send(render(page));
+  }
+}
+```
+
+- `cms` is the typed singleton the provider fills at boot — the same instance the REST routes
+  use, so hooks, access and tenancy apply.
+- `Page` gives you `page.layout[0]` typed as the block union; a field that is not in the config
+  does not typecheck.
+- `find` only returns published documents. Drafts need `{ draft: true }` **and** a preview token
+  (step 6).
+
+For scripts outside an app, `createCms({ config, client })` gives the same API.
+
+## 5. Render the blocks
+
+```ts
+const components: Record<string, (block: any, path: string) => string> = {
+  hero: (block, path) => `<h1 data-cms-field="${path}.heading">${block.heading}</h1>`,
+  features: (block, path) => `…`,
+};
+
+const body = page.layout
+  .map((block, index) =>
+    components[block.type]
+      ? `<div data-cms-block="layout[${index}]">${components[block.type](
+          block,
+          `layout[${index}]`,
+        )}</div>`
+      : '',
+  )
+  .join('');
+```
+
+The `path` is the same one the admin form uses (`layout[1].items[0].title`); that is what makes
+the live preview highlight the region, focus the field, and give each block its toolbar.
+
+## 6. Live preview
+
+```ts
+// config/cms.ts
+admin: {
+  path: '/admin',
+  livePreview: { url: '/preview', secret: env.get('CMS_PREVIEW_SECRET') },
+},
+```
+
+```ts
+// the route the iframe loads
+import { verifyPreviewToken } from '@adonis-agora/cms';
+import cms from '@adonis-agora/cms/services/main';
+
+router.get('/preview', async ({ request, response }) => {
+  const claims = verifyPreviewToken(String(request.qs().token ?? ''), secret);
+  if (!claims) return response.status(401).send('invalid or expired preview token');
+
+  const doc = await cms
+    .forTenant(claims.tenant)
+    .collection(claims.collection)
+    .findByID(claims.documentId, { draft: true, overrideAccess: true });
+
+  if (!doc) return response.status(404).send('not found');
+
+  // The admin embeds this page; the default shield answers `x-frame-options: DENY`.
+  response.header('x-frame-options', 'SAMEORIGIN');
+  return response.type('html').send(render(doc));
+});
+```
+
+The admin panel gets a **Preview** button as soon as `livePreview` is configured.
+
+## 7. Open the panel
+
+`/admin` (`admin.path`). It renders itself from `GET /api/cms/schema`: list, edit, publish,
+versions, uploads, live preview.
+
+## 8. Build your own (optional)
+
+The panel is composed from exported pieces:
+
+```tsx
+import {
+  AdminClient,
+  CmsProvider,
+  DataTable,
+  EditForm,
+  useDocuments,
+} from '@adonis-agora/cms-react';
+
+<CmsProvider client={new AdminClient()} upload={(file) => client.upload(file)}>
+  <EditForm collection={collection} doc={doc} onSubmit={save} previewUrl={previewUrl} />
+</CmsProvider>;
+```
+
+Everything is exported: client, TanStack Query hooks, field registry, atoms, organisms and
+templates.

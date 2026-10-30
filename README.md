@@ -115,6 +115,10 @@ admin/labels/visibility because the DDL is shared. Read the spec, §23.
 
 ## Reading content from app code
 
+New here? [`docs/using.md`](./docs/using.md) walks through install → config → sync → read → preview
+with copy-paste snippets.
+
+
 ```ts
 import cms from '@adonis-agora/cms/services/main';
 

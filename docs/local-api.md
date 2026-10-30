@@ -3,32 +3,44 @@
 The server-side entry point. No HTTP: access, hooks and tenancy run exactly as they will over
 REST, so a script, a queue job or a server component gets the same rules.
 
+In an app, use the service the provider fills at boot:
+
+```ts
+import cms from '@adonis-agora/cms/services/main';
+
+const posts = cms.collection('posts');
+```
+
+Outside an app (a script, a test, a CLI), build an instance yourself:
+
 ```ts
 import db from '@adonisjs/lucid/services/db';
 import { createCms } from '@adonis-agora/cms';
+import config from '../config/cms.js';
 
 const cms = createCms({
-  config, // config/cms.ts default export
+  config,
   client: db.connection().getWriteClient(),
   user: ctx.auth.user, // optional
-  tenant: ctx.cms.tenant ?? null, // optional (row tenancy)
+  tenant: null, // optional (row tenancy)
   req: ctx, // optional, handed to access/hooks
 });
+```
 
 const posts = cms.collection('posts');
 
 const post = await posts.create({ title: 'Hello', body: doc, tags: [{ label: 'adonis' }] });
 const { docs, totalDocs, page } = await posts.find({
-  where: { status: 'published', 'tags.label': 'adonis' },
-  sort: '-createdAt',
-  limit: 10,
-  page: 1,
-  depth: 1,
+where: { status: 'published', 'tags.label': 'adonis' },
+sort: '-createdAt',
+limit: 10,
+page: 1,
+depth: 1,
 });
 
 await posts.update(post.id, { title: 'Hello again' });
 await posts.delete(post.id);
-```
+````
 
 Document types come from the config, so `post.title` is `string` and `post.status` is
 `'draft' | 'published'` without a cast.
@@ -38,7 +50,7 @@ Document types come from the config, so `post.title` is `string` and `post.statu
 ```ts
 cms.forTenant('acme'); // shares the schema and connection; scopes every query
 cms.as(user); // same, with a different request user
-```
+````
 
 Both are cheap: nothing is recompiled or reconnected.
 
