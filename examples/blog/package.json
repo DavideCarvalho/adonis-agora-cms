@@ -11,13 +11,17 @@
     "@adonis-agora/cms": "workspace:*",
     "@adonisjs/core": "7.5.0",
     "@adonisjs/lucid": "^22.4.2",
-    "better-sqlite3": "^13.0.3"
+    "better-sqlite3": "^13.0.3",
+    "luxon": "^3.7.2",
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
+    "@adonisjs/ace": "^14.1.1",
     "@adonisjs/assembler": "^8.6.0",
+    "@poppinss/ts-exec": "^1.5.1",
     "@swc/core": "1.16.1",
-    "typescript": "^7.0.2",
-    "@adonisjs/ace": "^14.1.1"
+    "ts-node-maintained": "^10.9.6",
+    "typescript": "6.0.3"
   },
   "imports": {
     "#start/*": "./start/*.js",

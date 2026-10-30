@@ -3,15 +3,23 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "rootDir": "./",
-    "outDir": "./build"
+    "outDir": "./build",
+    "rewriteRelativeImportExtensions": true
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules", "build"]
+  "include": [
+    "**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "build"
+  ]
 }
