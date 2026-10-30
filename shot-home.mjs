@@ -1,6 +1,10 @@
 import { chromium } from '@playwright/test';
+
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 2 });
+const page = await browser.newPage({
+  viewport: { width: 1440, height: 1000 },
+  deviceScaleFactor: 2,
+});
 await page.goto('http://127.0.0.1:3333/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
 await page.screenshot({ path: '/tmp/opencode/et-home.png', fullPage: true });

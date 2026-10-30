@@ -289,6 +289,7 @@ function compileArray(
     rowScoped: localized,
   });
 
+  dedupeColumns(child, logicalPath);
   pushChild(ctx, child, { order: true, locale: localized });
 }
 
@@ -350,6 +351,7 @@ function compileBlocks(
     columns: ['type'],
   });
 
+  dedupeColumns(child, logicalPath);
   pushChild(ctx, child, { order: true, locale: localized });
 }
 
@@ -405,6 +407,39 @@ function compileHasManyRelation(
   pushChild(ctx, child, { order: true, locale: localized });
 }
 
+/**
+ * Child tables are keyed by their name. Two blocks can each declare an `items` array — both land in
+ * `posts__layout__items`, so the second one must merge into the table instead of creating a copy
+ * with a subset of the columns.
+ */
+function existingChild(ctx: CompileContext, name: string): TableSpec | undefined {
+  return ctx.tables.find((table) => table.name === name && table.kind === 'child');
+}
+
+/** Collapses duplicate columns by name, keeping the first and widening nullability. */
+function dedupeColumns(table: TableSpec, path: readonly string[]): void {
+  const seen = new Map<string, ColumnSpec>();
+
+  for (const column of [...table.columns]) {
+    const existing = seen.get(column.name);
+    if (!existing) {
+      seen.set(column.name, column);
+      continue;
+    }
+
+    if (!columnsCompatible(existing, column)) {
+      throw new CmsConfigError(
+        `collections.${table.slug}.fields.${path.join('.')}`,
+        `field "${column.name}" is declared with incompatible types across blocks`,
+      );
+    }
+
+    existing.nullable = existing.nullable || column.nullable;
+    const duplicate = table.columns.indexOf(column);
+    if (duplicate >= 0) table.columns.splice(duplicate, 1);
+  }
+}
+
 function createChildTable(
   ctx: CompileContext,
   parent: TableSpec,
@@ -414,6 +449,8 @@ function createChildTable(
 ): TableSpec {
   const name = `${parent.name}__${snakeCase(slug)}`;
   const chain = parent.kind === 'child' ? [...(parent.chain ?? []), name] : [name];
+  const reusable = existingChild(ctx, name);
+  if (reusable) return reusable;
 
   return {
     name,
@@ -433,6 +470,7 @@ function pushChild(
   child: TableSpec,
   options: { order: boolean; locale: boolean },
 ): void {
+  if (ctx.tables.includes(child)) return;
   if (options.order) {
     child.indexes.push({
       name: indexName(child.name, '_order', 'idx'),

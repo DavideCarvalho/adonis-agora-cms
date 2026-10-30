@@ -145,6 +145,58 @@ describe('compileSchema — child tables', () => {
     expect(child?.columns.filter((column) => column.name === 'heading')).toHaveLength(1);
   });
 
+  test('arrays with the same name in different blocks share one child table', () => {
+    const config = {
+      ...blogConfig,
+      collections: [
+        {
+          slug: 'pages',
+          fields: [
+            {
+              type: 'blocks' as const,
+              name: 'layout',
+              blocks: [
+                {
+                  slug: 'features',
+                  fields: [
+                    {
+                      type: 'array' as const,
+                      name: 'items',
+                      fields: [{ type: 'text' as const, name: 'title' }],
+                    },
+                  ],
+                },
+                {
+                  slug: 'steps',
+                  fields: [
+                    {
+                      type: 'array' as const,
+                      name: 'items',
+                      fields: [
+                        { type: 'text' as const, name: 'title' },
+                        { type: 'text' as const, name: 'number' },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      globals: [],
+    };
+
+    const spec = compileSchema(config, { engine: 'sqlite' });
+    const children = spec.tables.filter((item) => item.name === 'cms_pages__layout__items');
+    expect(children).toHaveLength(1);
+
+    const names = (children[0]?.columns ?? []).map((column) => column.name);
+    expect(names).toContain('title');
+    expect(names).toContain('number');
+    expect(new Set(names).size).toBe(names.length);
+  });
+
   test('incompatible block columns are rejected', () => {
     const config = {
       ...blogConfig,
