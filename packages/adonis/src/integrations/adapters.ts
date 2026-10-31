@@ -180,10 +180,10 @@ type AdonisMessage = {
 };
 
 /** `@adonisjs/mail` for `cmsAuth`. The service only exists after boot, hence the function. */
-export function adonisMail(mailer: () => AdonisMailer | Promise<AdonisMailer>): CmsMail {
+export function adonisMail(mailer: () => unknown): CmsMail {
   return {
     async send({ to, subject, text }) {
-      const target = await mailer();
+      const target = (await mailer()) as AdonisMailer;
       return target.send(((message: AdonisMessage) =>
         message.to(to).subject(subject).text(text)) as (message: never) => unknown);
     },
