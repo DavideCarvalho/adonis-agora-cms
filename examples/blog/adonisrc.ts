@@ -9,6 +9,9 @@ export default defineConfig({
   providers: [
     () => import('@adonisjs/core/providers/app_provider'),
     () => import('@adonisjs/lucid/database_provider'),
+    () => import('@adonisjs/drive/drive_provider'),
+    () => import('@adonisjs/queue/queue_provider'),
+    () => import('@adonis-agora/durable/durable_provider'),
     () => import('@adonis-agora/cms/cms_provider'),
     () => import('@adonis-agora/cms-admin/cms_admin_provider'),
   ],

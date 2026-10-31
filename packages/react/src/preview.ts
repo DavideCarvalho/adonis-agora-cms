@@ -27,31 +27,41 @@ export const PREVIEW_INSERT_HERE_MESSAGE = 'cms:insert-here';
 export const PREVIEW_BLOCK_MENU_MESSAGE = 'cms:block-menu';
 /** MIME used when a block is dragged from the palette into the page. */
 export const PREVIEW_BLOCK_MIME = 'application/x-cms-block';
+/** Admin -> page: outline this block and bring it into view. */
+export const PREVIEW_SELECT_BLOCK_MESSAGE = 'cms:select-block';
+/** Ctrl/Cmd+S pressed while the focus is inside the page. */
+export const PREVIEW_SAVE_MESSAGE = 'cms:save';
+/** Set on <html> by `useLivePreviewData`: the page re-renders itself, so the bridge leaves its DOM alone. */
+export const PREVIEW_LIVE_ATTRIBUTE = 'data-cms-live';
 
 const STYLE = `
+/* Quiet until asked: the page reads as the page, and only the block under the pointer shows chrome. */
 [${PREVIEW_FIELD_ATTRIBUTE}] {
-  outline: 1px dashed rgba(192, 132, 252, 0.45);
-  outline-offset: 2px;
   cursor: pointer;
   transition: background 120ms ease, outline-color 120ms ease;
 }
 [${PREVIEW_FIELD_ATTRIBUTE}]:hover {
-  outline: 1px solid #c084fc;
-  background: rgba(192, 132, 252, 0.08);
+  outline: 1px solid #a855f7;
+  outline-offset: 2px;
+  background: rgba(168, 85, 247, 0.08);
 }
 
 [${PREVIEW_BLOCK_ATTRIBUTE}] {
   position: relative;
-  outline: 1px dashed rgba(96, 165, 250, 0.35);
-  outline-offset: 4px;
   border-radius: 6px;
 }
 [${PREVIEW_BLOCK_ATTRIBUTE}]:hover {
-  outline-color: rgba(192, 132, 252, 0.55);
+  outline: 1px solid rgba(168, 85, 247, 0.5);
+  outline-offset: 3px;
+}
+[${PREVIEW_BLOCK_ATTRIBUTE}][data-cms-selected="1"] {
+  outline: 2px solid #a855f7;
+  outline-offset: 3px;
 }
 [${PREVIEW_BLOCK_ATTRIBUTE}][data-cms-drop="1"] {
-  outline: 2px solid #c084fc;
-  background: rgba(192, 132, 252, 0.06);
+  outline: 2px solid #a855f7;
+  outline-offset: 3px;
+  background: rgba(168, 85, 247, 0.06);
 }
 [${PREVIEW_BLOCK_ATTRIBUTE}][data-cms-dragging="1"] {
   opacity: 0.45;
@@ -59,111 +69,112 @@ const STYLE = `
 
 .cms-block-bar {
   position: fixed;
-  top: calc(var(--cms-top) + 2px);
-  left: calc(var(--cms-left) + 4px);
+  top: max(6px, calc(var(--cms-top) + 6px));
+  left: calc(var(--cms-left) + 6px);
   z-index: 2147483000;
   display: flex;
   gap: 2px;
-  padding: 2px;
-  border: 1px solid #2a2a33;
+  padding: 3px;
   border-radius: 8px;
-  background: #0c0c0f;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  background: #18181b;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   opacity: 0;
-  transform: translateY(-2px);
-  transition: opacity 120ms ease, transform 120ms ease;
-  font-family: ui-monospace, monospace;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  font: 500 12px/1 ui-sans-serif, system-ui, sans-serif;
 }
 [data-cms-overlay][data-visible] .cms-block-bar {
   opacity: 1;
-  transform: none;
+  pointer-events: auto;
 }
 .cms-block-bar button {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 22px;
-  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 6px;
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #a1a1aa;
-  font-size: 12px;
-  line-height: 1;
+  color: #d4d4d8;
+  font: inherit;
   cursor: pointer;
 }
 .cms-block-bar button:hover {
-  background: #1c1c22;
-  color: #e7e7ea;
+  background: #3f3f46;
+  color: #fff;
 }
 .cms-block-bar button[data-act="delete"]:hover {
-  background: rgba(248, 113, 113, 0.16);
-  color: #f87171;
+  background: #dc2626;
+  color: #fff;
 }
 .cms-block-bar button[data-act="drag"] {
-  width: auto;
-  padding: 0 8px;
-  gap: 5px;
-  display: inline-flex;
-  align-items: center;
   cursor: grab;
   touch-action: none;
-}
-.cms-block-bar button[data-act="drag"] span {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 .cms-block-bar button[data-act="drag"]:active {
   cursor: grabbing;
 }
+.cms-block-bar svg {
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+}
 
 .cms-block-add {
   position: fixed;
-  left: calc(var(--cms-left) + var(--cms-width) / 2 - 11px);
-  top: calc(var(--cms-top) + var(--cms-height) - 10px);
+  left: calc(var(--cms-left) + var(--cms-width) / 2);
+  top: calc(var(--cms-top) + var(--cms-height) - 12px);
   transform: translateX(-50%);
   z-index: 2147483000;
   display: none;
-  width: 22px;
-  height: 22px;
-  border: 1px solid #c084fc;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
-  background: #0c0c0f;
-  color: #c084fc;
-  font-size: 13px;
-  line-height: 1;
+  background: #9333ea;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   cursor: pointer;
+}
+.cms-block-add svg {
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
 }
 [data-cms-overlay][data-visible] .cms-block-add {
   display: grid;
   place-items: center;
 }
 .cms-block-add:hover {
-  background: #c084fc;
-  color: #180a26;
+  background: #7e22ce;
 }
 
 /* Full-height grip on the block's left edge: the easiest thing to grab, and it never covers text. */
 .cms-block-grip {
   position: fixed;
-  left: calc(var(--cms-left) - 7px);
-  top: calc(var(--cms-top) + 2px);
-  width: 8px;
-  height: max(18px, calc(var(--cms-height) - 4px));
+  left: calc(var(--cms-left) - 9px);
+  top: var(--cms-top);
+  width: 6px;
+  height: max(18px, var(--cms-height));
   z-index: 2147483000;
-  border-radius: 4px;
-  background: rgba(192, 132, 252, 0.45);
+  border-radius: 3px;
+  background: rgba(168, 85, 247, 0.55);
   opacity: 0;
+  pointer-events: none;
   cursor: grab;
   touch-action: none;
   transition: opacity 120ms ease, background 120ms ease;
 }
 [data-cms-overlay][data-visible] .cms-block-grip {
   opacity: 1;
+  pointer-events: auto;
 }
 .cms-block-grip:hover {
-  background: #c084fc;
+  background: #9333ea;
 }
 .cms-block-grip:active {
   cursor: grabbing;
@@ -184,6 +195,18 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
   var INSERT_HERE = ${JSON.stringify(PREVIEW_INSERT_HERE_MESSAGE)};
   var BLOCK_MENU = ${JSON.stringify(PREVIEW_BLOCK_MENU_MESSAGE)};
   var MIME = ${JSON.stringify(PREVIEW_BLOCK_MIME)};
+  var SELECT_BLOCK = ${JSON.stringify(PREVIEW_SELECT_BLOCK_MESSAGE)};
+  var SAVE = ${JSON.stringify(PREVIEW_SAVE_MESSAGE)};
+  var LIVE = ${JSON.stringify(PREVIEW_LIVE_ATTRIBUTE)};
+
+  // A component page owns its DOM: moving or removing its nodes here blanks it on the next render.
+  // The attribute is the explicit signal; the rest catches pages with their own preview listener.
+  function selfRendering(node) {
+    if (document.documentElement.hasAttribute(LIVE)) return true;
+    return Object.keys(node).some(function (key) {
+      return key.indexOf('__react') === 0 || key.indexOf('__vue') === 0;
+    });
+  }
 
   if (document.getElementById('cms-preview-overlay')) return;
 
@@ -243,13 +266,11 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
   overlay.setAttribute('data-cms-overlay', '');
   overlay.innerHTML =
     '<div class="cms-block-bar">' +
-    '<button type="button" data-act="drag" title="Drag to reorder (or use the arrow keys)">' +
-    '⠿ <span>mover</span>' +
-    '</button>' +
-    '<button type="button" data-act="edit" title="Edit block">✎</button>' +
-    '<button type="button" data-act="delete" title="Delete block">🗑</button>' +
+    '<button type="button" data-act="drag" title="Drag to reorder" aria-label="Move block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></button>' +
+    '<button type="button" data-act="edit" title="Edit block" aria-label="Edit block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>' +
+    '<button type="button" data-act="delete" title="Delete block" aria-label="Delete block"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg></button>' +
     '</div>' +
-    '<button type="button" class="cms-block-add" title="Insert a block here">+</button>' +
+    '<button type="button" class="cms-block-add" title="Insert a block below" aria-label="Insert a block below"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg></button>' +
     '<div class="cms-block-grip" title="Drag to move this block"></div>';
   document.body.appendChild(overlay);
 
@@ -285,6 +306,41 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
 
   document.addEventListener('mouseleave', function () {
     if (!drag) overlay.removeAttribute('data-visible');
+  });
+
+  // The toolbar is fixed to the viewport, so it has to follow the block while the page scrolls.
+  function follow() {
+    if (active && document.contains(active)) place(active);
+    else if (active) place(null);
+  }
+  window.addEventListener('scroll', follow, true);
+  window.addEventListener('resize', follow);
+
+  window.addEventListener('keydown', function (event) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      post(SAVE, {});
+    }
+  });
+
+  window.addEventListener('message', function (event) {
+    var payload = event.data;
+    if (!payload || payload.type !== SELECT_BLOCK) return;
+    document.querySelectorAll('[' + BLOCK + '][data-cms-selected]').forEach(function (node) {
+      node.removeAttribute('data-cms-selected');
+    });
+    if (!payload.path) return;
+    var node = Array.prototype.slice
+      .call(document.querySelectorAll('[' + BLOCK + ']'))
+      .filter(function (item) {
+        return item.getAttribute(BLOCK) === payload.path;
+      })[0];
+    if (!node) return;
+    node.setAttribute('data-cms-selected', '1');
+    var rect = node.getBoundingClientRect();
+    if (rect.top < 0 || rect.top > window.innerHeight - 40) {
+      node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
   });
 
   overlay.addEventListener('pointerdown', function (event) {
@@ -331,9 +387,11 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
 
     if (!target || target === node || !to) return;
 
-    var forward = to.index > ref.index;
-    target.parentNode.insertBefore(node, forward ? target.nextSibling : target);
-    renumber(ref.field);
+    if (!selfRendering(node)) {
+      var forward = to.index > ref.index;
+      target.parentNode.insertBefore(node, forward ? target.nextSibling : target);
+      renumber(ref.field);
+    }
     post(MOVE_BLOCK, { field: ref.field, from: ref.index, to: to.index });
   });
 
@@ -349,8 +407,10 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
 
     var act = button.getAttribute('data-act');
     if (act === 'delete') {
-      active.remove();
-      renumber(ref.field);
+      if (!selfRendering(active)) {
+        active.remove();
+        renumber(ref.field);
+      }
       post(DELETE_BLOCK, { field: ref.field, index: ref.index });
       overlay.removeAttribute('data-visible');
       active = null;
@@ -364,7 +424,7 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
       var rect = button.getBoundingClientRect();
       post(INSERT_HERE, {
         field: ref.field,
-        index: ref.index,
+        index: ref.index + 1,
         x: rect.left,
         y: rect.bottom + 6,
       });
@@ -387,8 +447,16 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
     if (!target || !target.closest) return;
     if (target.closest('#cms-preview-overlay')) return;
 
+    // The preview is a canvas: its links and buttons must not navigate the frame away.
+    if (target.closest('a, button, [type="submit"]')) event.preventDefault();
+
     var region = target.closest('[' + FIELD + ']');
-    if (!region) return;
+    if (!region) {
+      var block = target.closest('[' + BLOCK + ']');
+      var blockRef = block ? parse(block) : null;
+      if (blockRef) post(EDIT_BLOCK, { field: blockRef.field, index: blockRef.index, path: blockRef.path });
+      return;
+    }
 
     event.preventDefault();
     event.stopPropagation();
@@ -424,7 +492,12 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
     var under = document.elementFromPoint(event.clientX, event.clientY);
     var candidate = under && under.closest ? under.closest('[' + BLOCK + ']') : null;
     var ref = candidate ? parse(candidate) : null;
-    var index = ref && ref.field === payload.field ? ref.index + 1 : 0;
+    // Upper half of a block inserts above it; outside any block appends.
+    var index = blocksOf(payload.field).length;
+    if (ref && ref.field === payload.field) {
+      var box = candidate.getBoundingClientRect();
+      index = event.clientY < box.top + box.height / 2 ? ref.index : ref.index + 1;
+    }
 
     document.querySelectorAll('[' + BLOCK + '][data-cms-drop]').forEach(function (node) {
       node.removeAttribute('data-cms-drop');
@@ -495,6 +568,8 @@ export function useLivePreviewData<T>(initial: T): T {
   const [data, setData] = useState<T>(initial);
 
   useEffect(() => {
+    document.documentElement.setAttribute(PREVIEW_LIVE_ATTRIBUTE, '');
+
     const onMessage = (event: MessageEvent) => {
       const payload = event.data as { type?: string; data?: unknown } | null;
       if (payload?.type !== PREVIEW_PREVIEW_MESSAGE) return;

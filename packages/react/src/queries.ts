@@ -52,12 +52,12 @@ export function useDocument(slug: string, id: string | undefined, query: ListQue
   });
 }
 
-export function useCreateDocument(slug: string) {
+export function useCreateDocument(slug: string, options: { draft?: boolean } = {}) {
   const { client } = useCms();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: AdminDocument) => client.create(slug, data),
+    mutationFn: (data: AdminDocument) => client.create(slug, data, options),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...cmsKeys.all, 'list', slug] });
     },
@@ -73,6 +73,20 @@ export function useUpdateDocument(slug: string, id: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...cmsKeys.all, 'doc', slug, id] });
       void queryClient.invalidateQueries({ queryKey: [...cmsKeys.all, 'list', slug] });
+      void queryClient.invalidateQueries({ queryKey: cmsKeys.versions(slug, id) });
+    },
+  });
+}
+
+/** Quiet save: it writes an autosave version and, unlike a save, adds no noise to the UI. */
+export function useAutosaveDocument(slug: string, id: string) {
+  const { client } = useCms();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: AdminDocument) => client.update(slug, id, data, { autosave: true }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...cmsKeys.all, 'doc', slug, id] });
       void queryClient.invalidateQueries({ queryKey: cmsKeys.versions(slug, id) });
     },
   });
@@ -134,6 +148,27 @@ export function useRestoreVersion(slug: string, id: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...cmsKeys.all, 'doc', slug, id] });
       void queryClient.invalidateQueries({ queryKey: cmsKeys.versions(slug, id) });
+    },
+  });
+}
+
+export function useGlobalDocument(slug: string) {
+  const { client } = useCms();
+  return useQuery({
+    queryKey: cmsKeys.global(slug),
+    queryFn: () => client.global(slug),
+    enabled: Boolean(slug),
+  });
+}
+
+export function useUpdateGlobal(slug: string) {
+  const { client } = useCms();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: AdminDocument) => client.updateGlobal(slug, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: cmsKeys.global(slug) });
     },
   });
 }

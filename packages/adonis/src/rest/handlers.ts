@@ -1,6 +1,6 @@
 import { toAdminSchema } from '../admin/schema.js';
 import type { CmsConfig } from '../config/types.js';
-import { CmsNotFoundError } from '../errors.js';
+import { CmsNotFoundError, CmsValidationError } from '../errors.js';
 import type { Cms } from '../local_api/index.js';
 import { previewUrl, signPreviewToken } from '../preview/token.js';
 import { toRestError } from './errors.js';
@@ -114,7 +114,10 @@ export async function handleCollectionCreate(
 ): Promise<RestResponse> {
   return run(async () => {
     const slug = requireParam(request.params.slug, 'slug');
-    const doc = await cms.collection(slug).create((request.body ?? {}) as never);
+    const draft = request.query.draft === 'true';
+    const doc = await cms
+      .collection(slug)
+      .create((request.body ?? {}) as never, draft ? { draft: true } : undefined);
     return { status: 201, body: doc };
   });
 }
@@ -126,7 +129,10 @@ export async function handleCollectionUpdate(
   return run(async () => {
     const slug = requireParam(request.params.slug, 'slug');
     const id = requireParam(request.params.id, 'id');
-    const doc = await cms.collection(slug).update(id, (request.body ?? {}) as never);
+    const autosave = request.query.autosave === 'true';
+    const doc = await cms
+      .collection(slug)
+      .update(id, (request.body ?? {}) as never, autosave ? { autosave: true } : undefined);
     return { status: 200, body: doc };
   });
 }
@@ -257,7 +263,12 @@ export async function handleCollectionVersion(
       };
     }
 
-    return { status: 200, body: record };
+    if (request.query.snapshot !== 'true') return { status: 200, body: record };
+
+    // The snapshot can hold draft content, so it follows the same rule as reading a draft.
+    await cms.collection(slug).findByID(id, { draft: true });
+    const full = await cms.collection(slug).version(id, version);
+    return { status: 200, body: full ?? record };
   });
 }
 
@@ -271,6 +282,45 @@ export async function handleCollectionRestoreVersion(
     const version = Number(requireParam(request.params.version, 'version'));
     const doc = await cms.collection(slug).restoreVersion(id, version);
     return { status: 200, body: doc };
+  });
+}
+
+export async function handleCollectionSchedule(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    const at = new Date(String(request.body?.at ?? ''));
+    const action = request.body?.action === 'unpublish' ? 'unpublish' : 'publish';
+    if (Number.isNaN(at.getTime())) {
+      throw new CmsValidationError({ at: 'expected a date' });
+    }
+    return { status: 200, body: await cms.collection(slug).schedule(id, { at, action }) };
+  });
+}
+
+export async function handleCollectionScheduled(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    return { status: 200, body: { schedule: await cms.collection(slug).scheduled(id) } };
+  });
+}
+
+export async function handleCollectionUnschedule(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    await cms.collection(slug).unschedule(id);
+    return { status: 204, body: undefined };
   });
 }
 

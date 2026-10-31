@@ -3,13 +3,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/jetbrains-mono';
 import './styles.css';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
 });
 
-const adminLocale = import.meta.env.VITE_CMS_LOCALE === 'pt-BR' ? 'pt-BR' : 'en';
+// The build can pin the panel's language; otherwise it follows the editor's browser.
+const configuredLocale = import.meta.env.VITE_CMS_LOCALE ?? navigator.language;
+const adminLocale = configuredLocale.toLowerCase().startsWith('pt') ? 'pt-BR' : 'en';
+document.documentElement.lang = adminLocale;
+
+if (localStorage.getItem('cms-theme') === 'light') document.documentElement.classList.add('light');
 const client = new AdminClient();
 
 // Drops on `upload` fields go through `POST /api/cms/uploads`; the app must configure

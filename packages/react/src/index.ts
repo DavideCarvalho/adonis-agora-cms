@@ -5,6 +5,8 @@ export { AdminClient, CmsApiError } from './client.js';
 export { CmsProvider, useCms, useMessages } from './context.js';
 export type { CmsLocale, CmsMessages } from './i18n.js';
 export { cmsMessages } from './i18n.js';
+export type { ConfirmOptions } from './organisms/confirm.js';
+export { ConfirmProvider, useConfirm } from './organisms/confirm.js';
 export type { DataTableProps } from './organisms/data-table.js';
 export { DataTable } from './organisms/data-table.js';
 export type { LivePreviewProps } from './organisms/live-preview.js';
@@ -27,20 +29,27 @@ export {
 export {
   cmsKeys,
   useAdminSchema,
+  useAutosaveDocument,
   useCreateDocument,
   useDeleteDocument,
   useDocument,
   useDocuments,
+  useGlobalDocument,
   usePreviewToken,
   usePublishDocument,
   useRestoreDocument,
   useRestoreVersion,
   useUpdateDocument,
+  useUpdateGlobal,
   useVersions,
 } from './queries.js';
 export type { FieldComponentProps } from './registry.js';
 export {
+  blockTitle,
   FIELD_REGISTRY,
+  fieldTitle,
+  flattenFields,
+  humanize,
   registerField,
   resolveFieldComponent,
   TextField,
@@ -53,6 +62,7 @@ export type {
   AdminField,
   AdminPermission,
   AdminSchema,
+  DocumentSchedule,
   ListQuery,
   ListResult,
   VersionRecord,

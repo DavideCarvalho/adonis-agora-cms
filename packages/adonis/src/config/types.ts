@@ -1,3 +1,7 @@
+import type { CmsAuthAdapter } from '../integrations/authkit.js';
+import type { MediaAdapter } from '../integrations/media.js';
+import type { CmsObserver } from '../integrations/telescope.js';
+import type { CmsJobs, WebhookConfig } from '../integrations/webhooks.js';
 /**
  * Configuration types.
  *
@@ -46,6 +50,11 @@ export type FieldAdmin = {
   placeholder?: string;
   /** Shown only when the predicate holds for the current form value. */
   condition?: (data: Record<string, unknown>) => boolean;
+  /**
+   * The same idea as data, so it reaches the panel (a function cannot cross the wire): the field
+   * shows only while the sibling `field` equals `equals` (or one of them, for an array).
+   */
+  visibleWhen?: { field: string; equals: unknown };
   /** Hide from the list view. */
   hiddenInList?: boolean;
   /**
@@ -415,6 +424,8 @@ export type AdminConfig = {
   path?: string;
   auth?: 'cms' | 'authkit' | 'custom';
   title?: string;
+  /** White label: a valid CSS color for `--accent`, and an image for the sidebar. */
+  theme?: { accent?: string; logoUrl?: string };
   livePreview?: {
     /** Site URL the iframe loads, e.g. `/preview`. */
     url?: string;
@@ -433,12 +444,19 @@ export type LocalizationConfig = {
   localizedRequired?: 'default' | 'all';
 };
 
+/**
+ * Pluggable: each port takes an Agora adapter, an official AdonisJS one, or your own object.
+ * `media: true` only declares that uploads are not a collection here; pass an adapter to resolve them.
+ */
 export type IntegrationsConfig = {
-  media?: boolean;
-  authkit?: boolean;
-  authz?: boolean;
-  telescope?: boolean;
-  durable?: boolean;
+  /** Who is asking. Default: `ctx.auth.user`. See `adonisAuth`, `authkitAdapter`. */
+  auth?: CmsAuthAdapter;
+  /** Background work. Default: in process. See `durableJobs`, `queueJobs`. */
+  jobs?: CmsJobs;
+  /** Resolves `upload` ids on read. See `mediaLibraryAdapter`, `driveMedia`. */
+  media?: boolean | MediaAdapter;
+  /** Every write's timing. See `telescopeWatcher`, `loggerObserver`. */
+  observer?: CmsObserver;
 };
 
 /** Context handed to the tenant resolver. Never used inside the compiler (which stays pure). */
@@ -502,6 +520,10 @@ export type CmsConfigInput = {
   admin?: AdminConfig;
   localization?: LocalizationConfig;
   versions?: VersionsConfig;
+  /** Called after every committed write. See `listenWebhooks`. */
+  webhooks?: readonly WebhookConfig[];
+  /** How often the web process applies due scheduled changes, in ms. Default 30s; `false` is off. */
+  schedulerInterval?: number | false;
   integrations?: IntegrationsConfig;
   tenancy?: TenancyConfig;
   /** Custom field types, registered by `defineField`. */

@@ -304,7 +304,13 @@ function nameDepth(name: string): number {
 }
 
 /** Tables the CMS owns outside the compiled spec. They are never treated as orphans. */
-const INTERNAL_TABLE_SUFFIXES = ['schema_state', 'versions', 'preferences', 'document_locks'];
+const INTERNAL_TABLE_SUFFIXES = [
+  'schema_state',
+  'versions',
+  'preferences',
+  'document_locks',
+  'document_schedules',
+];
 
 export function isInternalTable(name: string, prefix: string): boolean {
   return INTERNAL_TABLE_SUFFIXES.some((suffix) => name === `${prefix}${suffix}`);

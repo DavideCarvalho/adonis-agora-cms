@@ -23,11 +23,19 @@ import {
   type DocumentLock,
   lockDocument,
   publishDocument,
+  readVersion,
   readVersions,
   restoreVersion,
   unlockDocument,
   unpublishDocument,
 } from '../versions/actions.js';
+import {
+  cancelSchedule,
+  type DocumentSchedule,
+  readSchedule,
+  runDueSchedules,
+  scheduleDocument,
+} from '../versions/schedule.js';
 import type { VersionRecord } from '../versions/store.js';
 
 export type CreateCmsOptions = {
@@ -78,6 +86,14 @@ export type CmsCollectionApi<C, S extends string> = {
     id: string,
     options?: { locale?: string | null; limit?: number; page?: number },
   ): Promise<{ docs: VersionRecord[]; totalDocs: number }>;
+  version(id: string, version: number): Promise<VersionRecord | null>;
+  schedule(
+    id: string,
+    schedule: DocumentSchedule,
+    options?: OperationOptions,
+  ): Promise<DocumentSchedule>;
+  unschedule(id: string, options?: OperationOptions): Promise<void>;
+  scheduled(id: string): Promise<DocumentSchedule | null>;
   restoreVersion(
     id: string,
     version: number,
@@ -107,6 +123,10 @@ export type Cms<C extends CmsConfig = CmsConfig> = {
   refresh(): Promise<SchemaSpec>;
   /** Internal repository context, for token management and ops tooling. */
   repoContext(): RepoContext;
+  /** Post-commit events: `cms.events?.on(listener)`. Set when the host wires a bus. */
+  readonly events: CmsEventBus | undefined;
+  /** Applies scheduled publishes that are due; returns how many ran. */
+  runDueSchedules(now?: Date): Promise<number>;
 };
 
 type Overrides = Partial<
@@ -222,6 +242,22 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
             return readVersions(ctx, slug, id, options);
           },
 
+          async version(id, version) {
+            return readVersion(ctx, slug, id, version);
+          },
+
+          async schedule(id, schedule, operation) {
+            return scheduleDocument(ctx, slug, id, schedule, operation);
+          },
+
+          async unschedule(id, operation) {
+            await cancelSchedule(ctx, slug, id, operation);
+          },
+
+          async scheduled(id) {
+            return readSchedule(ctx, slug, id);
+          },
+
           async restoreVersion(id, version, operation) {
             return (await restoreVersion(ctx, slug, id, version, operation)) as CmsDocument<C, S>;
           },
@@ -280,6 +316,12 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
         spec = compileSchema(ctx.config, { engine: ctx.engine });
         return spec;
       },
+
+      runDueSchedules(now) {
+        return runDueSchedules(ctx, now);
+      },
+
+      events: options.events,
 
       repoContext() {
         return ctx;

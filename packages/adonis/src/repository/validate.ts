@@ -33,6 +33,14 @@ function validateFields(
   for (const field of fields) {
     const fieldPath = path ? `${path}.${field.name}` : field.name;
 
+    // Layout only: these fields live at this level of the document, like the compiled columns.
+    if (field.type === 'tabs' || field.type === 'row' || field.type === 'collapsible') {
+      const children =
+        field.type === 'tabs' ? field.tabs.flatMap((tab) => [...tab.fields]) : field.fields;
+      Object.assign(output, validateFields(children, input, path, ctx, errors));
+      continue;
+    }
+
     if (isStructural(field)) {
       const nested = validateFields(
         childrenOf(field),
@@ -48,6 +56,7 @@ function validateFields(
     if (!(field.name in input)) {
       const generated = generateSlug(field, input);
       if (generated !== undefined) output[field.name] = generated;
+      else if (field.required && field.defaultValue === undefined) errors[fieldPath] = 'required';
       continue;
     }
 
@@ -327,12 +336,9 @@ function isLocaleMap(value: unknown, locales: readonly string[]): value is Recor
 }
 
 function isStructural(field: FieldConfig): boolean {
-  return field.type === 'group' || field.type === 'row' || field.type === 'collapsible';
+  return field.type === 'group';
 }
 
 function childrenOf(field: FieldConfig): readonly FieldConfig[] {
-  if (field.type === 'group' || field.type === 'row' || field.type === 'collapsible') {
-    return field.fields;
-  }
-  return [];
+  return field.type === 'group' ? field.fields : [];
 }

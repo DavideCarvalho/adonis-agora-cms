@@ -40,7 +40,7 @@ export function createCmsMcpServer(options: CreateCmsMcpServerOptions): McpServe
             content: [
               {
                 type: 'text' as const,
-                text: error instanceof Error ? error.message : 'tool failed',
+                text: describeError(error),
               },
             ],
           };
@@ -50,4 +50,13 @@ export function createCmsMcpServer(options: CreateCmsMcpServerOptions): McpServe
   }
 
   return server;
+}
+
+/** A validation error names its fields: the model needs them to fix the call. */
+function describeError(error: unknown): string {
+  if (!(error instanceof Error)) return 'tool failed';
+  const fields = (error as { fields?: Record<string, string> }).fields;
+  if (!fields) return error.message;
+  const details = Object.entries(fields).map(([field, message]) => `${field}: ${message}`);
+  return `${error.message} (${details.join(', ')})`;
 }

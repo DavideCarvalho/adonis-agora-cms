@@ -10,8 +10,11 @@ import {
   handleCollectionPublish,
   handleCollectionRestore,
   handleCollectionRestoreVersion,
+  handleCollectionSchedule,
+  handleCollectionScheduled,
   handleCollectionUnlock,
   handleCollectionUnpublish,
+  handleCollectionUnschedule,
   handleCollectionUpdate,
   handleCollectionVersion,
   handleCollectionVersions,
@@ -156,6 +159,9 @@ export function registerCmsRoutes(
   router.get(`${prefix}/collections/:slug/:id/preview-token`, dispatch(handlePreviewToken));
   router.post(`${prefix}/collections/:slug/:id/lock`, dispatch(handleCollectionLock));
   router.delete(`${prefix}/collections/:slug/:id/lock`, dispatch(handleCollectionUnlock));
+  router.get(`${prefix}/collections/:slug/:id/schedule`, dispatch(handleCollectionScheduled));
+  router.post(`${prefix}/collections/:slug/:id/schedule`, dispatch(handleCollectionSchedule));
+  router.delete(`${prefix}/collections/:slug/:id/schedule`, dispatch(handleCollectionUnschedule));
   router.get(`${prefix}/globals/:slug`, dispatch(handleGlobalGet));
   router.patch(`${prefix}/globals/:slug`, dispatch(handleGlobalUpdate));
 }

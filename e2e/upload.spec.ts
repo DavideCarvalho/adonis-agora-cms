@@ -40,6 +40,12 @@ test('upload field takes a dropped file and stores the asset', async ({ page, re
   await expect(page.getByText('banner.png')).toBeVisible();
   await expect(page.getByText(/image\/png/)).toBeVisible();
 
+  // Stored through @adonisjs/drive, and Drive serves it back.
+  const src = await page.locator('.upload-card__thumb img').getAttribute('src');
+  expect(src).toMatch(/\/files\/cms\//);
+  const served = await request.get(new URL(src ?? '', 'http://127.0.0.1:5611').pathname);
+  expect(served.status()).toBe(200);
+
   await page.getByRole('button', { name: 'Save' }).click();
 
   await expect

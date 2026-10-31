@@ -92,6 +92,39 @@ export function locksTable(spec: SystemTableContext): TableSpec {
   };
 }
 
+/** Scheduled publish/unpublish, one pending change per document. */
+export function schedulesTable(spec: SystemTableContext): TableSpec {
+  const columns: ColumnSpec[] = [
+    column('id', 'increment'),
+    column('collection', 'string', { length: 64 }),
+    column('document_id', spec.idKind === 'uuid' ? 'uuid' : 'integer'),
+    column('action', 'string', { length: 16 }),
+    column('run_at', 'timestamp', { index: true }),
+  ];
+
+  if (spec.tenancy.column) {
+    columns.push(
+      column(spec.tenancy.column, 'string', { length: 64, nullable: !spec.tenancy.required }),
+    );
+  }
+
+  return {
+    name: `${spec.tablePrefix}document_schedules`,
+    kind: 'system',
+    slug: 'document_schedules',
+    columns,
+    indexes: [
+      {
+        name: `${spec.tablePrefix}document_schedules_uniq`,
+        columns: spec.tenancy.column
+          ? ['collection', 'document_id', spec.tenancy.column]
+          : ['collection', 'document_id'],
+        unique: true,
+      },
+    ],
+  };
+}
+
 /** Application tokens — the principal a content client authenticates with. */
 export function apiTokensTable(spec: SystemTableContext): TableSpec {
   return {
@@ -113,7 +146,7 @@ export function apiTokensTable(spec: SystemTableContext): TableSpec {
 }
 
 export function systemTables(spec: SystemTableContext): TableSpec[] {
-  return [versionsTable(spec), locksTable(spec), apiTokensTable(spec)];
+  return [versionsTable(spec), locksTable(spec), schedulesTable(spec), apiTokensTable(spec)];
 }
 
 /** Creates the CMS-owned tables that are outside the compiled spec (idempotent). */

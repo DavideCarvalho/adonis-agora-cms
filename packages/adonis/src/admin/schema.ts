@@ -47,7 +47,7 @@ export type AdminPermission = {
 
 export type AdminSchema = {
   version: 1;
-  admin: { title: string; path: string };
+  admin: { title: string; path: string; theme?: { accent?: string; logoUrl?: string } };
   locales: readonly string[];
   defaultLocale: string;
   tenancy: { strategy: string; required: boolean };
@@ -86,6 +86,7 @@ export function toAdminSchema(
       versioned: resolveVersions(config, collection.versions).drafts,
       drafts: resolveVersions(config, collection.versions).drafts,
       softDelete: collection.softDelete === true,
+      autosave: resolveVersions(config, collection.versions).autosave,
       fields: serializeFields(collection.fields, accessArgs),
     };
   });
@@ -115,6 +116,7 @@ export function toAdminSchema(
     admin: {
       title: config.admin?.title ?? 'CMS',
       path: config.admin?.path ?? '/admin',
+      ...(config.admin?.theme ? { theme: config.admin.theme } : {}),
     },
     locales: config.localization?.locales ?? [],
     defaultLocale: config.localization?.defaultLocale ?? 'en',

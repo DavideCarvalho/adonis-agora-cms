@@ -2,6 +2,7 @@ import type {
   AdminDocument,
   AdminSchema,
   CmsUpload,
+  DocumentSchedule,
   ListQuery,
   ListResult,
   VersionRecord,
@@ -55,12 +56,23 @@ export class AdminClient {
     return this.request<AdminDocument>('GET', `/collections/${slug}/${id}${toSearchParams(query)}`);
   }
 
-  async create(slug: string, data: AdminDocument): Promise<AdminDocument> {
-    return this.request<AdminDocument>('POST', `/collections/${slug}`, data);
+  async create(
+    slug: string,
+    data: AdminDocument,
+    options: { draft?: boolean } = {},
+  ): Promise<AdminDocument> {
+    const suffix = options.draft ? '?draft=true' : '';
+    return this.request<AdminDocument>('POST', `/collections/${slug}${suffix}`, data);
   }
 
-  async update(slug: string, id: string, data: AdminDocument): Promise<AdminDocument> {
-    return this.request<AdminDocument>('PATCH', `/collections/${slug}/${id}`, data);
+  async update(
+    slug: string,
+    id: string,
+    data: AdminDocument,
+    options: { autosave?: boolean } = {},
+  ): Promise<AdminDocument> {
+    const suffix = options.autosave ? '?autosave=true' : '';
+    return this.request<AdminDocument>('PATCH', `/collections/${slug}/${id}${suffix}`, data);
   }
 
   async delete(slug: string, id: string, options: { force?: boolean } = {}): Promise<void> {
@@ -82,6 +94,35 @@ export class AdminClient {
 
   async versions(slug: string, id: string): Promise<{ docs: VersionRecord[]; totalDocs: number }> {
     return this.request('GET', `/collections/${slug}/${id}/versions`);
+  }
+
+  async version(slug: string, id: string, version: number): Promise<VersionRecord> {
+    return this.request('GET', `/collections/${slug}/${id}/versions/${version}?snapshot=true`);
+  }
+
+  /** Advisory: the server answers 409 when another user holds the document. */
+  async lock(slug: string, id: string, ttlSeconds: number): Promise<void> {
+    await this.request('POST', `/collections/${slug}/${id}/lock`, { ttlSeconds });
+  }
+
+  async unlock(slug: string, id: string): Promise<void> {
+    await this.request('DELETE', `/collections/${slug}/${id}/lock`);
+  }
+
+  async scheduled(slug: string, id: string): Promise<{ schedule: DocumentSchedule | null }> {
+    return this.request('GET', `/collections/${slug}/${id}/schedule`);
+  }
+
+  async schedule(
+    slug: string,
+    id: string,
+    schedule: { at: string; action: string },
+  ): Promise<void> {
+    await this.request('POST', `/collections/${slug}/${id}/schedule`, schedule);
+  }
+
+  async unschedule(slug: string, id: string): Promise<void> {
+    await this.request('DELETE', `/collections/${slug}/${id}/schedule`);
   }
 
   async restoreVersion(slug: string, id: string, version: number): Promise<AdminDocument> {

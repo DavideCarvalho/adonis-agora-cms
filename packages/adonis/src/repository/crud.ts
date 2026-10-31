@@ -897,6 +897,12 @@ export function buildWhere(
         parts.push(combineGroup(ctx, table, field, value));
         continue;
       }
+      // The workflow column is not a config field, but the panel filters its list by it.
+      if (field === '_status') {
+        const status = isOperatorObject(value) ? (value as { equals?: unknown }).equals : value;
+        parts.push({ sql: `${ident('_status', ctx.engine)} = ?`, bindings: [String(status)] });
+        continue;
+      }
       parts.push(fieldCondition(ctx, table, field, value));
     }
   }
@@ -949,9 +955,9 @@ function fieldCondition(
 
   const conditions = isOperatorObject(value)
     ? Object.entries(value).map(([operator, operand]) =>
-        compileOperator(entry.column, operator, operand),
+        compileOperator(entry.column, operator, operand, ctx.engine),
       )
-    : [compileOperator(entry.column, 'equals', value)];
+    : [compileOperator(entry.column, 'equals', value, ctx.engine)];
 
   const active = conditions.filter((item): item is { sql: string; bindings: unknown[] } =>
     Boolean(item),
@@ -966,12 +972,59 @@ function fieldCondition(
   };
 }
 
+const ACCENTED: readonly (readonly [string, string])[] = [
+  ['á', 'a'],
+  ['à', 'a'],
+  ['ã', 'a'],
+  ['â', 'a'],
+  ['ä', 'a'],
+  ['é', 'e'],
+  ['ê', 'e'],
+  ['è', 'e'],
+  ['ë', 'e'],
+  ['í', 'i'],
+  ['î', 'i'],
+  ['ì', 'i'],
+  ['ï', 'i'],
+  ['ó', 'o'],
+  ['ô', 'o'],
+  ['õ', 'o'],
+  ['ò', 'o'],
+  ['ö', 'o'],
+  ['ú', 'u'],
+  ['ü', 'u'],
+  ['ù', 'u'],
+  ['û', 'u'],
+  ['ç', 'c'],
+  ['ñ', 'n'],
+];
+
+/**
+ * Searching `inicio` must find `Início`. Nested `replace` is the one form every engine has; SQLite's
+ * `lower()` only folds ASCII, so the uppercase accents are replaced too.
+ */
+function foldAccents(expression: string): string {
+  return ACCENTED.flatMap(([from, to]) => [
+    [from, to],
+    [from.toUpperCase(), to],
+  ]).reduce((sql, [from, to]) => `replace(${sql}, '${from}', '${to}')`, expression);
+}
+
+function foldText(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
 function compileOperator(
   column: string,
   operator: string,
   operand: unknown,
+  engine: RepoContext['engine'],
 ): { sql: string; bindings: unknown[] } | null {
-  const quoted = column;
+  // A field called `from` or `order` is a reserved word in SQL.
+  const quoted = ident(column, engine);
 
   switch (operator) {
     case 'equals':
@@ -1008,7 +1061,10 @@ function compileOperator(
     case 'not_contains':
       return { sql: `${quoted} not like ?`, bindings: [`%${String(operand)}%`] };
     case 'icontains':
-      return { sql: `lower(${quoted}) like lower(?)`, bindings: [`%${String(operand)}%`] };
+      return {
+        sql: `${foldAccents(`lower(${quoted})`)} like ?`,
+        bindings: [`%${foldText(String(operand))}%`],
+      };
     case 'starts_with':
       return { sql: `${quoted} like ?`, bindings: [`${String(operand)}%`] };
     case 'ends_with':

@@ -46,6 +46,8 @@ export function toRestError(error: unknown): { status: number; body: RestErrorBo
     return { status: 500, body: { error: { code: error.code, message: error.message } } };
   }
 
+  // The client gets a generic answer; whoever runs the app still needs the cause.
+  console.error('[cms] unexpected error', error);
   return {
     status: 500,
     body: { error: { code: 'CMS_INTERNAL', message: 'Internal server error' } },

@@ -1,12 +1,54 @@
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
+  ArrowLeft,
+  CalendarClock,
+  Copy,
+  ExternalLink,
+  GripVertical,
+  History,
+  type LucideIcon,
+  Monitor,
+  Plus,
+  Smartphone,
+  Tablet,
+  Trash2,
+  Undo2,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FieldErrorsContext, normalizeFieldPath } from '../atoms/field.js';
 import { Badge, Button } from '../atoms/index.js';
-import { useMessages } from '../context.js';
+import { useCms, useMessages } from '../context.js';
 import { LivePreview } from '../organisms/live-preview.js';
-import { ArrayBuilder, BlocksBuilder, StructuredRowFields } from '../organisms/structured.js';
+import {
+  ArrayBuilder,
+  BlocksBuilder,
+  FieldTabs,
+  isFieldVisible,
+  StructuredRowFields,
+} from '../organisms/structured.js';
 import { VersionsPanel } from '../organisms/versions-panel.js';
 import { PREVIEW_BLOCK_MIME } from '../preview.js';
-import { JsonField, resolveFieldComponent } from '../registry.js';
+import {
+  blockTitle,
+  fieldTitle,
+  flattenFields,
+  humanize,
+  JsonField,
+  resolveFieldComponent,
+} from '../registry.js';
 import type { AdminCollection, AdminDocument, AdminField, AdminPermission } from '../types.js';
+
+/** `false` means the write failed: the form keeps its changes marked as unsaved. */
+type WriteResult = boolean | undefined | Promise<boolean | undefined>;
 
 export type EditFormProps = {
   collection: AdminCollection;
@@ -14,12 +56,28 @@ export type EditFormProps = {
   permission?: AdminPermission | undefined;
   saving?: boolean | undefined;
   errors?: Record<string, string> | undefined;
-  onSubmit: (values: AdminDocument) => void;
-  onPublish?: (() => void) | undefined;
+  onSubmit: (values: AdminDocument) => WriteResult;
+  /** Receives the form's values: publishing must not silently drop unsaved edits. */
+  onPublish?: ((values: AdminDocument, dirty: boolean) => WriteResult) | undefined;
   onDelete?: (() => void) | undefined;
+  onDuplicate?: (() => void) | undefined;
   onBack?: (() => void) | undefined;
+  onDirtyChange?: ((dirty: boolean) => void) | undefined;
+  onRestored?: (() => void) | undefined;
   previewUrl?: string | undefined;
   locales?: readonly string[] | undefined;
+  /** A global has a single document: there is nothing to create, version or list. */
+  global?: boolean | undefined;
+  /** Quiet save of a draft, after `autosaveInterval` ms without typing. */
+  onAutosave?: ((values: AdminDocument) => Promise<boolean>) | undefined;
+  autosaveInterval?: number | undefined;
+  /** Someone else holds the document: the form is read-only and says who. */
+  lockedBy?: string | null | undefined;
+  /** Off when unpublishing would make the document unreachable from this panel. */
+  canUnpublish?: boolean | undefined;
+  /** The pending publish/unpublish, and how to change it. Omit to hide the control. */
+  schedule?: { at: string; action: string } | null | undefined;
+  onSchedule?: ((at: string | null) => void) | undefined;
 };
 
 const SHORT = new Set([
@@ -36,6 +94,8 @@ const SHORT = new Set([
   'password',
 ]);
 
+type View = 'visual' | 'form' | 'json';
+
 /** Schema-driven form: scalars through the FieldRegistry, groups recursive, arrays/blocks built. */
 export function EditForm({
   collection,
@@ -46,33 +106,118 @@ export function EditForm({
   onSubmit,
   onPublish,
   onDelete,
+  onDuplicate,
   onBack,
+  onDirtyChange,
+  onRestored,
   previewUrl,
   locales = [],
+  global: isGlobal = false,
+  onAutosave,
+  autosaveInterval,
+  lockedBy,
+  canUnpublish = true,
+  schedule,
+  onSchedule,
 }: EditFormProps) {
   const t = useMessages();
-  const [values, setValues] = useState<AdminDocument>(doc);
-  const [showJson, setShowJson] = useState(false);
+  const initial = useMemo<AdminDocument>(
+    () => (doc.id || isGlobal ? doc : { ...defaultsOf(flattenFields(collection.fields)), ...doc }),
+    [doc, isGlobal, collection.fields],
+  );
+  const initialKey = useMemo(() => JSON.stringify(initial), [initial]);
+  const [values, setValues] = useState<AdminDocument>(initial);
+  const [baseline, setBaseline] = useState(initialKey);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [locale, setLocale] = useState<string>(locales[0] ?? '');
   const blocksField = collection.fields.find((field) => field.type === 'blocks');
-  const visualAllowed = Boolean(collection.admin?.visualEditor && blocksField);
-  // With a blocks field the page is the document: open on the visual editor unless it has no
-  // preview to render.
+  const visualAllowed = Boolean(collection.admin?.visualEditor && blocksField && previewUrl);
   // `null` = follow the document: blocks + preview means visual. The preview URL arrives after
   // mount, so the default cannot be computed once in `useState`.
-  const [visualPref, setVisualPref] = useState<boolean | null>(null);
-  const visual = visualPref ?? Boolean(visualAllowed && previewUrl);
-  const setVisual = setVisualPref;
+  const [viewPref, setViewPref] = useState<View | null>(null);
+  const view: View =
+    viewPref === 'visual' && !visualAllowed
+      ? 'form'
+      : (viewPref ?? (visualAllowed ? 'visual' : 'form'));
   const [selected, setSelected] = useState<{ field: string; index: number } | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  const dirty = useMemo(() => JSON.stringify(values) !== baseline, [values, baseline]);
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const adoptNext = useRef(false);
+
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  const [undoStack, setUndoStack] = useState<AdminDocument[]>([]);
+  const undoRef = useRef<() => void>(() => undefined);
+
+  // The server's document lands after a save, a publish or a restore. Unsaved typing is never
+  // overwritten, except by a restore, which is the editor asking for exactly that.
+  useEffect(() => {
+    if (!adoptNext.current && dirtyRef.current) return;
+    adoptNext.current = false;
+    setValues(JSON.parse(initialKey) as AdminDocument);
+    setBaseline(initialKey);
+    setUndoStack([]);
+  }, [initialKey]);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
+  const save = useCallback(() => formRef.current?.requestSubmit(), []);
+
+  const [autosaved, setAutosaved] = useState(false);
+  const canAutosave = Boolean(
+    onAutosave && autosaveInterval && doc._status === 'draft' && !lockedBy,
+  );
+  useEffect(() => {
+    if (dirty) setAutosaved(false);
+    if (!dirty || !canAutosave) return;
+    const snapshot = values;
+    const timer = window.setTimeout(() => {
+      void onAutosave?.(snapshot).then((ok) => {
+        if (!ok) return;
+        setBaseline(JSON.stringify(snapshot));
+        setAutosaved(true);
+      });
+    }, autosaveInterval);
+    return () => window.clearTimeout(timer);
+  }, [values, dirty, canAutosave, autosaveInterval, onAutosave]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        save();
+        return;
+      }
+      // Text fields keep their own undo; outside them it steps back through the document.
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'z') {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+        event.preventDefault();
+        undoRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [save]);
 
   // A click on a `data-cms-field` region in the preview brings that field into view here.
   const focusField = useCallback((name: string) => {
     const form = formRef.current;
     if (!form) return;
-    const selector = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(name) : name;
+    const selector = typeof CSS_ESCAPE === 'function' ? CSS_ESCAPE(name) : name;
     const target =
       form.querySelector<HTMLElement>(`[id="${selector}"]`) ??
       form.querySelector<HTMLElement>(`[name="${selector}"]`);
@@ -85,41 +230,84 @@ export function EditForm({
     window.setTimeout(() => wrapper.classList.remove('field--flash'), 1400);
   }, []);
 
-  // The document arrives after mount (query), so the form must adopt it once it lands.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed by identity, not deep value
-  useEffect(() => {
-    setValues(doc);
-  }, [doc.id]);
-
   const readOnly = useMemo(() => {
-    const id = doc.id;
-    return id ? permission?.update === false : permission?.create === false;
-  }, [doc.id, permission]);
+    if (lockedBy) return true;
+    if (isGlobal) return permission?.update === false;
+    return doc.id ? permission?.update === false : permission?.create === false;
+  }, [doc.id, permission, isGlobal, lockedBy]);
+
+  const titleField = collection.admin?.useAsTitle;
+  const slugField = flattenFields(collection.fields).find((field) => field.type === 'slug');
+
+  const lastTyped = useRef(0);
 
   const setValue = (path: string, value: unknown) => {
-    setValues((current) => setByPath({ ...current }, path, value));
+    // One undo step per burst of typing, not per keystroke.
+    const now = Date.now();
+    if (now - lastTyped.current > 800) {
+      setUndoStack((stack) => [...stack.slice(-49), valuesRef.current]);
+    }
+    lastTyped.current = now;
+    setValues((current) => {
+      const next = setByPath({ ...current }, path, value);
+      // A new document's slug follows its title until the editor types their own.
+      if (!doc.id && slugField && path === titleField) {
+        const previous = slugify(String(current[path] ?? ''));
+        if (String(current[slugField.name] ?? '') === previous) {
+          next[slugField.name] = slugify(String(value ?? ''));
+        }
+      }
+      return next;
+    });
   };
 
   /** Structural edits from the preview toolbar mutate the same values the form edits. */
-  const mutateRows = (field: string, next: (rows: unknown[]) => unknown[]) =>
+  const mutateRows = (field: string, next: (rows: unknown[]) => unknown[]) => {
+    setUndoStack((stack) => [...stack.slice(-49), valuesRef.current]);
     setValues((current) => {
       const rows = getByPath(current, field);
-      if (!Array.isArray(rows)) return current;
-      const copy = { ...current };
-      setByPath(copy, field, next([...rows]));
-      return copy;
+      const list = Array.isArray(rows) ? rows : [];
+      return setByPath({ ...current }, field, next([...list]));
     });
+  };
 
-  const moveBlock = (field: string, from: number, to: number) =>
-    mutateRows(field, (rows) => {
-      if (from < 0 || to < 0 || from >= rows.length || to >= rows.length) return rows;
-      const [row] = rows.splice(from, 1);
-      if (row !== undefined) rows.splice(to, 0, row);
-      return rows;
+  const undo = () => {
+    const previous = undoStack.at(-1);
+    if (!previous) return;
+    setUndoStack((stack) => stack.slice(0, -1));
+    setValues(previous);
+    setSelected(null);
+  };
+
+  undoRef.current = undo;
+
+  const moveBlock = (field: string, from: number, to: number) => {
+    const rows = getByPath(valuesRef.current, field);
+    if (!Array.isArray(rows) || from === to) return;
+    if (from < 0 || to < 0 || from >= rows.length || to >= rows.length) return;
+    mutateRows(field, (list) => {
+      const [row] = list.splice(from, 1);
+      if (row !== undefined) list.splice(to, 0, row);
+      return list;
     });
+    // The selection follows the block it was on.
+    setSelected((current) => {
+      if (!current || current.field !== field) return current;
+      if (current.index === from) return { field, index: to };
+      if (current.index > from && current.index <= to) return { field, index: current.index - 1 };
+      if (current.index < from && current.index >= to) return { field, index: current.index + 1 };
+      return current;
+    });
+  };
 
-  const deleteBlock = (field: string, index: number) =>
+  const deleteBlock = (field: string, index: number) => {
     mutateRows(field, (rows) => rows.filter((_, position) => position !== index));
+    setSelected((current) => {
+      if (!current || current.field !== field) return current;
+      if (current.index === index) return null;
+      return current.index > index ? { field, index: current.index - 1 } : current;
+    });
+  };
 
   const duplicateBlock = (field: string, index: number) => {
     mutateRows(field, (rows) => {
@@ -130,6 +318,7 @@ export function EditForm({
       delete copy._order;
       return [...rows.slice(0, index + 1), copy, ...rows.slice(index + 1)];
     });
+    setSelected({ field, index: index + 1 });
   };
 
   const focusBlock = (path: string) => {
@@ -140,199 +329,405 @@ export function EditForm({
   };
 
   const insertBlock = (field: string, type: string, index: number) => {
-    mutateRows(field, (rows) => {
-      const at = Math.max(0, Math.min(index, rows.length));
-      return [...rows.slice(0, at), { type }, ...rows.slice(at)];
-    });
+    const rows = getByPath(valuesRef.current, field);
+    const at = Math.max(0, Math.min(index, Array.isArray(rows) ? rows.length : 0));
+    mutateRows(field, (list) => [...list.slice(0, at), { type }, ...list.slice(at)]);
+    setSelected({ field, index: at });
   };
 
-  /** `layout[2].heading` -> { field: 'layout', index: 2 } */
+  /** `layout[2].heading` -> { field: 'layout', index: 2 }; a root field clears the selection. */
   const selectFromPath = (path: string) => {
     // Non-greedy: `layout[1].items[0].title` belongs to block 1, not to `layout[1].items` row 0.
     const match = /^(.*?)\[(\d+)\]/.exec(path);
-    if (match) setSelected({ field: match[1] as string, index: Number(match[2]) });
+    setSelected(match ? { field: match[1] as string, index: Number(match[2]) } : null);
   };
 
   const visibleFields = collection.fields.filter((field) => !field.hidden);
 
+  const write = async (run: () => WriteResult) => {
+    const snapshot = valuesRef.current;
+    const result = await run();
+    if (result !== false) setBaseline(JSON.stringify(snapshot));
+  };
+
+  const errorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const [path, message] of Object.entries(errors ?? {})) {
+      map[normalizeFieldPath(path)] = message;
+    }
+    return map;
+  }, [errors]);
+  const errorEntries = Object.entries(errors ?? {});
+
+  const singular = collection.labels?.singular ?? humanize(collection.slug);
+  const docTitle = titleField ? values[titleField] : undefined;
+  const title =
+    typeof docTitle === 'string' && docTitle.trim()
+      ? docTitle
+      : doc.id || isGlobal
+        ? singular
+        : `${singular} — ${t.new.toLowerCase()}`;
+  const canPublish = Boolean(onPublish && collection.drafts && permission?.update !== false);
+  const published = doc._status === 'published';
+
   return (
-    <form
-      ref={formRef}
-      className="form page-enter"
-      onSubmit={(event) => {
-        event.preventDefault();
-        onSubmit(values);
-      }}
-    >
-      <div className="form-head">
-        <div className="form-head__left">
-          {onBack ? (
-            <Button tone="ghost" size="sm" onClick={onBack} aria-label="back">
-              ←
-            </Button>
-          ) : null}
-          <h1 className="page-title" style={{ fontSize: 26 }}>
-            {doc.id ? t.edit : t.new} {collection.labels?.singular ?? collection.slug}
-          </h1>
-          {doc._status ? (
-            <Badge tone={doc._status === 'published' ? 'good' : 'warn'}>{doc._status}</Badge>
-          ) : null}
-        </div>
+    <FieldErrorsContext.Provider value={errorMap}>
+      <form
+        ref={formRef}
+        className="form page-enter"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void write(() => onSubmit(values));
+        }}
+      >
+        <div className="form-head">
+          <div className="form-head__left">
+            {onBack ? (
+              <Button tone="ghost" size="md" onClick={onBack} aria-label="back" title={t.back}>
+                <ArrowLeft aria-hidden />
+              </Button>
+            ) : null}
+            <div className="form-head__title">
+              <h1 className="page-title">{title}</h1>
+              {doc._status ? (
+                <Badge tone={published ? 'good' : 'warn'}>
+                  {published ? t.published : t.draft}
+                </Badge>
+              ) : null}
+              {dirty ? <span className="dirty">{t.unsavedChanges}</span> : null}
+              {autosaved && !dirty ? <span className="hint">{t.autosaved}</span> : null}
+            </div>
+          </div>
 
-        <div className="toolbar">
-          {locales.length > 1 ? (
-            <select
-              aria-label="locale"
-              className="select"
-              style={{ width: 'auto' }}
-              value={locale}
-              onChange={(event) => setLocale(event.target.value)}
-            >
-              {locales.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          ) : null}
+          <div className="toolbar">
+            {locales.length > 1 ? (
+              <select
+                aria-label="locale"
+                className="select select--inline"
+                value={locale}
+                onChange={(event) => setLocale(event.target.value)}
+              >
+                {locales.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            ) : null}
 
-          <Button size="sm" tone="ghost" onClick={() => setShowJson((value) => !value)}>
-            {showJson ? t.form : t.json}
-          </Button>
+            <fieldset className="segmented" aria-label="view">
+              {visualAllowed ? (
+                <Button
+                  size="sm"
+                  tone={view === 'visual' ? 'selected' : 'ghost'}
+                  aria-pressed={view === 'visual'}
+                  onClick={() => setViewPref('visual')}
+                >
+                  {t.visual}
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                tone={view === 'form' ? 'selected' : 'ghost'}
+                aria-pressed={view === 'form'}
+                onClick={() => setViewPref('form')}
+              >
+                {t.form}
+              </Button>
+              <Button
+                size="sm"
+                tone={view === 'json' ? 'selected' : 'ghost'}
+                aria-pressed={view === 'json'}
+                onClick={() => setViewPref('json')}
+              >
+                {t.json}
+              </Button>
+            </fieldset>
 
-          {doc.id && collection.versioned ? (
-            <Button size="sm" onClick={() => setHistoryOpen(true)}>
-              {t.history}
-            </Button>
-          ) : null}
+            {doc.id && collection.versioned && !isGlobal ? (
+              <Button size="md" tone="ghost" onClick={() => setHistoryOpen(true)}>
+                <History aria-hidden />
+                {t.history}
+              </Button>
+            ) : null}
 
-          {visualAllowed && previewUrl ? (
+            {previewUrl && view !== 'visual' ? (
+              <Button size="md" tone="ghost" onClick={() => setPreviewOpen(true)}>
+                {t.preview}
+              </Button>
+            ) : null}
+
+            {onDuplicate && permission?.create !== false ? (
+              <Button
+                size="md"
+                tone="ghost"
+                aria-label={t.duplicate}
+                title={t.duplicate}
+                onClick={onDuplicate}
+              >
+                <Copy aria-hidden />
+              </Button>
+            ) : null}
+
+            {onDelete && permission?.delete ? (
+              <Button
+                size="md"
+                tone="ghost"
+                className="btn--danger-hover"
+                aria-label={t.delete}
+                title={t.delete}
+                onClick={onDelete}
+              >
+                <Trash2 aria-hidden />
+              </Button>
+            ) : null}
+
             <Button
-              size="sm"
-              tone={visual ? 'selected' : 'neutral'}
-              onClick={() => setVisual((value) => !value)}
+              size="md"
+              tone="ghost"
+              disabled={undoStack.length === 0}
+              onClick={undo}
+              aria-label={t.undo}
+              title={t.undo}
             >
-              {visual ? t.form : 'Visual'}
+              <Undo2 aria-hidden />
             </Button>
-          ) : null}
 
-          {previewUrl && !visual ? (
-            <Button size="sm" onClick={() => setPreviewOpen(true)}>
-              {t.preview}
-            </Button>
-          ) : null}
-
-          {onDelete && permission?.delete ? (
-            <Button size="sm" tone="destructive" onClick={onDelete}>
-              {t.delete}
-            </Button>
-          ) : null}
-
-          {onPublish && collection.drafts && permission?.update !== false ? (
-            <Button size="sm" onClick={onPublish}>
-              {doc._status === 'published' ? t.unpublish : t.publish}
-            </Button>
-          ) : null}
-
-          <Button size="sm" tone="accent" type="submit" disabled={saving || readOnly}>
-            {saving ? t.saving : t.save}
-          </Button>
-        </div>
-      </div>
-
-      {showJson ? (
-        <JsonField
-          field={{ type: 'json', name: 'document' }}
-          value={values}
-          onChange={(next) => setValues((next ?? {}) as AdminDocument)}
-        />
-      ) : visual && blocksField && previewUrl ? (
-        <VisualEditor
-          collection={collection}
-          blocksField={blocksField}
-          values={values}
-          setValue={setValue}
-          previewUrl={previewUrl}
-          selected={selected}
-          onSelect={setSelected}
-          onSelectIndex={(index) => setSelected({ field: blocksField.name, index })}
-          onSetBlock={(index, row) =>
-            mutateRows(blocksField.name, (rows) =>
-              rows.map((current, position) => (position === index ? row : current)),
-            )
-          }
-          onInsert={insertBlock}
-          onDelete={deleteBlock}
-          onDuplicate={duplicateBlock}
-          onMove={moveBlock}
-          onFocusField={(path) => {
-            selectFromPath(path);
-            // The inspector renders the block's fields on the next paint, so the focus target
-            // does not exist yet at message time.
-            requestAnimationFrame(() => focusField(path));
-          }}
-          onEditBlock={(path) => {
-            selectFromPath(path);
-            focusBlock(path);
-          }}
-        />
-      ) : (
-        <div className="form-body">
-          {visibleFields.map((field) => (
-            <div key={field.name} className={spanFor(field)}>
-              <FieldRenderer
-                field={field}
-                values={values}
-                setValue={setValue}
-                error={errors?.[field.name]}
-                readOnly={readOnly}
-                locale={locale}
+            {canPublish && onSchedule ? (
+              <SchedulePicker
+                label={published ? t.scheduleUnpublish : t.schedulePublish}
+                schedule={schedule}
+                onSchedule={onSchedule}
               />
-            </div>
-          ))}
+            ) : null}
+
+            {canPublish && (!published || canUnpublish) ? (
+              <Button
+                size="md"
+                disabled={saving}
+                onClick={() => void write(() => onPublish?.(values, dirty))}
+              >
+                {published ? t.unpublish : t.publish}
+              </Button>
+            ) : null}
+
+            <Button size="md" tone="accent" type="submit" disabled={saving || readOnly || !dirty}>
+              {saving ? t.saving : t.save}
+            </Button>
+          </div>
         </div>
-      )}
 
-      {errors && Object.keys(errors).length > 0 ? (
-        <div className="alert">
-          {Object.entries(errors).map(([field, message]) => (
-            <div key={field}>
-              <strong>{field}</strong> — {message}
-            </div>
-          ))}
-        </div>
-      ) : null}
+        {lockedBy ? (
+          <div className="notice" role="status">
+            <strong>
+              {t.lockedBy} {lockedBy}.
+            </strong>{' '}
+            {t.lockedHint}
+          </div>
+        ) : null}
 
-      {doc.id && collection.versioned ? (
-        <VersionsPanel
-          slug={collection.slug}
-          id={String(doc.id)}
-          open={historyOpen}
-          onClose={() => setHistoryOpen(false)}
-        />
-      ) : null}
+        {errorEntries.length > 0 ? (
+          <div className="alert" role="alert">
+            {errorEntries.some(([field]) => field !== '_') ? <p>{t.validationFailed}</p> : null}
+            <ul>
+              {errorEntries.map(([field, message]) => (
+                <li key={field}>
+                  {field === '_' ? (
+                    message
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const parts = /^(.*?)\.(\d+)(?:\.|$)/.exec(normalizeFieldPath(field));
+                        setSelected(
+                          parts ? { field: parts[1] as string, index: Number(parts[2]) } : null,
+                        );
+                        requestAnimationFrame(() => focusField(field));
+                      }}
+                    >
+                      <strong>{humanize(field)}</strong>: {message}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
-      {previewUrl ? (
-        <LivePreview
-          url={previewUrl}
-          data={values}
-          open={previewOpen}
-          onClose={() => setPreviewOpen(false)}
-          onFocusField={focusField}
-          onEditBlock={focusBlock}
-          onMoveBlock={moveBlock}
-          onDeleteBlock={deleteBlock}
-        />
-      ) : null}
-    </form>
+        {view === 'json' ? (
+          <JsonField
+            field={{ type: 'json', name: 'document', label: t.json }}
+            value={values}
+            onChange={(next) => setValues((next ?? {}) as AdminDocument)}
+          />
+        ) : view === 'visual' && blocksField && previewUrl ? (
+          <VisualEditor
+            blocksField={blocksField}
+            values={values}
+            previewUrl={previewUrl}
+            selected={selected}
+            onSelect={setSelected}
+            onSelectIndex={(index) => setSelected({ field: blocksField.name, index })}
+            onSetBlock={(index, row) => setValue(`${blocksField.name}[${index}]`, row)}
+            onInsert={insertBlock}
+            onDelete={deleteBlock}
+            onDuplicate={duplicateBlock}
+            onMove={moveBlock}
+            onSave={save}
+            onFocusField={(path) => {
+              selectFromPath(path);
+              // The inspector renders the block's fields on the next paint, so the focus target
+              // does not exist yet at message time.
+              requestAnimationFrame(() => focusField(path));
+            }}
+            onEditBlock={(path) => {
+              selectFromPath(path);
+              requestAnimationFrame(() => focusBlock(path));
+            }}
+            documentFields={visibleFields
+              .filter((field) => field !== blocksField)
+              .map((field) => (
+                <div key={field.name}>
+                  <FieldRenderer
+                    field={field}
+                    values={values}
+                    setValue={setValue}
+                    error={errors?.[field.name]}
+                    readOnly={readOnly}
+                    locale={locale}
+                  />
+                </div>
+              ))}
+          />
+        ) : (
+          <div className="form-body">
+            {visibleFields.map((field) => (
+              <div key={field.name} className={spanFor(field)}>
+                <FieldRenderer
+                  field={field}
+                  values={values}
+                  setValue={setValue}
+                  error={errors?.[field.name]}
+                  readOnly={readOnly}
+                  locale={locale}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {doc.id && collection.versioned && !isGlobal ? (
+          <VersionsPanel
+            slug={collection.slug}
+            id={String(doc.id)}
+            open={historyOpen}
+            onClose={() => setHistoryOpen(false)}
+            current={values}
+            fields={collection.fields}
+            onRestored={() => {
+              adoptNext.current = true;
+              onRestored?.();
+            }}
+          />
+        ) : null}
+
+        {previewUrl && view !== 'visual' ? (
+          <LivePreview
+            url={previewUrl}
+            data={values}
+            open={previewOpen}
+            onClose={() => setPreviewOpen(false)}
+            onFocusField={focusField}
+            onEditBlock={focusBlock}
+            onMoveBlock={moveBlock}
+            onDeleteBlock={deleteBlock}
+            onSave={save}
+          />
+        ) : null}
+      </form>
+    </FieldErrorsContext.Provider>
   );
 }
 
+/** ISO -> the local `YYYY-MM-DDTHH:mm` a datetime input wants. */
+function toLocalInput(iso: string): string {
+  const date = new Date(iso);
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function SchedulePicker({
+  label,
+  schedule,
+  onSchedule,
+}: {
+  label: string;
+  schedule: { at: string; action: string } | null | undefined;
+  onSchedule: (at: string | null) => void;
+}) {
+  const t = useMessages();
+  const { locale } = useCms();
+  const menu = useRef<HTMLDetailsElement>(null);
+  const [at, setAt] = useState('');
+  const close = () => menu.current?.removeAttribute('open');
+
+  return (
+    <details ref={menu} className="menu">
+      <summary
+        className={`btn btn--md ${schedule ? 'btn--selected' : 'btn--ghost'}`}
+        title={schedule ? new Date(schedule.at).toLocaleString(locale) : t.schedule}
+      >
+        <CalendarClock aria-hidden />
+        {schedule
+          ? new Date(schedule.at).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })
+          : t.schedule}
+      </summary>
+      <div className="menu__body">
+        <label className="label" htmlFor="cms-schedule-at">
+          {label}
+        </label>
+        <input
+          id="cms-schedule-at"
+          type="datetime-local"
+          className="input"
+          value={at || (schedule ? toLocalInput(schedule.at) : '')}
+          onChange={(event) => setAt(event.target.value)}
+        />
+        <Button
+          size="sm"
+          tone="accent"
+          disabled={!at}
+          onClick={() => {
+            onSchedule(new Date(at).toISOString());
+            close();
+          }}
+        >
+          {t.schedule}
+        </Button>
+        {schedule ? (
+          <Button
+            size="sm"
+            tone="ghost"
+            onClick={() => {
+              onSchedule(null);
+              setAt('');
+              close();
+            }}
+          >
+            {t.unschedule}
+          </Button>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+const CSS_ESCAPE: ((value: string) => string) | undefined =
+  typeof globalThis.CSS !== 'undefined' ? globalThis.CSS.escape : undefined;
+
 type VisualEditorProps = {
-  collection: AdminCollection;
   blocksField: AdminField;
   values: AdminDocument;
-  setValue: (path: string, value: unknown) => void;
   previewUrl: string;
   selected: { field: string; index: number } | null;
   onSelect: (selection: { field: string; index: number } | null) => void;
@@ -344,21 +739,88 @@ type VisualEditorProps = {
   onMove: (field: string, from: number, to: number) => void;
   onFocusField: (path: string) => void;
   onEditBlock: (path: string) => void;
+  onSave: () => void;
+  documentFields: React.ReactNode;
 };
+
+const DEVICES: { key: 'desktop' | 'tablet' | 'mobile'; width?: number; icon: LucideIcon }[] = [
+  { key: 'desktop', icon: Monitor },
+  { key: 'tablet', width: 768, icon: Tablet },
+  { key: 'mobile', width: 390, icon: Smartphone },
+];
+
+function rowSummary(row: Record<string, unknown>, fields: readonly AdminField[]): string {
+  for (const field of fields) {
+    const value = row[field.name];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+function OutlineRow({
+  id,
+  index,
+  label,
+  summary,
+  active,
+  onSelect,
+}: {
+  id: string;
+  index: number;
+  label: string;
+  summary: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`block-outline-row${isDragging ? ' block-outline-row--dragging' : ''}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        className="drag-handle"
+        aria-label={`Reorder ${label} ${index + 1}`}
+        {...attributes}
+        {...(listeners ?? {})}
+      >
+        <GripVertical aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={`palette__item palette__item--row${active ? ' palette__item--active' : ''}`}
+        aria-current={active ? 'true' : undefined}
+        onClick={onSelect}
+      >
+        <span className="palette__grip">#{index + 1}</span> <span>{label}</span>
+        {summary ? <small>{summary}</small> : null}
+      </button>
+    </div>
+  );
+}
 
 /**
  * Visual editor: the page is the canvas.
  *
- * - left: the block palette (`layout` blocks from the schema) — drag a block into the page or click
- *   to append;
+ * - left: what is on the page (drag to reorder) and the blocks that can be added;
  * - centre: the live page, where blocks can be dragged, edited or deleted in place;
- * - right: the inspector, with only the selected block's fields.
+ * - right: the selected block's fields, or the document's own fields when nothing is selected.
  */
 function VisualEditor({
-  collection,
   blocksField,
   values,
-  setValue,
   previewUrl,
   selected,
   onSelect,
@@ -370,8 +832,12 @@ function VisualEditor({
   onMove,
   onFocusField,
   onEditBlock,
+  onSave,
+  documentFields,
 }: VisualEditorProps) {
   const t = useMessages();
+  const [device, setDevice] = useState<(typeof DEVICES)[number]['key']>('desktop');
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const rows = Array.isArray(values[blocksField.name])
     ? (values[blocksField.name] as Record<string, unknown>[])
     : [];
@@ -379,18 +845,48 @@ function VisualEditor({
   const current = selected && selected.field === blocksField.name ? selected : null;
   const row = current ? rows[current.index] : undefined;
   const definition = row ? definitions.find((item) => item.slug === row.type) : undefined;
+  const ids = rows.map((_, index) => `block-${index}`);
+
+  const onOutlineDrop = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    onMove(blocksField.name, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
+  };
 
   return (
     <div className="visual">
-      <aside className="visual__palette" aria-label="Blocos">
-        <h2 className="visual__title">Blocos</h2>
-        <p className="visual__hint">Arraste para a página ou clique para adicionar.</p>
+      <aside className="visual__palette" aria-label={t.blocks}>
+        <h2 className="visual__title">{t.onThisPage}</h2>
+        {rows.length === 0 ? <p className="visual__hint">{t.emptyPage}</p> : null}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onOutlineDrop}>
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            <div className="block-outline">
+              {rows.map((item, index) => {
+                const known = definitions.find((block) => block.slug === item.type);
+                return (
+                  <OutlineRow
+                    key={ids[index]}
+                    id={ids[index] as string}
+                    index={index}
+                    label={known ? blockTitle(known) : String(item.type ?? '—')}
+                    summary={rowSummary(item, known?.fields ?? [])}
+                    active={current?.index === index}
+                    onSelect={() => onSelectIndex(index)}
+                  />
+                );
+              })}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        <h2 className="visual__title visual__title--spaced">{t.addBlock}</h2>
+        <p className="visual__hint">{t.addBlockHint}</p>
         <div className="palette">
           {definitions.map((item) => (
             <button
               key={item.slug}
               type="button"
-              className="palette__item"
+              className="palette__item palette__item--add"
               draggable
               onDragStart={(event) => {
                 event.dataTransfer.setData(
@@ -399,38 +895,43 @@ function VisualEditor({
                 );
                 event.dataTransfer.effectAllowed = 'copy';
               }}
-              onClick={() => {
-                onInsert(blocksField.name, item.slug, rows.length);
-                onSelectIndex(rows.length);
-              }}
+              onClick={() => onInsert(blocksField.name, item.slug, rows.length)}
             >
-              <span className="palette__grip">⠿</span>
-              {item.slug}
-            </button>
-          ))}
-        </div>
-
-        <h2 className="visual__title" style={{ marginTop: 18 }}>
-          Página
-        </h2>
-        <div className="palette">
-          {rows.map((item, index) => (
-            <button
-              key={String(item.id ?? index)}
-              type="button"
-              className={`palette__item palette__item--row${
-                current?.index === index ? ' palette__item--active' : ''
-              }`}
-              onClick={() => onSelectIndex(index)}
-            >
-              <span className="palette__grip">#{index + 1}</span>
-              {String(item.type ?? '—')}
+              <Plus aria-hidden />
+              {blockTitle(item)}
             </button>
           ))}
         </div>
       </aside>
 
       <div className="visual__stage">
+        <div className="stage-bar">
+          <fieldset className="segmented" aria-label="view">
+            {DEVICES.map(({ key, icon: Icon }) => (
+              <Button
+                key={key}
+                size="xs"
+                tone={device === key ? 'selected' : 'ghost'}
+                aria-pressed={device === key}
+                aria-label={t[key]}
+                title={t[key]}
+                onClick={() => setDevice(key)}
+              >
+                <Icon aria-hidden />
+              </Button>
+            ))}
+          </fieldset>
+          <a
+            className="btn btn--ghost btn--xs"
+            href={previewUrl}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={t.openInTab}
+            title={t.openInTab}
+          >
+            <ExternalLink aria-hidden />
+          </a>
+        </div>
         <LivePreview
           url={previewUrl}
           data={values}
@@ -443,42 +944,53 @@ function VisualEditor({
           onDeleteBlock={onDelete}
           onDuplicateBlock={onDuplicate}
           onInsertBlock={onInsert}
-          blockTypes={definitions.map((item) => item.slug)}
+          onSave={onSave}
+          selectedPath={current ? `${current.field}[${current.index}]` : null}
+          frameWidth={DEVICES.find((item) => item.key === device)?.width}
+          blockTypes={definitions.map((item) => ({ slug: item.slug, label: blockTitle(item) }))}
         />
       </div>
 
-      <aside className="visual__inspector" aria-label="Propriedades">
-        <h2 className="visual__title">{t.edit}</h2>
+      <aside className="visual__inspector" aria-label={t.edit}>
         {!row || !current ? (
-          <p className="visual__hint">Clique num bloco na página (ou na lista) para editar.</p>
+          <div className="inspector">
+            <h2 className="visual__title">{t.documentFields}</h2>
+            {documentFields}
+          </div>
         ) : (
           <div className="inspector">
+            <Button
+              size="xs"
+              tone="ghost"
+              className="inspector__back"
+              onClick={() => onSelect(null)}
+            >
+              <ArrowLeft aria-hidden />
+              {t.pageDetailsBack}
+            </Button>
             <div className="inspector__head">
               <span className="row-head__index">#{current.index + 1}</span>
-              <select
-                className="select"
-                aria-label="block type"
-                value={String(row.type ?? '')}
-                onChange={(event) =>
-                  onSetBlock(current.index, { ...row, type: event.target.value })
-                }
-              >
-                <option value="">— block —</option>
-                {definitions.map((item) => (
-                  <option key={item.slug} value={item.slug}>
-                    {item.slug}
-                  </option>
-                ))}
-              </select>
+              <strong className="inspector__name">
+                {definition ? blockTitle(definition) : String(row.type ?? '—')}
+              </strong>
               <Button
                 size="xs"
-                tone="destructive"
-                onClick={() => {
-                  onDelete(current.field, current.index);
-                  onSelect(null);
-                }}
+                tone="ghost"
+                aria-label={t.duplicate}
+                title={t.duplicate}
+                onClick={() => onDuplicate(current.field, current.index)}
               >
-                Remove
+                <Copy aria-hidden />
+              </Button>
+              <Button
+                size="xs"
+                tone="ghost"
+                className="btn--danger-hover"
+                aria-label={t.remove}
+                title={t.remove}
+                onClick={() => onDelete(current.field, current.index)}
+              >
+                <Trash2 aria-hidden />
               </Button>
             </div>
 
@@ -490,7 +1002,7 @@ function VisualEditor({
                 onChange={(next) => onSetBlock(current.index, next)}
               />
             ) : (
-              <p className="visual__hint">Escolha um tipo de bloco.</p>
+              <p className="visual__hint">{t.pickBlockType}</p>
             )}
           </div>
         )}
@@ -504,7 +1016,9 @@ function spanFor(field: AdminField): string {
     field.type === 'group' ||
     field.type === 'array' ||
     field.type === 'blocks' ||
-    field.type === 'tabs'
+    field.type === 'tabs' ||
+    field.type === 'row' ||
+    field.type === 'collapsible'
   ) {
     return 'field--wide';
   }
@@ -528,12 +1042,68 @@ function FieldRenderer({
   locale?: string | undefined;
   path?: string;
 }) {
+  const siblings = path ? ((getByPath(values, path) ?? {}) as AdminDocument) : values;
+  if (!isFieldVisible(field, siblings)) return null;
+
   const fieldPath = path ? `${path}.${field.name}` : field.name;
+
+  // Structural fields only change the layout: their fields keep this level's path.
+  const nested = (child: AdminField) => (
+    <FieldRenderer
+      key={child.name}
+      field={child}
+      values={values}
+      setValue={setValue}
+      readOnly={readOnly}
+      locale={locale}
+      path={path}
+    />
+  );
+
+  if (field.type === 'tabs') {
+    return (
+      <FieldTabs
+        field={field}
+        renderField={(child) => (
+          <div key={child.name} className="tabs__field">
+            {nested(child)}
+          </div>
+        )}
+      />
+    );
+  }
+
+  if (field.type === 'row') {
+    return (
+      <div className="form-body">
+        {(field.fields ?? []).map((child) => (
+          <div key={child.name} className={spanFor(child)}>
+            {nested(child)}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (field.type === 'collapsible') {
+    return (
+      <details className="group collapsible" open>
+        <summary>{fieldTitle(field)}</summary>
+        <div className="form-body">
+          {(field.fields ?? []).map((child) => (
+            <div key={child.name} className={spanFor(child)}>
+              {nested(child)}
+            </div>
+          ))}
+        </div>
+      </details>
+    );
+  }
 
   if (field.type === 'group' && field.fields) {
     return (
       <fieldset className="group">
-        <legend>{field.name}</legend>
+        <legend>{fieldTitle(field)}</legend>
         <div className="form-body">
           {field.fields.map((nested) => (
             <div key={nested.name} className={spanFor(nested)}>
@@ -555,17 +1125,17 @@ function FieldRenderer({
   if (field.type === 'array' || field.type === 'blocks') {
     const current = getByPath(values, fieldPath);
     return field.type === 'array' ? (
-      <ArrayBuilder field={field} value={current} onChange={(next) => setValue(fieldPath, next)} />
-    ) : (
-      <BlocksBuilder field={field} value={current} onChange={(next) => setValue(fieldPath, next)} />
-    );
-  }
-
-  if (field.type === 'tabs') {
-    return (
-      <JsonField
+      <ArrayBuilder
         field={field}
-        value={getByPath(values, fieldPath)}
+        value={current}
+        path={fieldPath}
+        onChange={(next) => setValue(fieldPath, next)}
+      />
+    ) : (
+      <BlocksBuilder
+        field={field}
+        value={current}
+        path={fieldPath}
         onChange={(next) => setValue(fieldPath, next)}
       />
     );
@@ -618,6 +1188,7 @@ function getByPath(target: Record<string, unknown>, path: string): unknown {
   }, target);
 }
 
+/** Copies every level it walks through: the form must never write into the query cache's objects. */
 function setByPath(
   target: Record<string, unknown>,
   path: string,
@@ -629,19 +1200,32 @@ function setByPath(
   for (let index = 0; index < segments.length - 1; index += 1) {
     const key = segments[index] ?? '';
     const next = segments[index + 1] ?? '';
-    const wantsArray = /^\d+$/.test(next);
     const current = cursor[key];
 
-    if (!current || typeof current !== 'object') {
-      cursor[key] = wantsArray ? [] : {};
-    } else if (Array.isArray(current) && !wantsArray) {
-      // A row path into an array without an index is ambiguous; keep the array as-is.
-      cursor[key] = current;
-    }
+    if (Array.isArray(current)) cursor[key] = [...current];
+    else if (current && typeof current === 'object') cursor[key] = { ...current };
+    else cursor[key] = /^\d+$/.test(next) ? [] : {};
 
     cursor = cursor[key] as Record<string, unknown>;
   }
 
   cursor[segments.at(-1) ?? ''] = value;
   return target;
+}
+
+function slugify(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function defaultsOf(fields: readonly AdminField[]): AdminDocument {
+  const defaults: AdminDocument = {};
+  for (const field of fields) {
+    if (field.defaultValue !== undefined) defaults[field.name] = field.defaultValue;
+  }
+  return defaults;
 }

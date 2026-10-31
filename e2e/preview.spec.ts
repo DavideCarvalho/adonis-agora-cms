@@ -25,9 +25,10 @@ test('preview marks editable regions and a click focuses the field', async ({ pa
   const heading = frame.locator('h1[data-cms-field="title"]');
   await expect(heading).toBeVisible();
 
-  // The injected bridge outlines every editable region.
-  await expect(heading).toHaveCSS('outline-style', 'dashed');
+  // The injected bridge outlines the editable region under the pointer.
+  await heading.hover();
+  await expect(heading).toHaveCSS('outline-style', 'solid');
 
   await heading.click();
-  await expect(page.getByRole('textbox', { name: /^title \*/ })).toBeFocused();
+  await expect(page.getByRole('textbox', { name: /^title \*/i })).toBeFocused();
 });
