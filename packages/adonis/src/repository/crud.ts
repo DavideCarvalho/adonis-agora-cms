@@ -8,7 +8,7 @@ import {
   CmsValidationError,
 } from '../errors.js';
 import type { TableSpec } from '../schema/types.js';
-import { recordVersion } from '../versions/store.js';
+import { latestDraftSnapshot, recordVersion } from '../versions/store.js';
 import { constraintToSql, decideAccess, existsSql, resolveEntry } from './access.js';
 import {
   buildWriteRows,
@@ -57,6 +57,10 @@ export type OperationOptions = {
   status?: 'draft' | 'published';
   /** Create as a draft (versioned collections). */
   draft?: boolean;
+  /** Skips post-commit events, so webhooks and listeners do not see this write. */
+  silent?: boolean;
+  /** On a published document: keep the edit as a pending version, leaving what is live untouched. */
+  asDraft?: boolean;
   /** Autosave versions do not fire `afterChange`. */
   autosave?: boolean;
   /** Replace the document instead of merging (used by version restore). */
@@ -85,14 +89,14 @@ export async function createDocument(
 ): Promise<Record<string, unknown>> {
   const startedAt = Date.now();
   const table = documentTable(ctx.spec, slug);
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.create,
     accessArgs(ctx),
     options.overrideAccess,
   );
   if (!access.allowed) throw denied(ctx, `create "${slug}" is not allowed`);
 
-  let payload = { ...data };
+  let payload = await dropDeniedFields(ctx, slug, { ...data }, options);
   payload = await runHooks(ctx, slug, 'beforeValidate', payload, { operation: 'create' });
   payload = await runHooks(ctx, slug, 'beforeChange', payload, { operation: 'create' });
 
@@ -133,7 +137,7 @@ export async function createDocument(
     overrideAccess: true,
   });
 
-  publishSideEffects(ctx, slug, 'create', id, doc ?? { id }, startedAt);
+  publishSideEffects(ctx, slug, 'create', id, doc ?? { id }, startedAt, options.silent);
 
   return doc ?? { id };
 }
@@ -147,7 +151,7 @@ export async function findDocuments(
   options: OperationOptions = {},
 ): Promise<FindResult> {
   const table = documentTable(ctx.spec, slug);
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.read,
     accessArgs(ctx),
     options.overrideAccess,
@@ -190,6 +194,8 @@ export async function findDocuments(
     locale,
   });
 
+  if (versions.drafts && includeDrafts) await overlayPendingDrafts(ctx, slug, docs);
+
   const totalPages = Math.max(1, Math.ceil(totalDocs / limit));
 
   return {
@@ -223,7 +229,7 @@ export async function findDocumentByID(
 
   if (!doc) return null;
 
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.read,
     accessArgs(ctx, { id, doc }),
     options.overrideAccess,
@@ -233,6 +239,7 @@ export async function findDocumentByID(
   if (versions.drafts && !includeDrafts && !options.overrideAccess && doc._status !== 'published') {
     return null;
   }
+  if (versions.drafts && includeDrafts) await overlayPendingDrafts(ctx, slug, [doc]);
 
   if (access.constraint) {
     const constraints = constraintToSql(access.constraint, ctx.spec, ctx.engine, table.name);
@@ -261,14 +268,14 @@ export async function updateDocument(
   const previous = await findDocumentByID(ctx, slug, id, { depth: 0, overrideAccess: true });
   if (!previous) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
 
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.update,
     accessArgs(ctx, { id, data, doc: previous }),
     options.overrideAccess,
   );
   if (!access.allowed) throw denied(ctx, `update "${slug}" is not allowed`);
 
-  let payload = { ...data };
+  let payload = await dropDeniedFields(ctx, slug, { ...data }, options, previous);
   payload = await runHooks(ctx, slug, 'beforeValidate', payload, {
     operation: 'update',
     previousData: previous,
@@ -278,9 +285,29 @@ export async function updateDocument(
     previousData: previous,
   });
 
-  const merged = options.replace === true ? payload : mergeDocument(previous, payload);
+  // An autosave is a draft by nature: it must never change what a published document shows.
+  const keepLive =
+    previous._status === 'published' &&
+    versionsFor(ctx.config, slug).drafts &&
+    options.status === undefined &&
+    (options.asDraft === true || options.autosave === true);
+  const pending = keepLive ? await latestDraftSnapshot(ctx, slug, id) : null;
+  const base = pending ? { ...previous, ...pending } : previous;
+
+  const merged = options.replace === true ? payload : mergeDocument(base, payload);
   const validated = validate(ctx, slug, merged);
   await assertUnique(ctx, table, validated, id);
+
+  if (keepLive) {
+    await recordVersion(ctx, slug, id, {
+      status: 'draft',
+      snapshot: validated,
+      autosave: options.autosave === true,
+      locale: options.locale ?? null,
+    });
+    const overlaid = { ...previous, ...validated, id, _status: 'published', _hasDraft: true };
+    return overlaid;
+  }
 
   const status =
     options.status ??
@@ -312,7 +339,7 @@ export async function updateDocument(
   });
 
   const doc = await findDocumentByID(ctx, slug, id, { ...options, overrideAccess: true });
-  publishSideEffects(ctx, slug, 'update', id, doc ?? { id }, startedAt);
+  publishSideEffects(ctx, slug, 'update', id, doc ?? { id }, startedAt, options.silent);
   return doc ?? { id };
 }
 
@@ -329,7 +356,7 @@ export async function deleteDocument(
   const doc = await findDocumentByID(ctx, slug, id, { depth: 0, overrideAccess: true });
   if (!doc) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
 
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.delete,
     accessArgs(ctx, { id, doc }),
     options.overrideAccess,
@@ -347,7 +374,7 @@ export async function deleteDocument(
       [sqlTimestamp(new Date(), ctx.engine), id],
     );
     await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete' });
-    publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt);
+    publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt, options.silent);
     return;
   }
 
@@ -362,7 +389,7 @@ export async function deleteDocument(
   });
 
   await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete' });
-  publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt);
+  publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt, options.silent);
 }
 
 /** Emits observation + post-commit event. Never inside the transaction. */
@@ -373,6 +400,7 @@ function publishSideEffects(
   documentId: string,
   doc: Record<string, unknown> | undefined,
   startedAt: number,
+  silent = false,
 ): void {
   ctx.observer?.({
     collection: slug,
@@ -383,6 +411,8 @@ function publishSideEffects(
     tenant: ctx.tenant,
     userId: userIdOf(ctx.user),
   });
+
+  if (silent) return;
 
   ctx.events?.emit({
     collection: slug,
@@ -412,7 +442,7 @@ export async function restoreDocument(
     throw new CmsNotFoundError(`"${slug}" does not use soft deletes`);
   }
 
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.update,
     accessArgs(ctx, { id }),
     options.overrideAccess,
@@ -508,8 +538,10 @@ async function decorateRows(
     await populateNestedRelations(ctx, table, docs, options);
   }
 
+  if ((options.depth ?? 1) > 0) await populateJoins(ctx, slug, docs);
+
   for (const doc of docs) {
-    stripFieldsByAccess(ctx, slug, doc);
+    await stripFieldsByAccess(ctx, slug, doc);
   }
 
   return docs;
@@ -1156,13 +1188,80 @@ function accessArgs(
   };
 }
 
-function stripFieldsByAccess(ctx: RepoContext, slug: string, doc: Record<string, unknown>): void {
+async function stripFieldsByAccess(
+  ctx: RepoContext,
+  slug: string,
+  doc: Record<string, unknown>,
+): Promise<void> {
   const fields = documentFields(ctx.config, slug);
   for (const field of fields) {
     if (!field.access?.read) continue;
-    const decision = decideAccess(field.access.read, accessArgs(ctx));
+    const decision = await decideAccess(field.access.read, accessArgs(ctx));
     if (!decision.allowed) delete doc[field.name];
   }
+}
+
+/** Top-level `join` fields; each is a normal read, so the other collection's access applies. */
+async function populateJoins(
+  ctx: RepoContext,
+  slug: string,
+  docs: Record<string, unknown>[],
+): Promise<void> {
+  const joins = documentFields(ctx.config, slug).filter((field) => field.type === 'join');
+  if (joins.length === 0) return;
+
+  await Promise.all(
+    docs.flatMap((doc) =>
+      joins.map(async (field) => {
+        if (field.type !== 'join') return;
+        const found = await findDocuments(
+          ctx,
+          field.collection,
+          { where: { [field.on]: { equals: doc.id } }, limit: field.limit ?? 10, depth: 0 },
+          {},
+        );
+        doc[field.name] = { docs: found.docs, totalDocs: found.totalDocs };
+      }),
+    ),
+  );
+}
+
+/** `field.access.update`: a field the caller may not write keeps its value, whatever was sent. */
+async function dropDeniedFields(
+  ctx: RepoContext,
+  slug: string,
+  data: Record<string, unknown>,
+  options: OperationOptions,
+  doc?: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (options.overrideAccess) return data;
+  for (const field of documentFields(ctx.config, slug)) {
+    if (!field.access?.update || !(field.name in data)) continue;
+    const decision = await decideAccess(
+      field.access.update,
+      accessArgs(ctx, { data, ...(doc ? { doc } : {}) }),
+    );
+    if (!decision.allowed) delete data[field.name];
+  }
+  return data;
+}
+
+/** Whoever asks for drafts sees a published document with its pending edit on top. */
+async function overlayPendingDrafts(
+  ctx: RepoContext,
+  slug: string,
+  docs: Record<string, unknown>[],
+): Promise<void> {
+  await Promise.all(
+    docs.map(async (doc) => {
+      if (doc._status !== 'published') return;
+      const pending = await latestDraftSnapshot(ctx, slug, String(doc.id));
+      if (!pending) return;
+      const { id, createdAt, updatedAt } = doc;
+      for (const key of Object.keys(pending)) doc[key] = pending[key];
+      Object.assign(doc, { id, createdAt, updatedAt, _status: 'published', _hasDraft: true });
+    }),
+  );
 }
 
 /* -------------------------------------------------------------------- hooks */

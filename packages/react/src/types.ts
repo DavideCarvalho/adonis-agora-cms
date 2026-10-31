@@ -17,6 +17,8 @@ export type AdminField = {
   };
   options?: readonly { label: string; value: string }[];
   relationTo?: string | readonly string[];
+  /** On a `join`: the relation field on the other collection. */
+  on?: string;
   mimeTypes?: readonly string[];
   hasMany?: boolean;
   minRows?: number;
@@ -53,7 +55,13 @@ export type AdminPermission = {
 
 export type AdminSchema = {
   version: 1;
-  admin: { title: string; path: string; theme?: { accent?: string; logoUrl?: string } };
+  admin: {
+    title: string;
+    path: string;
+    theme?: { accent?: string; logoUrl?: string };
+    extensions?: readonly string[];
+    auth?: { builtin: boolean; collection: string };
+  };
   locales: readonly string[];
   defaultLocale: string;
   tenancy: { strategy: string; required: boolean };
@@ -76,6 +84,8 @@ export type CmsUpload = {
 export type AdminDocument = Record<string, unknown> & {
   id?: string;
   _status?: 'draft' | 'published';
+  /** Published, with an edit that is not live yet. */
+  _hasDraft?: boolean;
 };
 
 export type ListResult = {

@@ -1,11 +1,15 @@
 import type { AccessFn } from '../config/types.js';
 
-export type CanCheck = (user: unknown, ability: string, resource?: unknown) => boolean;
+export type CanCheck = (
+  user: unknown,
+  ability: string,
+  resource?: unknown,
+) => boolean | Promise<boolean>;
 
 /**
  * Bridges an `@adonis-agora/authz` ability into a CMS access function.
  *
- * Structural on purpose: pass `(user, ability, resource) => authz.can(user, ability, resource)`
+ * Structural on purpose: pass `(user, ability) => authz.can(user, ability)`
  * and the CMS keeps owning the document-level semantics.
  */
 export function authzAccess(ability: string, can: CanCheck): AccessFn {

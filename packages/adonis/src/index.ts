@@ -9,6 +9,8 @@ export {
   resolveApiToken,
   tokenCan,
 } from './auth/api_tokens.js';
+export type { BuiltinAuth, BuiltinAuthOptions, CmsMail } from './auth/builtin.js';
+export { cmsAuth, usersPlugin } from './auth/builtin.js';
 export { collection, global, labels } from './config/collection.js';
 export { defineConfig } from './config/define_config.js';
 export type { DefineFieldOptions } from './config/define_field.js';
@@ -27,6 +29,7 @@ export type * from './db/types.js';
 export { CmsConfigError, CmsError, CmsSchemaError, CmsValidationError } from './errors.js';
 export {
   adonisAuth,
+  adonisMail,
   bouncerAccess,
   driveMedia,
   driveUploads,
@@ -35,13 +38,17 @@ export {
   queueJobs,
 } from './integrations/adapters.js';
 export type { CmsAuthAdapter } from './integrations/authkit.js';
-export { authkitAdapter, requiresRole, requiresUser } from './integrations/authkit.js';
+export { authkitAdapter, authkitAuth, requiresRole, requiresUser } from './integrations/authkit.js';
 export type { CanCheck } from './integrations/authz.js';
 export { authzAccess, authzCollectionAccess } from './integrations/authz.js';
 export type { CmsEvent, CmsEventBus, CmsEventListener } from './integrations/durable.js';
 export { createCmsEvents, durableBridge } from './integrations/durable.js';
 export type { MediaAdapter, MediaAsset } from './integrations/media.js';
-export { createMediaAdapter, mediaLibraryAdapter } from './integrations/media.js';
+export {
+  createMediaAdapter,
+  mediaLibraryAdapter,
+  mediaLibraryUploads,
+} from './integrations/media.js';
 export { runWebhookDelivery } from './integrations/run_webhook.js';
 export type { CmsObservation, CmsObserver, TelescopeEntry } from './integrations/telescope.js';
 export { telescopeWatcher } from './integrations/telescope.js';
@@ -50,7 +57,15 @@ export { deliverWebhook, listenQueuedWebhooks, listenWebhooks } from './integrat
 export type { Cms, CmsCollectionApi, CmsGlobalApi, CreateCmsOptions } from './local_api/index.js';
 export { createCms } from './local_api/index.js';
 export type { CmsPlugin } from './plugins/index.js';
-export { findRedirect, redirectsPlugin, seoPlugin, withPlugins } from './plugins/index.js';
+export {
+  findRedirect,
+  formsPlugin,
+  nestedDocsPlugin,
+  redirectsPlugin,
+  searchPlugin,
+  seoPlugin,
+  withPlugins,
+} from './plugins/index.js';
 export type { PreviewClaims } from './preview/token.js';
 export { previewUrl, signPreviewToken, verifyPreviewToken } from './preview/token.js';
 export { constraintToSql, decideAccess } from './repository/access.js';

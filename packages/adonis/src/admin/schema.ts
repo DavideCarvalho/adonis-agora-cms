@@ -3,6 +3,7 @@ import { resolveVersions } from '../config/types.js';
 import { decideAccess } from '../repository/access.js';
 
 export type AdminField = {
+  on?: string;
   type: string;
   name: string;
   label?: unknown;
@@ -47,7 +48,13 @@ export type AdminPermission = {
 
 export type AdminSchema = {
   version: 1;
-  admin: { title: string; path: string; theme?: { accent?: string; logoUrl?: string } };
+  admin: {
+    title: string;
+    path: string;
+    theme?: { accent?: string; logoUrl?: string };
+    extensions?: readonly string[];
+    auth?: { builtin: boolean; collection: string };
+  };
   locales: readonly string[];
   defaultLocale: string;
   tenancy: { strategy: string; required: boolean };
@@ -63,53 +70,57 @@ export type AdminSchema = {
  * Functions cannot cross the wire, so access/validation/hooks are **evaluated** here instead:
  * the panel receives `permissions` and `restricted` flags and never has to reimplement access.
  */
-export function toAdminSchema(
+export async function toAdminSchema(
   config: CmsConfig,
   options: { user?: unknown; req?: unknown } = {},
-): AdminSchema {
+): Promise<AdminSchema> {
   const permissions: Record<string, AdminPermission> = {};
   const accessArgs = { req: options.req ?? null, user: options.user ?? null, tenant: null };
 
-  const collections = (config.collections ?? []).map((collection) => {
-    permissions[collection.slug] = {
-      read: decideAccess(collection.access?.read, accessArgs).allowed,
-      create: decideAccess(collection.access?.create, accessArgs).allowed,
-      update: decideAccess(collection.access?.update, accessArgs).allowed,
-      delete: decideAccess(collection.access?.delete, accessArgs).allowed,
-    };
+  const collections = await Promise.all(
+    (config.collections ?? []).map(async (collection) => {
+      permissions[collection.slug] = {
+        read: (await decideAccess(collection.access?.read, accessArgs)).allowed,
+        create: (await decideAccess(collection.access?.create, accessArgs)).allowed,
+        update: (await decideAccess(collection.access?.update, accessArgs)).allowed,
+        delete: (await decideAccess(collection.access?.delete, accessArgs)).allowed,
+      };
 
-    return {
-      slug: collection.slug,
-      kind: 'collection' as const,
-      labels: collection.labels,
-      admin: collection.admin,
-      versioned: resolveVersions(config, collection.versions).drafts,
-      drafts: resolveVersions(config, collection.versions).drafts,
-      softDelete: collection.softDelete === true,
-      autosave: resolveVersions(config, collection.versions).autosave,
-      fields: serializeFields(collection.fields, accessArgs),
-    };
-  });
+      return {
+        slug: collection.slug,
+        kind: 'collection' as const,
+        labels: collection.labels,
+        admin: collection.admin,
+        versioned: resolveVersions(config, collection.versions).drafts,
+        drafts: resolveVersions(config, collection.versions).drafts,
+        softDelete: collection.softDelete === true,
+        autosave: resolveVersions(config, collection.versions).autosave,
+        fields: await serializeFields(collection.fields, accessArgs),
+      };
+    }),
+  );
 
-  const globals = (config.globals ?? []).map((global) => {
-    permissions[global.slug] = {
-      read: decideAccess(global.access?.read, accessArgs).allowed,
-      create: true,
-      update: decideAccess(global.access?.update, accessArgs).allowed,
-      delete: false,
-    };
+  const globals = await Promise.all(
+    (config.globals ?? []).map(async (global) => {
+      permissions[global.slug] = {
+        read: (await decideAccess(global.access?.read, accessArgs)).allowed,
+        create: true,
+        update: (await decideAccess(global.access?.update, accessArgs)).allowed,
+        delete: false,
+      };
 
-    return {
-      slug: global.slug,
-      kind: 'global' as const,
-      labels: global.labels,
-      admin: global.admin,
-      versioned: false,
-      drafts: false,
-      softDelete: false,
-      fields: serializeFields(global.fields, accessArgs),
-    };
-  });
+      return {
+        slug: global.slug,
+        kind: 'global' as const,
+        labels: global.labels,
+        admin: global.admin,
+        versioned: false,
+        drafts: false,
+        softDelete: false,
+        fields: await serializeFields(global.fields, accessArgs),
+      };
+    }),
+  );
 
   return {
     version: 1,
@@ -117,6 +128,11 @@ export function toAdminSchema(
       title: config.admin?.title ?? 'CMS',
       path: config.admin?.path ?? '/admin',
       ...(config.admin?.theme ? { theme: config.admin.theme } : {}),
+      ...(config.admin?.extensions ? { extensions: config.admin.extensions } : {}),
+      // The login screen only exists when the CMS owns the login.
+      ...(builtinAuthOf(config)
+        ? { auth: { builtin: true, collection: builtinAuthOf(config) as string } }
+        : {}),
     },
     locales: config.localization?.locales ?? [],
     defaultLocale: config.localization?.defaultLocale ?? 'en',
@@ -131,13 +147,21 @@ export function toAdminSchema(
   };
 }
 
-type AccessArgs = Parameters<typeof decideAccess>[1];
-
-function serializeFields(fields: readonly FieldConfig[], accessArgs: AccessArgs): AdminField[] {
-  return fields.map((field) => serializeField(field, accessArgs));
+function builtinAuthOf(config: CmsConfig): string | undefined {
+  const auth = config.integrations?.auth as { builtin?: { collection: string } } | undefined;
+  return auth?.builtin?.collection;
 }
 
-function serializeField(field: FieldConfig, accessArgs: AccessArgs): AdminField {
+type AccessArgs = Parameters<typeof decideAccess>[1];
+
+function serializeFields(
+  fields: readonly FieldConfig[],
+  accessArgs: AccessArgs,
+): Promise<AdminField[]> {
+  return Promise.all(fields.map((field) => serializeField(field, accessArgs)));
+}
+
+async function serializeField(field: FieldConfig, accessArgs: AccessArgs): Promise<AdminField> {
   const serialized: AdminField = {
     type: field.type,
     name: field.name,
@@ -167,31 +191,50 @@ function serializeField(field: FieldConfig, accessArgs: AccessArgs): AdminField 
   }
 
   if (field.type === 'array') {
-    serialized.fields = serializeFields(field.fields, accessArgs);
+    serialized.fields = await serializeFields(field.fields, accessArgs);
     if (field.minRows !== undefined) serialized.minRows = field.minRows;
     if (field.maxRows !== undefined) serialized.maxRows = field.maxRows;
   }
 
   if (field.type === 'group' || field.type === 'row' || field.type === 'collapsible') {
-    serialized.fields = serializeFields(field.fields, accessArgs);
+    serialized.fields = await serializeFields(field.fields, accessArgs);
+  }
+
+  if (field.type === 'join') {
+    serialized.relationTo = field.collection;
+    serialized.on = field.on;
+  }
+
+  if (field.type === 'richText' && field.blocks) {
+    serialized.blocks = await Promise.all(
+      field.blocks.map(async (blockDefinition) => ({
+        slug: blockDefinition.slug,
+        labels: blockDefinition.labels,
+        fields: await serializeFields(blockDefinition.fields, accessArgs),
+      })),
+    );
   }
 
   if (field.type === 'blocks') {
-    serialized.blocks = field.blocks.map((blockDefinition) => ({
-      slug: blockDefinition.slug,
-      labels: blockDefinition.labels,
-      fields: serializeFields(blockDefinition.fields, accessArgs),
-    }));
+    serialized.blocks = await Promise.all(
+      field.blocks.map(async (blockDefinition) => ({
+        slug: blockDefinition.slug,
+        labels: blockDefinition.labels,
+        fields: await serializeFields(blockDefinition.fields, accessArgs),
+      })),
+    );
   }
 
   if (field.type === 'tabs') {
-    serialized.tabs = field.tabs.map((tab) => ({
-      label: tab.label,
-      fields: serializeFields(tab.fields, accessArgs),
-    }));
+    serialized.tabs = await Promise.all(
+      field.tabs.map(async (tab) => ({
+        label: tab.label,
+        fields: await serializeFields(tab.fields, accessArgs),
+      })),
+    );
   }
 
-  if (field.access?.read && !decideAccess(field.access.read, accessArgs).allowed) {
+  if (field.access?.read && !(await decideAccess(field.access.read, accessArgs)).allowed) {
     serialized.restricted = true;
   }
 

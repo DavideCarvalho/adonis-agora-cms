@@ -33,6 +33,8 @@ function validateFields(
   for (const field of fields) {
     const fieldPath = path ? `${path}.${field.name}` : field.name;
 
+    if (field.type === 'join') continue;
+
     // Layout only: these fields live at this level of the document, like the compiled columns.
     if (field.type === 'tabs' || field.type === 'row' || field.type === 'collapsible') {
       const children =

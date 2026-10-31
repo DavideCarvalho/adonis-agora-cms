@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import type { ApplicationService } from '@adonisjs/core/types';
 import { setCms } from '../services/main.js';
 import { resolveApiToken } from '../src/auth/api_tokens.js';
+import { type BuiltinAuth, registerAuthRoutes } from '../src/auth/builtin.js';
 import type { CmsConfig } from '../src/config/types.js';
 import { resolveDbConfig, resolveTenancy } from '../src/config/types.js';
 import { validateConfig } from '../src/config/validate.js';
@@ -94,6 +95,15 @@ export default class CmsProvider {
       else listenWebhooks(events, config.webhooks);
     }
     this.startScheduler(config, cms);
+    for (const listener of config.listeners ?? []) {
+      events.on(async (event) => {
+        try {
+          await listener(event, cms);
+        } catch (error) {
+          console.error('[cms] write listener failed', error);
+        }
+      });
+    }
 
     // Server-side entry point for app code (routes, jobs, server components):
     // `import cms from '@adonis-agora/cms/services/main'` returns this same instance, with hooks
@@ -107,6 +117,18 @@ export default class CmsProvider {
 
     if (config.rest?.enabled !== false) {
       await this.registerRoutes(config, cms);
+      const auth = config.integrations?.auth as BuiltinAuth | undefined;
+      if (auth?.builtin) {
+        registerAuthRoutes(
+          (await this.app.container.make('router')) as CmsRouter,
+          cms as never,
+          auth,
+          {
+            prefix: config.rest?.prefix ?? '/api/cms',
+            adminPath: config.admin?.path ?? '/admin',
+          },
+        );
+      }
     }
 
     if (config.uploads) {

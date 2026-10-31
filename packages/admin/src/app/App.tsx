@@ -1,6 +1,7 @@
 import {
   type AdminCollection,
   type AdminDocument,
+  type AdminField,
   type AdminSchema,
   Button,
   CmsApiError,
@@ -10,6 +11,10 @@ import {
   EditForm,
   fieldTitle,
   flattenFields,
+  registerField,
+  registerView,
+  registerWidget,
+  resolveFieldComponent,
   useAdminSchema,
   useAutosaveDocument,
   useCms,
@@ -25,10 +30,11 @@ import {
   useRestoreDocument,
   useUpdateDocument,
   useUpdateGlobal,
+  VIEW_REGISTRY,
 } from '@adonis-agora/cms-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Moon, Sun, Upload } from 'lucide-react';
-import {
+import React, {
   createContext,
   useCallback,
   useContext,
@@ -39,7 +45,9 @@ import {
 } from 'react';
 import { CommandPalette } from './command-palette.js';
 import { parseCsv, toCsv } from './csv.js';
+import { Dashboard } from './dashboard.js';
 import { href, parseHash, type Route } from './hash-route.js';
+import { LoginScreen } from './login.js';
 
 type Navigate = (route: Route, options?: { force?: boolean }) => void;
 type Toast = { id: number; message: string; tone: 'ok' | 'bad' };
@@ -48,6 +56,25 @@ const ToastContext = createContext<(message: string, tone?: Toast['tone']) => vo
   () => undefined,
 );
 const useToast = () => useContext(ToastContext);
+
+const EXTENSION_API = { React, registerField, registerView, registerWidget };
+let extensionsLoaded = false;
+
+async function loadExtensions(urls: readonly string[]): Promise<void> {
+  if (extensionsLoaded) return;
+  extensionsLoaded = true;
+  await Promise.all(
+    urls.map(async (url) => {
+      try {
+        const module = await import(/* @vite-ignore */ url);
+        await module.default?.(EXTENSION_API);
+      } catch (error) {
+        // A broken extension must not take the panel down with it.
+        console.error(`[cms] extension failed: ${url}`, error);
+      }
+    }),
+  );
+}
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -135,6 +162,14 @@ function Panel() {
     }
   }, [accent]);
 
+  // An app's extensions load before the panel draws, so their views and fields are there at once.
+  const extensions = schema.data?.admin.extensions;
+  const [extensionsReady, setExtensionsReady] = useState(false);
+  useEffect(() => {
+    if (!schema.data) return;
+    void loadExtensions(extensions ?? []).finally(() => setExtensionsReady(true));
+  }, [schema.data, extensions]);
+
   const title = schema.data?.admin.title;
   useEffect(() => {
     if (title) document.title = title;
@@ -153,25 +188,28 @@ function Panel() {
         </div>
       </div>
     );
-  if (!schema.data) return null;
+  if (!schema.data || !extensionsReady) return null;
 
   const data = schema.data;
+  if (data.admin.auth?.builtin && !data.user) return <LoginScreen title={data.admin.title} />;
   const global =
     route.view === 'global' ? data.globals.find((item) => item.slug === route.slug) : undefined;
-  const collection =
-    data.collections.find((item) => item.slug === route.slug) ?? data.collections[0] ?? null;
+  const collection = data.collections.find((item) => item.slug === route.slug) ?? null;
+  const customView = route.view === 'custom' ? VIEW_REGISTRY.get(route.slug) : undefined;
 
   return (
     <div className="shell">
       <CommandPalette schema={data} onNavigate={navigate} />
       <Sidebar
         schema={data}
-        activeSlug={global?.slug ?? collection?.slug ?? ''}
+        activeSlug={customView?.id ?? global?.slug ?? collection?.slug ?? ''}
         onNavigate={navigate}
       />
 
       <main className="page">
-        {global ? (
+        {customView ? (
+          <customView.component />
+        ) : global ? (
           <GlobalView
             key={global.slug}
             global={global}
@@ -179,7 +217,11 @@ function Panel() {
             onDirtyChange={onDirtyChange}
           />
         ) : !collection ? (
-          <p className="empty">{t.noCollections}</p>
+          data.collections.length === 0 ? (
+            <p className="empty">{t.noCollections}</p>
+          ) : (
+            <Dashboard schema={data} onNavigate={navigate} />
+          )
         ) : route.view === 'list' || route.view === 'global' ? (
           <ListView
             key={collection.slug}
@@ -199,6 +241,78 @@ function Panel() {
         )}
       </main>
     </div>
+  );
+}
+
+function SignOut() {
+  const t = useMessages();
+  const { client } = useCms();
+  const queryClient = useQueryClient();
+  return (
+    <Button
+      size="sm"
+      tone="ghost"
+      onClick={() => {
+        void client
+          .auth('logout')
+          .then(() => queryClient.clear())
+          .then(() => window.location.reload());
+      }}
+    >
+      {t.logout}
+    </Button>
+  );
+}
+
+/** A dialog, not a prompt: a browser prompt shows the password as it is typed. */
+function SetPassword({ userId }: { userId: string }) {
+  const t = useMessages();
+  const toast = useToast();
+  const { client } = useCms();
+  const dialog = useRef<HTMLDialogElement>(null);
+
+  return (
+    <>
+      <Button size="md" tone="ghost" onClick={() => dialog.current?.showModal()}>
+        {t.setPassword}
+      </Button>
+      <dialog ref={dialog} className="confirm" aria-label={t.setPassword}>
+        <h2 className="confirm__title">{t.setPassword}</h2>
+        <label className="label" htmlFor="cms-set-password">
+          {t.newPassword}
+        </label>
+        <input
+          id="cms-set-password"
+          className="input"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+        />
+        <div className="confirm__actions">
+          <Button size="md" onClick={() => dialog.current?.close()}>
+            {t.cancel}
+          </Button>
+          <Button
+            size="md"
+            tone="accent"
+            onClick={() => {
+              const input = dialog.current?.querySelector('input');
+              if (!input?.reportValidity() || !input.value) return;
+              client
+                .auth('password', { userId, password: input.value })
+                .then(() => {
+                  input.value = '';
+                  dialog.current?.close();
+                  toast(t.passwordChanged);
+                })
+                .catch((error: unknown) => toast(messageOf(error, t.requestFailed), 'bad'));
+            }}
+          >
+            {t.setPassword}
+          </Button>
+        </div>
+      </dialog>
+    </>
   );
 }
 
@@ -254,7 +368,14 @@ function Sidebar({
       </div>
 
       <nav className="nav">
-        <span className="nav__label">{t.content}</span>
+        <button
+          type="button"
+          className={`nav-item${activeSlug === '' ? ' nav-item--active' : ''}`}
+          onClick={() => onNavigate({ view: 'dashboard', slug: '' })}
+        >
+          {t.dashboard}
+        </button>
+        <span className="nav__label nav__label--spaced">{t.content}</span>
         {schema.collections.map((entry) => item(entry, { view: 'list', slug: entry.slug }))}
 
         {schema.globals.length > 0 ? (
@@ -263,9 +384,26 @@ function Sidebar({
             {schema.globals.map((entry) => item(entry, { view: 'global', slug: entry.slug }))}
           </>
         ) : null}
+
+        {VIEW_REGISTRY.size > 0 ? (
+          <>
+            <span className="nav__label nav__label--spaced">{t.views}</span>
+            {[...VIEW_REGISTRY.values()].map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                className={`nav-item${view.id === activeSlug ? ' nav-item--active' : ''}`}
+                onClick={() => onNavigate({ view: 'custom', slug: view.id })}
+              >
+                {view.label}
+              </button>
+            ))}
+          </>
+        ) : null}
       </nav>
 
       <div className="sidebar__foot">
+        {schema.admin.auth?.builtin && schema.user ? <SignOut /> : null}
         <ThemeToggle />
       </div>
     </aside>
@@ -320,15 +458,38 @@ function ListView({
     [allFields],
   );
 
+  const relationFilters = useMemo(
+    () =>
+      allFields
+        .filter(
+          (field) =>
+            field.type === 'relation' && typeof field.relationTo === 'string' && !field.hasMany,
+        )
+        .slice(0, 2),
+    [allFields],
+  );
+  const dateFilters = useMemo(
+    () => allFields.filter((field) => field.type === 'date').slice(0, 2),
+    [allFields],
+  );
+  const [dateRanges, setDateRanges] = useState<Record<string, { from?: string; to?: string }>>({});
+  const [editing, setEditing] = useState<AdminDocument[] | null>(null);
+
   const where = useMemo(() => {
     const clause: Record<string, unknown> = {};
+    for (const [name, range] of Object.entries(dateRanges)) {
+      const condition: Record<string, string> = {};
+      if (range.from) condition.greater_than_equal = range.from;
+      if (range.to) condition.less_than_equal = range.to;
+      if (Object.keys(condition).length > 0) clause[name] = condition;
+    }
     if (term && searchField) clause[searchField] = { iContains: term };
     if (status) clause._status = { equals: status };
     for (const [name, value] of Object.entries(fieldFilters)) {
       if (value) clause[name] = { equals: value };
     }
     return clause;
-  }, [term, searchField, status, fieldFilters]);
+  }, [term, searchField, status, fieldFilters, dateRanges]);
 
   const query = useMemo(
     () => ({
@@ -470,6 +631,37 @@ function ListView({
                 <option value="published">{t.published}</option>
               </select>
             ) : null}
+            {relationFilters.map((field) => (
+              <RelationFilter
+                key={field.name}
+                field={field}
+                schema={schema}
+                value={fieldFilters[field.name] ?? ''}
+                onChange={(value) => {
+                  setFieldFilters((current) => ({ ...current, [field.name]: value }));
+                  setPage(1);
+                }}
+              />
+            ))}
+            {dateFilters.map((field) =>
+              (['from', 'to'] as const).map((edge) => (
+                <input
+                  key={`${field.name}-${edge}`}
+                  type="date"
+                  className="select select--inline"
+                  aria-label={`${fieldTitle(field)} ${t[edge]}`}
+                  title={`${fieldTitle(field)} ${t[edge]}`}
+                  value={dateRanges[field.name]?.[edge] ?? ''}
+                  onChange={(event) => {
+                    setDateRanges((current) => ({
+                      ...current,
+                      [field.name]: { ...current[field.name], [edge]: event.target.value },
+                    }));
+                    setPage(1);
+                  }}
+                />
+              )),
+            )}
             {filterFields.map((field) => (
               <select
                 key={field.name}
@@ -493,6 +685,7 @@ function ListView({
             ))}
           </>
         }
+        onEditMany={setEditing}
         onPublishMany={
           canReadDrafts
             ? (docs, action) => {
@@ -567,6 +760,16 @@ function ListView({
         }}
       />
 
+      {editing ? (
+        <BulkEdit
+          fields={allFields}
+          docs={editing}
+          draft={canReadDrafts}
+          slug={collection.slug}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
+
       {(documents.data?.totalPages ?? 1) > 1 ? (
         <div className="pager">
           <Button
@@ -626,6 +829,163 @@ function useDocumentLock(slug: string, id: string | undefined, signedIn: boolean
   }, [client, slug, id, signedIn]);
 
   return lockedBy;
+}
+
+/** Options come from the related collection, the first 100 by title. */
+function RelationFilter({
+  field,
+  schema,
+  value,
+  onChange,
+}: {
+  field: AdminField;
+  schema: AdminSchema;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const t = useMessages();
+  const { client } = useCms();
+  const target = String(field.relationTo);
+  const title = schema.collections.find((item) => item.slug === target)?.admin?.useAsTitle;
+  const options = useQuery({
+    queryKey: ['cms', 'relation', target, ''],
+    staleTime: 30_000,
+    queryFn: () => client.list(target, { limit: 100, depth: 0 }),
+  });
+
+  return (
+    <select
+      className="select select--inline"
+      aria-label={fieldTitle(field)}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      <option value="">
+        {fieldTitle(field)}: {t.all.toLowerCase()}
+      </option>
+      {(options.data?.docs ?? []).map((doc) => (
+        <option key={String(doc.id)} value={String(doc.id)}>
+          {String((title && doc[title]) ?? doc.id)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+const BULK_TYPES = new Set([
+  'text',
+  'textarea',
+  'email',
+  'number',
+  'checkbox',
+  'date',
+  'select',
+  'radio',
+  'relation',
+]);
+
+/** One field, one value, every selected document. Partial failures are reported, not hidden. */
+function BulkEdit({
+  fields,
+  docs,
+  draft,
+  slug,
+  onClose,
+}: {
+  fields: readonly AdminField[];
+  docs: AdminDocument[];
+  draft: boolean;
+  slug: string;
+  onClose: () => void;
+}) {
+  const t = useMessages();
+  const toast = useToast();
+  const { client } = useCms();
+  const queryClient = useQueryClient();
+  const dialog = useRef<HTMLDialogElement>(null);
+  const options = fields.filter(
+    (field) =>
+      BULK_TYPES.has(field.type) &&
+      !field.hidden &&
+      !field.unique &&
+      !field.localized &&
+      !field.restricted,
+  );
+  const [name, setName] = useState(options[0]?.name ?? '');
+  const [value, setValue] = useState<unknown>(undefined);
+  const [busy, setBusy] = useState(false);
+  const field = options.find((item) => item.name === name);
+  const Component = field ? resolveFieldComponent(field) : null;
+
+  useEffect(() => {
+    dialog.current?.showModal();
+  }, []);
+
+  const apply = async () => {
+    setBusy(true);
+    const results = await Promise.allSettled(
+      docs.map((doc) => client.update(slug, String(doc.id), { [name]: value }, { draft })),
+    );
+    const failed = results.filter((item) => item.status === 'rejected').length;
+    toast(
+      `${results.length - failed} ${t.updatedCount}${failed ? `, ${failed} ${t.failedRows}` : ''}`,
+      failed ? 'bad' : 'ok',
+    );
+    void queryClient.invalidateQueries({ queryKey: [...cmsKeys.all, 'list', slug] });
+    onClose();
+  };
+
+  return (
+    <dialog
+      ref={dialog}
+      className="confirm bulk-edit"
+      aria-label={t.bulkEditTitle}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
+      <h2 className="confirm__title">{t.bulkEditTitle}</h2>
+      <p className="confirm__body">
+        {docs.length} {docs.length === 1 ? t.document : t.documents}
+      </p>
+      <label className="label" htmlFor="cms-bulk-field">
+        {t.field}
+      </label>
+      <select
+        id="cms-bulk-field"
+        className="select"
+        value={name}
+        onChange={(event) => {
+          setName(event.target.value);
+          setValue(undefined);
+        }}
+      >
+        {options.map((item) => (
+          <option key={item.name} value={item.name}>
+            {fieldTitle(item)}
+          </option>
+        ))}
+      </select>
+      {field && Component ? (
+        <Component
+          key={field.name}
+          field={field}
+          value={value}
+          onChange={setValue}
+          id="cms-bulk-value"
+        />
+      ) : null}
+      <div className="confirm__actions">
+        <Button size="md" onClick={onClose}>
+          {t.cancel}
+        </Button>
+        <Button size="md" tone="accent" disabled={busy || !field} onClick={() => void apply()}>
+          {t.apply}
+        </Button>
+      </div>
+    </dialog>
+  );
 }
 
 /** Copies a document: fresh row ids from the server, a title and slug that do not collide. */
@@ -694,7 +1054,7 @@ function EditView({
       ),
     [autosave.mutateAsync],
   );
-  const update = useUpdateDocument(collection.slug, id ?? '');
+  const update = useUpdateDocument(collection.slug, id ?? '', { draft: canReadDrafts });
   const publish = usePublishDocument(collection.slug, id ?? '');
   const remove = useDeleteDocument(collection.slug);
   const preview = usePreviewToken(collection.slug, id);
@@ -743,6 +1103,7 @@ function EditView({
     );
 
   const published = document.data?._status === 'published';
+  const hasDraft = document.data?._hasDraft === true;
 
   return (
     <EditForm
@@ -758,6 +1119,33 @@ function EditView({
       autosaveInterval={interval}
       lockedBy={lockedBy}
       canUnpublish={canReadDrafts}
+      draftOverPublished={canReadDrafts}
+      headerActions={
+        id && schema.admin.auth?.collection === collection.slug ? <SetPassword userId={id} /> : null
+      }
+      onDiscardDraft={
+        id
+          ? () => {
+              void confirm({
+                title: t.discardDraft,
+                body: t.discardDraftBody,
+                action: t.discard,
+                danger: true,
+              }).then((answer) => {
+                if (!answer) return;
+                client
+                  .discardDraft(collection.slug, id)
+                  .then(() => {
+                    toast(t.discardDraft);
+                    void queryClient.invalidateQueries({
+                      queryKey: [...cmsKeys.all, 'doc', collection.slug, id],
+                    });
+                  })
+                  .catch(report);
+              });
+            }
+          : undefined
+      }
       schedule={scheduled.data?.schedule}
       onSchedule={
         id && canReadDrafts
@@ -783,8 +1171,9 @@ function EditView({
           ? async (values, dirty) => {
               if (dirty && !(await save(values, true))) return false;
               try {
-                await publish.mutateAsync(published ? 'unpublish' : 'publish');
-                toast(published ? t.unpublished : t.published);
+                const action = published && !hasDraft && !dirty ? 'unpublish' : 'publish';
+                await publish.mutateAsync(action);
+                toast(action === 'unpublish' ? t.unpublished : t.published);
                 return true;
               } catch (error) {
                 report(error);

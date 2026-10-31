@@ -34,7 +34,7 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
 
   await page.goto('/admin');
 
-  await page.getByRole('button', { name: 'Posts' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Posts' }).click();
 
   // Other specs create posts in the same collection, so every table interaction is scoped to
   // this row instead of matching the first Edit/Delete button on the page.

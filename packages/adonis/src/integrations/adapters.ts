@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
+import type { CmsMail } from '../auth/builtin.js';
 import type { AccessFn, CmsUploadHandler } from '../config/types.js';
 import { CmsConfigError } from '../errors.js';
 import type { CmsAuthAdapter } from './authkit.js';
@@ -76,23 +77,15 @@ type BouncerAbility = {
   original: (user: never, ...args: never[]) => unknown;
 };
 
-/**
- * `@adonisjs/bouncer`: one of your abilities as a CMS access function.
- *
- * CMS access runs synchronously (it also decides what the panel shows), so an `async` ability cannot
- * be used here and fails loudly instead of silently allowing: a Promise is truthy.
- */
+/** `@adonisjs/bouncer`: one of your abilities as a CMS access function, sync or async. */
 export function bouncerAccess(ability: BouncerAbility): AccessFn {
-  return ({ user, id, data, doc }) => {
+  return async ({ user, id, data, doc }) => {
     if (!user && !ability.allowGuest) return false;
-    const answer = (ability.original as (user: unknown, resource: unknown) => unknown)(user, {
+    const answer = await (ability.original as (user: unknown, resource: unknown) => unknown)(user, {
       id,
       ...doc,
       ...data,
     });
-    if (answer instanceof Promise) {
-      throw new CmsConfigError('access', 'bouncerAccess needs a synchronous ability');
-    }
     if (typeof answer === 'boolean') return answer;
     // Bouncer's `AuthorizationResponse.deny()` carries the verdict in `authorized`.
     return (answer as { authorized?: boolean } | null)?.authorized === true;
@@ -171,6 +164,28 @@ export function driveMedia(disk: DiskSource, options: UrlOptions = {}): MediaAda
       const unique = [...new Set(ids)].filter(Boolean);
       const urls = await Promise.all(unique.map((id) => urlOf(target, id, options)));
       return new Map(unique.map((id, index) => [id, { id, url: urls[index] as string }]));
+    },
+  };
+}
+
+/* ----------------------------------------------------------------- mail */
+
+type AdonisMailer = {
+  send(callback: (message: never) => unknown): Promise<unknown>;
+};
+type AdonisMessage = {
+  to(address: string): AdonisMessage;
+  subject(subject: string): AdonisMessage;
+  text(content: string): AdonisMessage;
+};
+
+/** `@adonisjs/mail` for `cmsAuth`. The service only exists after boot, hence the function. */
+export function adonisMail(mailer: () => unknown): CmsMail {
+  return {
+    async send({ to, subject, text }) {
+      const target = (await mailer()) as AdonisMailer;
+      return target.send(((message: AdonisMessage) =>
+        message.to(to).subject(subject).text(text)) as (message: never) => unknown);
     },
   };
 }

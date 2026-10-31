@@ -66,9 +66,49 @@ export function RelationPicker({
   // The list stops at 100: a current value beyond it must still show, or saving would look like it
   // cleared the field. The box only appears when the list was actually cut (or is being searched).
   const docs = query.data?.docs ?? [];
-  const populated = value && typeof value === 'object' ? (value as AdminDocument) : null;
+  const populated =
+    value && typeof value === 'object' && !Array.isArray(value) ? (value as AdminDocument) : null;
   const missing = selected && !docs.some((doc) => doc.id === selected);
   const searchable = Boolean(titleField) && (Boolean(term) || (query.data?.totalDocs ?? 0) > 100);
+
+  if (field.hasMany) {
+    const picked = new Set(
+      (Array.isArray(value) ? value : []).map((item) =>
+        typeof item === 'string' ? item : String((item as { id?: unknown })?.id),
+      ),
+    );
+    return (
+      <Field label={fieldTitle(field)} description={field.admin?.description} error={error}>
+        {searchable ? (
+          <Input
+            type="search"
+            aria-label={t.filterOptions}
+            placeholder={t.filterOptions}
+            value={term}
+            onChange={(event) => setTerm(event.target.value)}
+          />
+        ) : null}
+        <div className="relation-many" id={id}>
+          {docs.map((doc) => (
+            <label key={String(doc.id)} className="check">
+              <input
+                type="checkbox"
+                disabled={disabled}
+                checked={picked.has(String(doc.id))}
+                onChange={(event) => {
+                  const next = new Set(picked);
+                  if (event.target.checked) next.add(String(doc.id));
+                  else next.delete(String(doc.id));
+                  onChange([...next]);
+                }}
+              />
+              {labelOf(doc, titleField)}
+            </label>
+          ))}
+        </div>
+      </Field>
+    );
+  }
 
   return (
     <Field

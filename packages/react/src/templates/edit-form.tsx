@@ -75,6 +75,11 @@ export type EditFormProps = {
   lockedBy?: string | null | undefined;
   /** Off when unpublishing would make the document unreachable from this panel. */
   canUnpublish?: boolean | undefined;
+  /** Saving a published document keeps what is live until it is published. */
+  draftOverPublished?: boolean | undefined;
+  onDiscardDraft?: (() => void) | undefined;
+  /** Extra controls in the header, before the primary actions. */
+  headerActions?: React.ReactNode;
   /** The pending publish/unpublish, and how to change it. Omit to hide the control. */
   schedule?: { at: string; action: string } | null | undefined;
   onSchedule?: ((at: string | null) => void) | undefined;
@@ -117,6 +122,9 @@ export function EditForm({
   autosaveInterval,
   lockedBy,
   canUnpublish = true,
+  draftOverPublished = false,
+  onDiscardDraft,
+  headerActions,
   schedule,
   onSchedule,
 }: EditFormProps) {
@@ -177,18 +185,24 @@ export function EditForm({
   const save = useCallback(() => formRef.current?.requestSubmit(), []);
 
   const [autosaved, setAutosaved] = useState(false);
+  // A save or publish goes first: an autosave landing after a publish would put a draft back on top.
+  const writing = useRef(false);
+  const autosaving = useRef<Promise<unknown>>(Promise.resolve());
   const canAutosave = Boolean(
-    onAutosave && autosaveInterval && doc._status === 'draft' && !lockedBy,
+    onAutosave && autosaveInterval && (doc._status === 'draft' || draftOverPublished) && !lockedBy,
   );
   useEffect(() => {
     if (dirty) setAutosaved(false);
     if (!dirty || !canAutosave) return;
     const snapshot = values;
     const timer = window.setTimeout(() => {
-      void onAutosave?.(snapshot).then((ok) => {
-        if (!ok) return;
-        setBaseline(JSON.stringify(snapshot));
-        setAutosaved(true);
+      if (writing.current) return;
+      autosaving.current = (onAutosave?.(snapshot) ?? Promise.resolve(false)).then((ok) => {
+        if (ok) {
+          setBaseline(JSON.stringify(snapshot));
+          setAutosaved(true);
+        }
+        return ok;
       });
     }, autosaveInterval);
     return () => window.clearTimeout(timer);
@@ -346,8 +360,14 @@ export function EditForm({
 
   const write = async (run: () => WriteResult) => {
     const snapshot = valuesRef.current;
-    const result = await run();
-    if (result !== false) setBaseline(JSON.stringify(snapshot));
+    writing.current = true;
+    try {
+      await autosaving.current;
+      const result = await run();
+      if (result !== false) setBaseline(JSON.stringify(snapshot));
+    } finally {
+      writing.current = false;
+    }
   };
 
   const errorMap = useMemo(() => {
@@ -369,6 +389,8 @@ export function EditForm({
         : `${singular} — ${t.new.toLowerCase()}`;
   const canPublish = Boolean(onPublish && collection.drafts && permission?.update !== false);
   const published = doc._status === 'published';
+  // Publishing is what is on offer whenever an edit is waiting, here or in the form.
+  const pendingPublish = !published || Boolean(doc._hasDraft) || (dirty && draftOverPublished);
 
   return (
     <FieldErrorsContext.Provider value={errorMap}>
@@ -390,8 +412,8 @@ export function EditForm({
             <div className="form-head__title">
               <h1 className="page-title">{title}</h1>
               {doc._status ? (
-                <Badge tone={published ? 'good' : 'warn'}>
-                  {published ? t.published : t.draft}
+                <Badge tone={published && !doc._hasDraft ? 'good' : 'warn'}>
+                  {doc._hasDraft ? t.pendingChanges : published ? t.published : t.draft}
                 </Badge>
               ) : null}
               {dirty ? <span className="dirty">{t.unsavedChanges}</span> : null}
@@ -400,6 +422,37 @@ export function EditForm({
           </div>
 
           <div className="toolbar">
+            {locales.length > 1 ? (
+              <select
+                aria-label={t.copyFromLocale}
+                className="select select--inline"
+                value=""
+                onChange={(event) => {
+                  const from = event.target.value;
+                  if (!from) return;
+                  setUndoStack((stack) => [...stack.slice(-49), valuesRef.current]);
+                  setValues((current) => {
+                    const next = { ...current };
+                    for (const field of flattenFields(collection.fields)) {
+                      const bucket = next[field.name];
+                      if (!field.localized || !bucket || typeof bucket !== 'object') continue;
+                      const map = bucket as Record<string, unknown>;
+                      next[field.name] = { ...map, [locale]: map[from] };
+                    }
+                    return next;
+                  });
+                }}
+              >
+                <option value="">{t.copyFromLocale}…</option>
+                {locales
+                  .filter((item) => item !== locale)
+                  .map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+              </select>
+            ) : null}
             {locales.length > 1 ? (
               <select
                 aria-label="locale"
@@ -457,6 +510,8 @@ export function EditForm({
               </Button>
             ) : null}
 
+            {headerActions}
+
             {onDuplicate && permission?.create !== false ? (
               <Button
                 size="md"
@@ -501,18 +556,24 @@ export function EditForm({
               />
             ) : null}
 
-            {canPublish && (!published || canUnpublish) ? (
+            {onDiscardDraft && doc._hasDraft ? (
+              <Button size="md" tone="ghost" onClick={onDiscardDraft}>
+                {t.discardDraft}
+              </Button>
+            ) : null}
+
+            {canPublish && (pendingPublish || canUnpublish) ? (
               <Button
                 size="md"
                 disabled={saving}
                 onClick={() => void write(() => onPublish?.(values, dirty))}
               >
-                {published ? t.unpublish : t.publish}
+                {pendingPublish ? (published ? t.publishChanges : t.publish) : t.unpublish}
               </Button>
             ) : null}
 
             <Button size="md" tone="accent" type="submit" disabled={saving || readOnly || !dirty}>
-              {saving ? t.saving : t.save}
+              {saving ? t.saving : published && draftOverPublished ? t.saveDraft : t.save}
             </Button>
           </div>
         </div>

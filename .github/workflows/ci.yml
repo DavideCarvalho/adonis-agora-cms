@@ -82,7 +82,7 @@ jobs:
       - run: pnpm --filter @adonis-agora/cms exec vitest run test/db/engines.spec.ts
 
   official:
-    name: official libraries (auth · drive on S3 · queue on Redis)
+    name: integrations (auth · drive on S3 · queue on Redis · durable)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -101,3 +101,5 @@ jobs:
         env:
           APP_KEY: e2e-only-key-not-a-secret-0123456789
           NODE_ENV: development
+      - run: pnpm test:durable
+      - run: pnpm test:auth

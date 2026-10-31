@@ -38,24 +38,30 @@ describe('driveUploads', () => {
 describe('@adonisjs/bouncer', () => {
   const args = { req: null, tenant: null };
 
-  test('an ability decides, and a guest is refused unless it allows guests', () => {
+  test('an ability decides, and a guest is refused unless it allows guests', async () => {
     const edit = Bouncer.ability((user: { id: number }, post: { owner?: number }) => {
       return post.owner === user.id;
     });
     const access = bouncerAccess(edit as never);
 
-    expect(access({ ...args, user: { id: 1 }, doc: { owner: 1 } } as never)).toBe(true);
-    expect(access({ ...args, user: { id: 2 }, doc: { owner: 1 } } as never)).toBe(false);
-    expect(access({ ...args, user: null, doc: { owner: 1 } } as never)).toBe(false);
+    await expect(access({ ...args, user: { id: 1 }, doc: { owner: 1 } } as never)).resolves.toBe(
+      true,
+    );
+    await expect(access({ ...args, user: { id: 2 }, doc: { owner: 1 } } as never)).resolves.toBe(
+      false,
+    );
+    await expect(access({ ...args, user: null, doc: { owner: 1 } } as never)).resolves.toBe(false);
 
     const open = Bouncer.ability({ allowGuest: true }, () => true);
-    expect(bouncerAccess(open as never)({ ...args, user: null } as never)).toBe(true);
+    await expect(bouncerAccess(open as never)({ ...args, user: null } as never)).resolves.toBe(
+      true,
+    );
   });
 
-  test('an async ability fails loudly instead of allowing', () => {
+  test('an async ability that denies really denies', async () => {
     const edit = Bouncer.ability(async () => false);
-    expect(() => bouncerAccess(edit as never)({ ...args, user: { id: 1 } } as never)).toThrow(
-      /synchronous/,
+    await expect(bouncerAccess(edit as never)({ ...args, user: { id: 1 } } as never)).resolves.toBe(
+      false,
     );
   });
 });

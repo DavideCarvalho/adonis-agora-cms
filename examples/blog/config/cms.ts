@@ -1,15 +1,21 @@
 import type { AccessArgs } from '@adonis-agora/cms';
 import {
   adonisAuth,
+  adonisMail,
+  cmsAuth,
   collection,
   defineConfig,
   driveUploads,
   durableJobs,
   fields,
+  formsPlugin,
   global,
+  nestedDocsPlugin,
   queueJobs,
   redirectsPlugin,
+  searchPlugin,
   seoPlugin,
+  usersPlugin,
   withPlugins,
 } from '@adonis-agora/cms';
 
@@ -28,6 +34,15 @@ export default withPlugins(
     // The official queue by default; `CMS_JOBS=durable` runs the same webhooks through Agora's.
     integrations: {
       ...(process.env.CMS_AUTH === 'adonis' ? { auth: adonisAuth({ guard: 'web' }) } : {}),
+      // `CMS_AUTH=builtin` is for an app with no login: the CMS owns the users and the screen.
+      ...(process.env.CMS_AUTH === 'builtin'
+        ? {
+            auth: cmsAuth({
+              secret: 'e2e-only-secret-not-for-production-0123',
+              mail: adonisMail(async () => (await import('@adonisjs/mail/services/main')).default),
+            }),
+          }
+        : {}),
       jobs:
         process.env.CMS_JOBS === 'durable'
           ? durableJobs(async () => {
@@ -43,6 +58,7 @@ export default withPlugins(
     },
     admin: {
       title: 'Blog',
+      extensions: ['/cms-extension.js'],
       livePreview: { url: '/preview', secret: 'local-preview-secret' },
     },
     uploads: {
@@ -60,7 +76,11 @@ export default withPlugins(
       collection('authors', {
         labels: { singular: 'Author', plural: 'Authors' },
         admin: { useAsTitle: 'name', defaultColumns: ['name'] },
-        fields: [fields.text('name', { required: true }), fields.text('bio')],
+        fields: [
+          fields.join('posts', { collection: 'posts', on: 'author' }),
+          fields.text('name', { required: true }),
+          fields.text('bio'),
+        ],
       }),
       collection('pages', {
         labels: { singular: 'Page', plural: 'Pages' },
@@ -155,7 +175,9 @@ export default withPlugins(
         fields: [
           fields.text('title', { required: true }),
           fields.text('subtitle', { localized: true }),
-          fields.richText('body'),
+          fields.richText('body', {
+            blocks: [{ slug: 'callout', fields: [fields.text('message')] }],
+          }),
           fields.slug('slug', { from: 'title', unique: true }),
           fields.upload('banner', { relationTo: 'media' }),
           fields.array('sections', {
@@ -187,6 +209,9 @@ export default withPlugins(
               {
                 label: 'Details',
                 fields: [
+                  fields.point('location'),
+                  fields.date('dueOn'),
+                  fields.relation('related', { relationTo: 'posts', hasMany: true }),
                   fields.select('kind', {
                     defaultValue: 'plain',
                     options: [
@@ -211,5 +236,12 @@ export default withPlugins(
       }),
     ],
   }),
-  [seoPlugin({ collections: ['notes'] }), redirectsPlugin()],
+  [
+    seoPlugin({ collections: ['notes'] }),
+    redirectsPlugin(),
+    formsPlugin(),
+    searchPlugin({ collections: { notes: { title: 'title' } } }),
+    nestedDocsPlugin({ collections: ['pages'] }),
+    ...(process.env.CMS_AUTH === 'builtin' ? [usersPlugin()] : []),
+  ],
 );

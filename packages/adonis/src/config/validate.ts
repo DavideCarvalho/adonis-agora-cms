@@ -36,6 +36,7 @@ const BUILTIN_TYPES = new Set([
   'tabs',
   'row',
   'collapsible',
+  'join',
 ]);
 const NON_UNIQUEABLE = new Set(['array', 'blocks', 'group', 'json', 'richText', 'tabs', 'row']);
 const STRUCTURAL = new Set(['group', 'array', 'row', 'collapsible']);
