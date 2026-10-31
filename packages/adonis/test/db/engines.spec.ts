@@ -191,8 +191,8 @@ function suite(engine: Engine, clientName: string, envVar: string) {
         const later = await notes.create({ title: 'Later' }, { draft: true });
 
         await notes.schedule(due.id, { at: new Date('2020-01-01'), action: 'publish' });
-        await notes.schedule(later.id, { at: new Date('2999-01-01'), action: 'publish' });
-        await notes.schedule(later.id, { at: new Date('2999-06-01'), action: 'unpublish' });
+        await notes.schedule(later.id, { at: new Date('2037-01-01'), action: 'publish' });
+        await notes.schedule(later.id, { at: new Date('2037-06-01'), action: 'unpublish' });
 
         expect(await cms.runDueSchedules()).toBe(1);
         expect(await cms.runDueSchedules()).toBe(0);
