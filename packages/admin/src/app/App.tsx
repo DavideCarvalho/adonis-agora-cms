@@ -11,6 +11,9 @@ import {
   EditForm,
   fieldTitle,
   flattenFields,
+  registerField,
+  registerView,
+  registerWidget,
   resolveFieldComponent,
   useAdminSchema,
   useAutosaveDocument,
@@ -27,10 +30,11 @@ import {
   useRestoreDocument,
   useUpdateDocument,
   useUpdateGlobal,
+  VIEW_REGISTRY,
 } from '@adonis-agora/cms-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Moon, Sun, Upload } from 'lucide-react';
-import {
+import React, {
   createContext,
   useCallback,
   useContext,
@@ -41,6 +45,7 @@ import {
 } from 'react';
 import { CommandPalette } from './command-palette.js';
 import { parseCsv, toCsv } from './csv.js';
+import { Dashboard } from './dashboard.js';
 import { href, parseHash, type Route } from './hash-route.js';
 import { LoginScreen } from './login.js';
 
@@ -51,6 +56,25 @@ const ToastContext = createContext<(message: string, tone?: Toast['tone']) => vo
   () => undefined,
 );
 const useToast = () => useContext(ToastContext);
+
+const EXTENSION_API = { React, registerField, registerView, registerWidget };
+let extensionsLoaded = false;
+
+async function loadExtensions(urls: readonly string[]): Promise<void> {
+  if (extensionsLoaded) return;
+  extensionsLoaded = true;
+  await Promise.all(
+    urls.map(async (url) => {
+      try {
+        const module = await import(/* @vite-ignore */ url);
+        await module.default?.(EXTENSION_API);
+      } catch (error) {
+        // A broken extension must not take the panel down with it.
+        console.error(`[cms] extension failed: ${url}`, error);
+      }
+    }),
+  );
+}
 
 function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -138,6 +162,14 @@ function Panel() {
     }
   }, [accent]);
 
+  // An app's extensions load before the panel draws, so their views and fields are there at once.
+  const extensions = schema.data?.admin.extensions;
+  const [extensionsReady, setExtensionsReady] = useState(false);
+  useEffect(() => {
+    if (!schema.data) return;
+    void loadExtensions(extensions ?? []).finally(() => setExtensionsReady(true));
+  }, [schema.data, extensions]);
+
   const title = schema.data?.admin.title;
   useEffect(() => {
     if (title) document.title = title;
@@ -156,26 +188,28 @@ function Panel() {
         </div>
       </div>
     );
-  if (!schema.data) return null;
+  if (!schema.data || !extensionsReady) return null;
 
   const data = schema.data;
   if (data.admin.auth?.builtin && !data.user) return <LoginScreen title={data.admin.title} />;
   const global =
     route.view === 'global' ? data.globals.find((item) => item.slug === route.slug) : undefined;
-  const collection =
-    data.collections.find((item) => item.slug === route.slug) ?? data.collections[0] ?? null;
+  const collection = data.collections.find((item) => item.slug === route.slug) ?? null;
+  const customView = route.view === 'custom' ? VIEW_REGISTRY.get(route.slug) : undefined;
 
   return (
     <div className="shell">
       <CommandPalette schema={data} onNavigate={navigate} />
       <Sidebar
         schema={data}
-        activeSlug={global?.slug ?? collection?.slug ?? ''}
+        activeSlug={customView?.id ?? global?.slug ?? collection?.slug ?? ''}
         onNavigate={navigate}
       />
 
       <main className="page">
-        {global ? (
+        {customView ? (
+          <customView.component />
+        ) : global ? (
           <GlobalView
             key={global.slug}
             global={global}
@@ -183,7 +217,11 @@ function Panel() {
             onDirtyChange={onDirtyChange}
           />
         ) : !collection ? (
-          <p className="empty">{t.noCollections}</p>
+          data.collections.length === 0 ? (
+            <p className="empty">{t.noCollections}</p>
+          ) : (
+            <Dashboard schema={data} onNavigate={navigate} />
+          )
         ) : route.view === 'list' || route.view === 'global' ? (
           <ListView
             key={collection.slug}
@@ -330,13 +368,36 @@ function Sidebar({
       </div>
 
       <nav className="nav">
-        <span className="nav__label">{t.content}</span>
+        <button
+          type="button"
+          className={`nav-item${activeSlug === '' ? ' nav-item--active' : ''}`}
+          onClick={() => onNavigate({ view: 'dashboard', slug: '' })}
+        >
+          {t.dashboard}
+        </button>
+        <span className="nav__label nav__label--spaced">{t.content}</span>
         {schema.collections.map((entry) => item(entry, { view: 'list', slug: entry.slug }))}
 
         {schema.globals.length > 0 ? (
           <>
             <span className="nav__label nav__label--spaced">{t.globals}</span>
             {schema.globals.map((entry) => item(entry, { view: 'global', slug: entry.slug }))}
+          </>
+        ) : null}
+
+        {VIEW_REGISTRY.size > 0 ? (
+          <>
+            <span className="nav__label nav__label--spaced">{t.views}</span>
+            {[...VIEW_REGISTRY.values()].map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                className={`nav-item${view.id === activeSlug ? ' nav-item--active' : ''}`}
+                onClick={() => onNavigate({ view: 'custom', slug: view.id })}
+              >
+                {view.label}
+              </button>
+            ))}
           </>
         ) : null}
       </nav>

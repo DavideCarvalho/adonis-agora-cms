@@ -185,6 +185,9 @@ export function EditForm({
   const save = useCallback(() => formRef.current?.requestSubmit(), []);
 
   const [autosaved, setAutosaved] = useState(false);
+  // A save or publish goes first: an autosave landing after a publish would put a draft back on top.
+  const writing = useRef(false);
+  const autosaving = useRef<Promise<unknown>>(Promise.resolve());
   const canAutosave = Boolean(
     onAutosave && autosaveInterval && (doc._status === 'draft' || draftOverPublished) && !lockedBy,
   );
@@ -193,10 +196,13 @@ export function EditForm({
     if (!dirty || !canAutosave) return;
     const snapshot = values;
     const timer = window.setTimeout(() => {
-      void onAutosave?.(snapshot).then((ok) => {
-        if (!ok) return;
-        setBaseline(JSON.stringify(snapshot));
-        setAutosaved(true);
+      if (writing.current) return;
+      autosaving.current = (onAutosave?.(snapshot) ?? Promise.resolve(false)).then((ok) => {
+        if (ok) {
+          setBaseline(JSON.stringify(snapshot));
+          setAutosaved(true);
+        }
+        return ok;
       });
     }, autosaveInterval);
     return () => window.clearTimeout(timer);
@@ -354,8 +360,14 @@ export function EditForm({
 
   const write = async (run: () => WriteResult) => {
     const snapshot = valuesRef.current;
-    const result = await run();
-    if (result !== false) setBaseline(JSON.stringify(snapshot));
+    writing.current = true;
+    try {
+      await autosaving.current;
+      const result = await run();
+      if (result !== false) setBaseline(JSON.stringify(snapshot));
+    } finally {
+      writing.current = false;
+    }
   };
 
   const errorMap = useMemo(() => {

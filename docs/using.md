@@ -204,8 +204,11 @@ export default withPlugins(defineConfig({ ... }), [
 ])
 ```
 
-`seoPlugin` adds a `seo` group to those collections. `redirectsPlugin` adds a `redirects` collection;
-call `findRedirect(cms, path)` from a middleware to apply them.
+- `seoPlugin({ collections })` adds a `seo` group to those collections.
+- `redirectsPlugin()` adds a `redirects` collection; call `findRedirect(cms, path)` from a middleware.
+- `searchPlugin({ collections })` keeps a public `search` collection in step, with published documents.
+- `nestedDocsPlugin({ collections })` adds `parent` and `breadcrumbs`, and refuses a page inside itself.
+- `formsPlugin()` adds `forms` and `form_submissions`. Anyone can submit, so put a rate limit in front.
 
 ## Integrations
 
@@ -318,3 +321,30 @@ sit in their own table, hashed with scrypt, so no API can read one. Changing a p
 session. Reset links need `mail`: `adonisMail(async () => (await import('@adonisjs/mail/services/main')).default)`.
 
 This only protects the panel. Set `access` on your collections so the API asks for a user too.
+
+## Extending the panel
+
+The panel is a built bundle, so an extension is an ES module of yours that it imports at boot:
+
+```ts
+admin: {
+  extensions: ['/cms-extension.js'];
+}
+```
+
+```js
+export default ({ React, registerField, registerView, registerWidget }) => {
+  registerView({ id: 'reports', label: 'Reports', component: Reports });
+  registerWidget({ id: 'sales', component: Sales });
+  registerField('color', ColorField); // for `admin.component`, or a custom field type
+};
+```
+
+Use the `React` you receive, not your own copy. Extensions run in the editor's session, so load only your
+own code. One that fails is logged and skipped.
+
+## Rich text
+
+`fields.richText('body', { blocks: [...] })` lets editors place blocks in the text. A block is a
+`{ type: 'cmsBlock', attrs: { blockType, data } }` node. A link to a document is stored as
+`cms:<collection>/<id>`, so it survives a slug change; your renderer turns it into a URL.

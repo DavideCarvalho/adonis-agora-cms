@@ -29,7 +29,7 @@ test('array and blocks rows reorder by drag and the order is persisted', async (
   const id = ((await created.json()) as { id: string }).id;
 
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Posts' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Posts' }).click();
   await page
     .getByRole('row')
     .filter({ hasText: title })

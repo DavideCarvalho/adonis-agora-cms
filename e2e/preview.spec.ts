@@ -12,7 +12,7 @@ test('preview marks editable regions and a click focuses the field', async ({ pa
   expect(created.status()).toBe(201);
 
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Posts' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Posts' }).click();
   await page
     .getByRole('row')
     .filter({ hasText: title })

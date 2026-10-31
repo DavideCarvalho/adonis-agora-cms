@@ -3,8 +3,11 @@ export { Badge, Button, Checkbox, Field, Input, Select, Textarea } from './atoms
 export type { AdminClientOptions } from './client.js';
 export { AdminClient, CmsApiError } from './client.js';
 export { CmsProvider, useCms, useMessages } from './context.js';
+export type { AdminView, AdminWidget } from './extensions.js';
+export { registerView, registerWidget, VIEW_REGISTRY, WIDGET_REGISTRY } from './extensions.js';
 export type { CmsLocale, CmsMessages } from './i18n.js';
 export { cmsMessages } from './i18n.js';
+
 export type { ConfirmOptions } from './organisms/confirm.js';
 export { ConfirmProvider, useConfirm } from './organisms/confirm.js';
 export type { DataTableProps } from './organisms/data-table.js';

@@ -95,7 +95,7 @@ test('live preview jumps from a block region to its field', async ({ page, reque
   expect(created.status()).toBe(201);
 
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Pages' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Pages' }).click();
   await page
     .getByRole('row')
     .filter({ hasText: title })
@@ -137,7 +137,7 @@ test('preview toolbar deletes and reorders blocks', async ({ page, request }) =>
   const id = ((await created.json()) as { id: string }).id;
 
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Pages' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Pages' }).click();
   await page
     .getByRole('row')
     .filter({ hasText: title })
@@ -208,7 +208,7 @@ test('palette adds blocks by click and by drag', async ({ page, request }) => {
   const id = ((await created.json()) as { id: string }).id;
 
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Pages' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Pages' }).click();
   await page
     .getByRole('row')
     .filter({ hasText: title })
@@ -272,7 +272,7 @@ test('preview block menu acts on the page and closes on outside click', async ({
   expect(created.status()).toBe(201);
 
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Pages' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Pages' }).click();
   await page
     .getByRole('row')
     .filter({ hasText: title })

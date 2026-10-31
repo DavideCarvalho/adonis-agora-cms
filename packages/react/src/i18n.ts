@@ -20,6 +20,12 @@ export type CmsMessages = {
   current: string;
   noVersions: string;
   deleteConfirm: string;
+  dashboard: string;
+  recent: string;
+  views: string;
+  linkToDocument: string;
+  insertBlock: string;
+  webAddress: string;
   latitude: string;
   longitude: string;
   nothingLinked: string;
@@ -180,6 +186,12 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     current: 'Current',
     noVersions: 'No versions yet.',
     deleteConfirm: 'Delete this document?',
+    dashboard: 'Dashboard',
+    recent: 'Recently updated',
+    views: 'Views',
+    linkToDocument: 'Link to a document',
+    insertBlock: 'Insert a block',
+    webAddress: 'Web address',
     latitude: 'Latitude',
     longitude: 'Longitude',
     nothingLinked: 'Nothing points here yet.',
@@ -338,6 +350,12 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     current: 'Atual',
     noVersions: 'Nenhuma versão ainda.',
     deleteConfirm: 'Excluir este documento?',
+    dashboard: 'Painel',
+    recent: 'Atualizados recentemente',
+    views: 'Telas',
+    linkToDocument: 'Link para um documento',
+    insertBlock: 'Inserir bloco',
+    webAddress: 'Endereço web',
     latitude: 'Latitude',
     longitude: 'Longitude',
     nothingLinked: 'Nada aponta para cá ainda.',

@@ -52,6 +52,7 @@ export type AdminSchema = {
     title: string;
     path: string;
     theme?: { accent?: string; logoUrl?: string };
+    extensions?: readonly string[];
     auth?: { builtin: boolean; collection: string };
   };
   locales: readonly string[];
@@ -127,6 +128,7 @@ export async function toAdminSchema(
       title: config.admin?.title ?? 'CMS',
       path: config.admin?.path ?? '/admin',
       ...(config.admin?.theme ? { theme: config.admin.theme } : {}),
+      ...(config.admin?.extensions ? { extensions: config.admin.extensions } : {}),
       // The login screen only exists when the CMS owns the login.
       ...(builtinAuthOf(config)
         ? { auth: { builtin: true, collection: builtinAuthOf(config) as string } }
@@ -201,6 +203,16 @@ async function serializeField(field: FieldConfig, accessArgs: AccessArgs): Promi
   if (field.type === 'join') {
     serialized.relationTo = field.collection;
     serialized.on = field.on;
+  }
+
+  if (field.type === 'richText' && field.blocks) {
+    serialized.blocks = await Promise.all(
+      field.blocks.map(async (blockDefinition) => ({
+        slug: blockDefinition.slug,
+        labels: blockDefinition.labels,
+        fields: await serializeFields(blockDefinition.fields, accessArgs),
+      })),
+    );
   }
 
   if (field.type === 'blocks') {

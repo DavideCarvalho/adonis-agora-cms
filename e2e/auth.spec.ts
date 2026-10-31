@@ -17,7 +17,7 @@ test('the panel asks for the first user, who becomes the admin', async ({ page }
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Create account' }).click();
 
-  await expect(page.getByRole('button', { name: 'Users' })).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('button', { name: 'Users' })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 });
@@ -38,7 +38,7 @@ test('the login screen signs in, and no answer carries a password', async ({ pag
   await page.getByLabel('E-mail').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Users' })).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('button', { name: 'Users' })).toBeVisible();
 
   const cookies = await page.context().cookies();
   expect(cookies.find((cookie) => cookie.name === 'cms_session')?.httpOnly).toBe(true);
@@ -90,7 +90,7 @@ test('an admin sets a password from the user page', async ({ page }) => {
   await page.getByLabel('E-mail').fill(ADMIN.email);
   await page.getByLabel('Password').fill(ADMIN.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.getByRole('button', { name: 'Users' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Users' }).click();
   await page.getByRole('row').filter({ hasText: EDITOR.email }).click();
 
   await page.getByRole('button', { name: 'Set password' }).click();
@@ -129,7 +129,7 @@ test('a reset e-mail goes out through @adonisjs/mail and works once', async ({ p
   await page.reload();
   await page.getByLabel('New password').fill('a-brand-new-one-1');
   await page.getByRole('button', { name: 'Set password' }).click();
-  await expect(page.getByRole('button', { name: 'Users' })).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('button', { name: 'Users' })).toBeVisible();
 
   const token = link.split('/reset/')[1];
   const again = await request.post('/api/cms/auth/reset', {

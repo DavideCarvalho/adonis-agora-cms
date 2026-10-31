@@ -7,6 +7,8 @@ export type MediaAsset = {
   mime?: string;
   width?: number;
   height?: number;
+  /** Generated sizes by name, each with its URL. */
+  sizes?: Record<string, string>;
 };
 
 /**
@@ -37,6 +39,7 @@ export function createMediaAdapter(
             ...(asset.mime !== undefined ? { mime: asset.mime } : {}),
             ...(asset.width !== undefined ? { width: asset.width } : {}),
             ...(asset.height !== undefined ? { height: asset.height } : {}),
+            ...(asset.sizes ? { sizes: asset.sizes } : {}),
           },
         ]),
       );
@@ -53,6 +56,8 @@ type MediaRecordLike = {
   mime?: string;
   width?: number;
   height?: number;
+  /** Generated variants by conversion name. */
+  conversions?: Record<string, unknown>;
 };
 
 /**
@@ -61,7 +66,7 @@ type MediaRecordLike = {
  */
 export function mediaLibraryAdapter(library: {
   find(id: string): Promise<MediaRecordLike | null>;
-  url?(id: string): Promise<string>;
+  url?(id: string, conversion?: string): Promise<string>;
 }): MediaAdapter {
   return createMediaAdapter(async (ids) => {
     const found = await Promise.all(
@@ -71,12 +76,22 @@ export function mediaLibraryAdapter(library: {
         const url = record.url ?? (await library.url?.(id));
         if (!url) return null;
         const mime = record.mimeType ?? record.mime;
+        // Already generated ones only: asking for a URL would generate the rest on a read.
+        const names = Object.keys(record.conversions ?? {});
+        const sizes = library.url
+          ? Object.fromEntries(
+              await Promise.all(
+                names.map(async (name) => [name, await library.url?.(id, name)] as const),
+              ),
+            )
+          : {};
         return {
           id: record.id,
           url,
           ...(mime !== undefined ? { mime } : {}),
           ...(record.width !== undefined ? { width: record.width } : {}),
           ...(record.height !== undefined ? { height: record.height } : {}),
+          ...(Object.keys(sizes).length > 0 ? { sizes: sizes as Record<string, string> } : {}),
         };
       }),
     );

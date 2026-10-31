@@ -1,4 +1,5 @@
 import type { CmsAuthAdapter } from '../integrations/authkit.js';
+import type { CmsEvent } from '../integrations/durable.js';
 import type { MediaAdapter } from '../integrations/media.js';
 import type { CmsObserver } from '../integrations/telescope.js';
 import type { CmsJobs, WebhookConfig } from '../integrations/webhooks.js';
@@ -208,6 +209,8 @@ export type RichTextField = FieldCommon & {
   type: 'richText';
   /** Editor id; defaults to the configured `RichTextEditor`. */
   editor?: string;
+  /** Blocks an editor can place inside the text. Stored in the rich text value itself. */
+  blocks?: readonly BlockDefinition[];
 };
 
 export type RelationField = FieldCommon & {
@@ -438,6 +441,12 @@ export type AdminConfig = {
   path?: string;
   auth?: 'cms' | 'authkit' | 'custom';
   title?: string;
+  /**
+   * ES modules the panel imports at boot, each exporting `default (api) => void`. They receive
+   * `registerField`, `registerView`, `registerWidget` and `React`. Yours to trust: they run in the
+   * editor's session.
+   */
+  extensions?: readonly string[];
   /** White label: a valid CSS color for `--accent`, and an image for the sidebar. */
   theme?: { accent?: string; logoUrl?: string };
   livePreview?: {
@@ -526,6 +535,8 @@ export type RestConfig = {
   prefix?: string;
 };
 
+export type CmsWriteListener = (event: CmsEvent, cms: unknown) => unknown;
+
 export type CmsConfigInput = {
   collections?: readonly CollectionConfig[];
   rest?: RestConfig;
@@ -534,6 +545,8 @@ export type CmsConfigInput = {
   admin?: AdminConfig;
   localization?: LocalizationConfig;
   versions?: VersionsConfig;
+  /** Runs after every committed write, with the CMS. Plugins use it; a failure is only logged. */
+  listeners?: readonly CmsWriteListener[];
   /** Called after every committed write. See `listenWebhooks`. */
   webhooks?: readonly WebhookConfig[];
   /** How often the web process applies due scheduled changes, in ms. Default 30s; `false` is off. */
