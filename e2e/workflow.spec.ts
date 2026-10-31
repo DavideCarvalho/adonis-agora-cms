@@ -137,7 +137,11 @@ test('ctrl+k jumps to a document, and the list filters and picks columns', async
   await expect(page.locator('.brand')).toBeVisible();
   await page.keyboard.press('Control+k');
   await page.getByRole('textbox', { name: /search documents/i }).fill(title);
-  await page.locator('.palette-dialog__item').filter({ hasText: title }).click();
+  await page
+    .locator('.palette-dialog__item')
+    .filter({ hasText: title })
+    .filter({ hasText: 'Note' })
+    .click();
   await expect(page).toHaveURL(new RegExp(id));
 
   await page.goto('/admin#/collections/notes');
@@ -216,7 +220,9 @@ test('csv imports into the collection, plugins add fields and collections', asyn
   expect(docs.some((doc) => doc.title === title)).toBe(true);
 
   await page.goto('/admin');
-  await expect(page.getByRole('button', { name: 'Redirects' })).toBeVisible();
+  await expect(
+    page.getByRole('navigation').getByRole('button', { name: 'Redirects' }),
+  ).toBeVisible();
   const created = await request.post('/api/cms/collections/notes', {
     data: { title: unique('Seo'), seo: { metaTitle: 'Meta' } },
   });
@@ -354,4 +360,101 @@ test('list filters by relation and by date; point and join fields work', async (
   await page.getByRole('tab', { name: 'Details' }).click();
   await expect(page.getByLabel('Location Longitude')).toHaveValue('-46.63');
   await expect(page.getByLabel('Location Latitude')).toHaveValue('-23.55');
+});
+
+test('the panel opens on a dashboard, with what an extension adds', async ({ page }) => {
+  await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByText('Hello from a widget')).toBeVisible();
+  await page.getByRole('button', { name: 'Reports' }).click();
+  await expect(page.getByRole('heading', { name: 'Custom report' })).toBeVisible();
+});
+
+test('rich text holds a block and a link to a document', async ({ page, request }) => {
+  const title = unique('Rich');
+  const created = await request.post('/api/cms/collections/posts', { data: { title } });
+  const { id } = (await created.json()) as { id: string };
+
+  await page.goto(`/admin#/collections/posts/${id}`);
+  await page.locator('.rich-text__body').click();
+  await page.getByTitle('Insert a block: Callout').click();
+  await page.locator('.rich-block').getByRole('textbox').fill('Inside the text');
+  await page.getByRole('button', { name: 'Save' }).click();
+
+  await expect
+    .poll(async () => {
+      const doc = (await (await request.get(`/api/cms/collections/posts/${id}`)).json()) as {
+        body?: unknown;
+      };
+      return JSON.stringify(doc.body);
+    })
+    .toContain('Inside the text');
+
+  // It comes back as a block, not as text.
+  await page.reload();
+  await expect(page.locator('.rich-block').getByRole('textbox')).toHaveValue('Inside the text');
+
+  const other = await request.post('/api/cms/collections/posts', {
+    data: { title: `${title} link` },
+  });
+  await page.goto(`/admin#/collections/posts/${((await other.json()) as { id: string }).id}`);
+  await page.locator('.rich-text__body').click();
+  await page.keyboard.type('link me');
+  await page.keyboard.press('Shift+Home');
+  await page.getByRole('button', { name: 'Link', exact: true }).click();
+  await page.getByLabel('Link to a document').selectOption({ index: 1 });
+  await expect(page.locator('.rich-text__body a[href^="cms:"]')).toHaveCount(1);
+});
+
+test('plugins: search stays in step, forms check answers, pages nest', async ({ request }) => {
+  const stamp = Date.now().toString(36);
+  const note = (await (
+    await request.post('/api/cms/collections/notes', { data: { title: `Findable ${stamp}` } })
+  ).json()) as { id: string };
+  const search = () =>
+    request
+      .get('/api/cms/collections/search', {
+        params: { 'where[text][iContains]': `findable ${stamp}` },
+      })
+      .then((r) => r.json()) as Promise<{ totalDocs: number }>;
+  await expect.poll(async () => (await search()).totalDocs).toBe(1);
+  await request.delete(`/api/cms/collections/notes/${note.id}?force=true`);
+  await expect.poll(async () => (await search()).totalDocs).toBe(0);
+
+  const form = (await (
+    await request.post('/api/cms/collections/forms', {
+      data: {
+        title: `Contact ${stamp}`,
+        fields: [{ name: 'email', type: 'email', required: true }],
+      },
+    })
+  ).json()) as { id: string };
+  const missing = await request.post('/api/cms/collections/form_submissions', {
+    data: { form: form.id, answers: {} },
+  });
+  expect(missing.status()).toBe(422);
+  const ok = await request.post('/api/cms/collections/form_submissions', {
+    data: { form: form.id, answers: { email: 'a@b.co', injected: 'no' } },
+  });
+  expect(ok.status()).toBe(201);
+  expect(((await ok.json()) as { answers: unknown }).answers).toEqual({ email: 'a@b.co' });
+  // Anyone can answer; only a user can read the answers.
+  const read = await request.get('/api/cms/collections/form_submissions');
+  expect(((await read.json()) as { totalDocs: number }).totalDocs).toBe(0);
+
+  const parent = (await (
+    await request.post('/api/cms/collections/pages', {
+      data: { title: `Parent ${stamp}`, slug: `parent-${stamp}` },
+    })
+  ).json()) as { id: string };
+  const child = (await (
+    await request.post('/api/cms/collections/pages', {
+      data: { title: `Child ${stamp}`, slug: `child-${stamp}`, parent: parent.id },
+    })
+  ).json()) as { id: string; breadcrumbs: { title: string }[] };
+  expect(child.breadcrumbs.map((crumb) => crumb.title)).toEqual([`Parent ${stamp}`]);
+  const cycle = await request.patch(`/api/cms/collections/pages/${parent.id}`, {
+    data: { parent: child.id },
+  });
+  expect(cycle.status()).toBe(422);
 });

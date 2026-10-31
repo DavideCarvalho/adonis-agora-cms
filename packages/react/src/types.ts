@@ -59,6 +59,7 @@ export type AdminSchema = {
     title: string;
     path: string;
     theme?: { accent?: string; logoUrl?: string };
+    extensions?: readonly string[];
     auth?: { builtin: boolean; collection: string };
   };
   locales: readonly string[];

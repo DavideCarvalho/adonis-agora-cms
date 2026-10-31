@@ -95,6 +95,15 @@ export default class CmsProvider {
       else listenWebhooks(events, config.webhooks);
     }
     this.startScheduler(config, cms);
+    for (const listener of config.listeners ?? []) {
+      events.on(async (event) => {
+        try {
+          await listener(event, cms);
+        } catch (error) {
+          console.error('[cms] write listener failed', error);
+        }
+      });
+    }
 
     // Server-side entry point for app code (routes, jobs, server components):
     // `import cms from '@adonis-agora/cms/services/main'` returns this same instance, with hooks

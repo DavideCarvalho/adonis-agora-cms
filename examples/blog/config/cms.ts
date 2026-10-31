@@ -8,9 +8,12 @@ import {
   driveUploads,
   durableJobs,
   fields,
+  formsPlugin,
   global,
+  nestedDocsPlugin,
   queueJobs,
   redirectsPlugin,
+  searchPlugin,
   seoPlugin,
   usersPlugin,
   withPlugins,
@@ -55,6 +58,7 @@ export default withPlugins(
     },
     admin: {
       title: 'Blog',
+      extensions: ['/cms-extension.js'],
       livePreview: { url: '/preview', secret: 'local-preview-secret' },
     },
     uploads: {
@@ -171,7 +175,9 @@ export default withPlugins(
         fields: [
           fields.text('title', { required: true }),
           fields.text('subtitle', { localized: true }),
-          fields.richText('body'),
+          fields.richText('body', {
+            blocks: [{ slug: 'callout', fields: [fields.text('message')] }],
+          }),
           fields.slug('slug', { from: 'title', unique: true }),
           fields.upload('banner', { relationTo: 'media' }),
           fields.array('sections', {
@@ -205,6 +211,7 @@ export default withPlugins(
                 fields: [
                   fields.point('location'),
                   fields.date('dueOn'),
+                  fields.relation('related', { relationTo: 'posts', hasMany: true }),
                   fields.select('kind', {
                     defaultValue: 'plain',
                     options: [
@@ -232,6 +239,9 @@ export default withPlugins(
   [
     seoPlugin({ collections: ['notes'] }),
     redirectsPlugin(),
+    formsPlugin(),
+    searchPlugin({ collections: { notes: { title: 'title' } } }),
+    nestedDocsPlugin({ collections: ['pages'] }),
     ...(process.env.CMS_AUTH === 'builtin' ? [usersPlugin()] : []),
   ],
 );

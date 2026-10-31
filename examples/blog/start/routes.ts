@@ -78,3 +78,12 @@ if (process.env.CMS_AUTH === 'adonis') {
     return { ok: true };
   });
 }
+
+// An admin extension: a plain ES module, built however the app likes. It gets React from the panel.
+router.get('/cms-extension.js', async ({ response }) => {
+  response.header('content-type', 'text/javascript');
+  return `export default ({ React, registerView, registerWidget }) => {
+    registerView({ id: 'reports', label: 'Reports', component: () => React.createElement('h1', null, 'Custom report') });
+    registerWidget({ id: 'hello', component: () => React.createElement('p', null, 'Hello from a widget') });
+  };`;
+});

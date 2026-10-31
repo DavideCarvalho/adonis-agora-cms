@@ -57,6 +57,8 @@ export type OperationOptions = {
   status?: 'draft' | 'published';
   /** Create as a draft (versioned collections). */
   draft?: boolean;
+  /** Skips post-commit events, so webhooks and listeners do not see this write. */
+  silent?: boolean;
   /** On a published document: keep the edit as a pending version, leaving what is live untouched. */
   asDraft?: boolean;
   /** Autosave versions do not fire `afterChange`. */
@@ -135,7 +137,7 @@ export async function createDocument(
     overrideAccess: true,
   });
 
-  publishSideEffects(ctx, slug, 'create', id, doc ?? { id }, startedAt);
+  publishSideEffects(ctx, slug, 'create', id, doc ?? { id }, startedAt, options.silent);
 
   return doc ?? { id };
 }
@@ -337,7 +339,7 @@ export async function updateDocument(
   });
 
   const doc = await findDocumentByID(ctx, slug, id, { ...options, overrideAccess: true });
-  publishSideEffects(ctx, slug, 'update', id, doc ?? { id }, startedAt);
+  publishSideEffects(ctx, slug, 'update', id, doc ?? { id }, startedAt, options.silent);
   return doc ?? { id };
 }
 
@@ -372,7 +374,7 @@ export async function deleteDocument(
       [sqlTimestamp(new Date(), ctx.engine), id],
     );
     await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete' });
-    publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt);
+    publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt, options.silent);
     return;
   }
 
@@ -387,7 +389,7 @@ export async function deleteDocument(
   });
 
   await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete' });
-  publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt);
+  publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt, options.silent);
 }
 
 /** Emits observation + post-commit event. Never inside the transaction. */
@@ -398,6 +400,7 @@ function publishSideEffects(
   documentId: string,
   doc: Record<string, unknown> | undefined,
   startedAt: number,
+  silent = false,
 ): void {
   ctx.observer?.({
     collection: slug,
@@ -408,6 +411,8 @@ function publishSideEffects(
     tenant: ctx.tenant,
     userId: userIdOf(ctx.user),
   });
+
+  if (silent) return;
 
   ctx.events?.emit({
     collection: slug,

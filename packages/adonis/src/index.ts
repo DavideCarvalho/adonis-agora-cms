@@ -57,7 +57,15 @@ export { deliverWebhook, listenQueuedWebhooks, listenWebhooks } from './integrat
 export type { Cms, CmsCollectionApi, CmsGlobalApi, CreateCmsOptions } from './local_api/index.js';
 export { createCms } from './local_api/index.js';
 export type { CmsPlugin } from './plugins/index.js';
-export { findRedirect, redirectsPlugin, seoPlugin, withPlugins } from './plugins/index.js';
+export {
+  findRedirect,
+  formsPlugin,
+  nestedDocsPlugin,
+  redirectsPlugin,
+  searchPlugin,
+  seoPlugin,
+  withPlugins,
+} from './plugins/index.js';
 export type { PreviewClaims } from './preview/token.js';
 export { previewUrl, signPreviewToken, verifyPreviewToken } from './preview/token.js';
 export { constraintToSql, decideAccess } from './repository/access.js';

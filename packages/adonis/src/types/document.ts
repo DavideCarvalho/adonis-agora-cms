@@ -19,6 +19,8 @@ export type CmsUpload = {
   mime?: string;
   width?: number;
   height?: number;
+  /** Generated sizes by name, each with its URL. */
+  sizes?: Record<string, string>;
 };
 
 type SelectOption = { label: string; value: string };
