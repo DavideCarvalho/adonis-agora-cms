@@ -280,3 +280,78 @@ test('editing a published document keeps what is live until publishing', async (
   await expect.poll(publicTitle).toBe(`${live} final`);
   await expect(page.getByText('Published, with unpublished changes')).toHaveCount(0);
 });
+
+test('bulk edit sets a field on every selected row', async ({ page, request }) => {
+  const stamp = Date.now().toString(36);
+  const ids: string[] = [];
+  for (const n of [1, 2]) {
+    const created = await request.post('/api/cms/collections/notes', {
+      data: { title: `Bulk edit ${stamp} ${n}` },
+    });
+    ids.push(((await created.json()) as { id: string }).id);
+  }
+
+  await page.goto('/admin#/collections/notes');
+  await page.getByRole('searchbox').fill(stamp);
+  await expect(page.getByRole('row')).toHaveCount(3);
+  await page.getByRole('checkbox', { name: 'Select all' }).check();
+  await page.getByRole('status').getByRole('button', { name: 'Edit' }).click();
+
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Field').selectOption('kind');
+  await dialog.locator('#cms-bulk-value').selectOption('link');
+  await dialog.getByRole('button', { name: 'Apply' }).click();
+  await expect(page.getByText('2 updated')).toBeVisible();
+
+  for (const id of ids) {
+    const doc = (await (await request.get(`/api/cms/collections/notes/${id}`)).json()) as {
+      kind: string;
+    };
+    expect(doc.kind).toBe('link');
+  }
+});
+
+test('list filters by relation and by date; point and join fields work', async ({
+  page,
+  request,
+}) => {
+  const stamp = Date.now().toString(36);
+  const author = (await (
+    await request.post('/api/cms/collections/authors', { data: { name: `Author ${stamp}` } })
+  ).json()) as { id: string };
+  const mine = `Joined ${stamp}`;
+  await request.post('/api/cms/collections/posts', { data: { title: mine, author: author.id } });
+  await request.post('/api/cms/collections/posts', { data: { title: `Other ${stamp}` } });
+
+  await page.goto('/admin#/collections/posts');
+  await page.getByRole('searchbox').fill(stamp);
+  await expect(page.getByRole('row')).toHaveCount(3);
+  await page.locator('select[aria-label="Author"]').selectOption(author.id);
+  await expect(page.getByRole('row')).toHaveCount(2);
+  await expect(page.getByRole('row').filter({ hasText: mine })).toBeVisible();
+
+  // The join shows on the author, and leads back to the post.
+  await page.goto(`/admin#/collections/authors/${author.id}`);
+  await page.getByRole('link', { name: mine }).click();
+  await expect(page.getByRole('textbox', { name: /^title \*/i })).toHaveValue(mine);
+
+  const dated = (await (
+    await request.post('/api/cms/collections/notes', {
+      data: { title: `Dated ${stamp}`, dueOn: '2030-05-10', location: [-46.63, -23.55] },
+    })
+  ).json()) as { id: string; location: number[] };
+  expect(dated.location).toEqual([-46.63, -23.55]);
+
+  await page.goto('/admin#/collections/notes');
+  await page.getByRole('searchbox').fill(stamp);
+  await expect(page.getByRole('row')).toHaveCount(2);
+  await page.locator('input[aria-label="Due on From"]').fill('2031-01-01');
+  await expect(page.getByRole('row').filter({ hasText: `Dated ${stamp}` })).toHaveCount(0);
+  await page.locator('input[aria-label="Due on From"]').fill('2030-01-01');
+  await expect(page.getByRole('row').filter({ hasText: `Dated ${stamp}` })).toHaveCount(1);
+
+  await page.goto(`/admin#/collections/notes/${dated.id}`);
+  await page.getByRole('tab', { name: 'Details' }).click();
+  await expect(page.getByLabel('Location Longitude')).toHaveValue('-46.63');
+  await expect(page.getByLabel('Location Latitude')).toHaveValue('-23.55');
+});

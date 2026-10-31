@@ -20,6 +20,17 @@ export type CmsMessages = {
   current: string;
   noVersions: string;
   deleteConfirm: string;
+  latitude: string;
+  longitude: string;
+  nothingLinked: string;
+  from: string;
+  to: string;
+  editSelected: string;
+  bulkEditTitle: string;
+  field: string;
+  apply2: string;
+  updatedCount: string;
+  copyFromLocale: string;
   login: string;
   logout: string;
   email: string;
@@ -169,6 +180,17 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     current: 'Current',
     noVersions: 'No versions yet.',
     deleteConfirm: 'Delete this document?',
+    latitude: 'Latitude',
+    longitude: 'Longitude',
+    nothingLinked: 'Nothing points here yet.',
+    from: 'From',
+    to: 'To',
+    editSelected: 'Edit',
+    bulkEditTitle: 'Edit the selected documents',
+    field: 'Field',
+    apply2: 'Apply',
+    updatedCount: 'updated',
+    copyFromLocale: 'Copy from',
     login: 'Sign in',
     logout: 'Sign out',
     email: 'E-mail',
@@ -316,6 +338,17 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     current: 'Atual',
     noVersions: 'Nenhuma versão ainda.',
     deleteConfirm: 'Excluir este documento?',
+    latitude: 'Latitude',
+    longitude: 'Longitude',
+    nothingLinked: 'Nada aponta para cá ainda.',
+    from: 'De',
+    to: 'Até',
+    editSelected: 'Editar',
+    bulkEditTitle: 'Editar os documentos selecionados',
+    field: 'Campo',
+    apply2: 'Aplicar',
+    updatedCount: 'atualizados',
+    copyFromLocale: 'Copiar de',
     login: 'Entrar',
     logout: 'Sair',
     email: 'E-mail',

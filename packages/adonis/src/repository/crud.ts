@@ -533,6 +533,8 @@ async function decorateRows(
     await populateNestedRelations(ctx, table, docs, options);
   }
 
+  if ((options.depth ?? 1) > 0) await populateJoins(ctx, slug, docs);
+
   for (const doc of docs) {
     await stripFieldsByAccess(ctx, slug, doc);
   }
@@ -1192,6 +1194,31 @@ async function stripFieldsByAccess(
     const decision = await decideAccess(field.access.read, accessArgs(ctx));
     if (!decision.allowed) delete doc[field.name];
   }
+}
+
+/** Top-level `join` fields; each is a normal read, so the other collection's access applies. */
+async function populateJoins(
+  ctx: RepoContext,
+  slug: string,
+  docs: Record<string, unknown>[],
+): Promise<void> {
+  const joins = documentFields(ctx.config, slug).filter((field) => field.type === 'join');
+  if (joins.length === 0) return;
+
+  await Promise.all(
+    docs.flatMap((doc) =>
+      joins.map(async (field) => {
+        if (field.type !== 'join') return;
+        const found = await findDocuments(
+          ctx,
+          field.collection,
+          { where: { [field.on]: { equals: doc.id } }, limit: field.limit ?? 10, depth: 0 },
+          {},
+        );
+        doc[field.name] = { docs: found.docs, totalDocs: found.totalDocs };
+      }),
+    ),
+  );
 }
 
 /** `field.access.update`: a field the caller may not write keeps its value, whatever was sent. */
