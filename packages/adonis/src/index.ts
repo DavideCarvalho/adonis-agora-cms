@@ -35,13 +35,17 @@ export {
   queueJobs,
 } from './integrations/adapters.js';
 export type { CmsAuthAdapter } from './integrations/authkit.js';
-export { authkitAdapter, requiresRole, requiresUser } from './integrations/authkit.js';
+export { authkitAdapter, authkitAuth, requiresRole, requiresUser } from './integrations/authkit.js';
 export type { CanCheck } from './integrations/authz.js';
 export { authzAccess, authzCollectionAccess } from './integrations/authz.js';
 export type { CmsEvent, CmsEventBus, CmsEventListener } from './integrations/durable.js';
 export { createCmsEvents, durableBridge } from './integrations/durable.js';
 export type { MediaAdapter, MediaAsset } from './integrations/media.js';
-export { createMediaAdapter, mediaLibraryAdapter } from './integrations/media.js';
+export {
+  createMediaAdapter,
+  mediaLibraryAdapter,
+  mediaLibraryUploads,
+} from './integrations/media.js';
 export { runWebhookDelivery } from './integrations/run_webhook.js';
 export type { CmsObservation, CmsObserver, TelescopeEntry } from './integrations/telescope.js';
 export { telescopeWatcher } from './integrations/telescope.js';

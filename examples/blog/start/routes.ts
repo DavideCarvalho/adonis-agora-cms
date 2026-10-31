@@ -16,7 +16,7 @@ router.post('/webhook-sink', async ({ request }) => {
   lastWebhook = { signature: request.header('x-cms-signature'), body: request.body() };
   return { ok: true };
 });
-router.get('/webhook-sink', async () => lastWebhook);
+router.get('/webhook-sink', async () => lastWebhook ?? {});
 
 /** A published page, rendered through the `slug → block` map. */
 router.get('/p/:slug', async ({ params, response }) => {

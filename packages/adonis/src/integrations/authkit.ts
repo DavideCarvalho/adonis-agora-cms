@@ -22,6 +22,27 @@ export function authkitAdapter(options: {
   };
 }
 
+type AuthkitContext = { auth?: { check?(): Promise<unknown>; user?: unknown } };
+
+/**
+ * `@adonis-agora/authkit`, with its `authkit_middleware` on the routes: checks the session itself, so
+ * the CMS routes need no `silentAuth`. A failed check is anonymous, never an error.
+ */
+export function authkitAuth(): CmsAuthAdapter {
+  return {
+    async resolveUser(context) {
+      const auth = (context as AuthkitContext).auth;
+      if (!auth) return null;
+      try {
+        await auth.check?.();
+        return auth.user ?? null;
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
 /** Access function that only requires an authenticated principal. */
 export const requiresUser: AccessFn = ({ user }) => Boolean(user);
 

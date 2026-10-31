@@ -6,8 +6,8 @@ import { createTestCms } from '../../src/testing/create_test_cms.js';
 import { repositoryConfig } from '../fixtures/repo_config.js';
 
 describe('toAdminSchema', () => {
-  test('serializes collections, globals and field metadata', () => {
-    const schema = toAdminSchema(repositoryConfig, { user: { id: 'u1' } });
+  test('serializes collections, globals and field metadata', async () => {
+    const schema = await toAdminSchema(repositoryConfig, { user: { id: 'u1' } });
 
     expect(schema.version).toBe(1);
     expect(schema.locales).toEqual(['pt-BR', 'en']);
@@ -40,13 +40,13 @@ describe('toAdminSchema', () => {
     expect(schema.globals.map((item) => item.slug)).toEqual(['settings']);
   });
 
-  test('the result is JSON-safe: no functions survive', () => {
-    const schema = toAdminSchema(repositoryConfig, { user: { id: 'u1' } });
+  test('the result is JSON-safe: no functions survive', async () => {
+    const schema = await toAdminSchema(repositoryConfig, { user: { id: 'u1' } });
     const roundTripped = JSON.parse(JSON.stringify(schema)) as typeof schema;
     expect(roundTripped).toEqual(schema);
   });
 
-  test('evaluates permissions instead of shipping access functions', () => {
+  test('evaluates permissions instead of shipping access functions', async () => {
     const config = defineConfig({
       collections: [
         collection('posts', {
@@ -61,7 +61,7 @@ describe('toAdminSchema', () => {
       ],
     });
 
-    const anonymous = toAdminSchema(config, { user: null });
+    const anonymous = await toAdminSchema(config, { user: null });
     expect(anonymous.permissions.posts).toEqual({
       read: false,
       create: false,
@@ -70,7 +70,7 @@ describe('toAdminSchema', () => {
     });
     expect(anonymous.collections[0]?.fields[1]?.restricted).toBe(true);
 
-    const admin = toAdminSchema(config, { user: { id: 'u1', role: 'admin' } });
+    const admin = await toAdminSchema(config, { user: { id: 'u1', role: 'admin' } });
     expect(admin.permissions.posts).toEqual({
       read: true,
       create: true,

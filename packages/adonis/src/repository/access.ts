@@ -24,17 +24,18 @@ export type AccessDecision = {
  *
  * `overrideAccess` bypasses access checks but **never** tenancy — crossing tenants requires an
  * explicit `allowCrossTenant` on the repository, so a forgotten access function cannot leak
- * another tenant's data.
+ * another tenant's data. A rule that throws rejects here, so the operation fails rather than opens.
  */
-export function decideAccess(
+export async function decideAccess(
   fn: AccessFn | undefined,
   args: AccessArgsInternal,
   override = false,
-): AccessDecision {
+): Promise<AccessDecision> {
   if (override) return { allowed: true };
   if (!fn) return { allowed: true };
 
-  const result = fn({
+  // Awaited: a Promise is truthy, so reading an async rule directly would allow everybody.
+  const result = await fn({
     req: args.req,
     user: args.user,
     ...(args.id !== undefined ? { id: args.id } : {}),

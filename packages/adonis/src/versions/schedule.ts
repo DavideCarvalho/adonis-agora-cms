@@ -32,10 +32,14 @@ function scope(ctx: RepoContext, slug: string, id: string) {
 }
 
 /** Whoever may update a document may decide when it goes live. */
-function assertCanSchedule(ctx: RepoContext, slug: string, options: OperationOptions): void {
+async function assertCanSchedule(
+  ctx: RepoContext,
+  slug: string,
+  options: OperationOptions,
+): Promise<void> {
   const collection = ctx.config.collections?.find((item) => item.slug === slug);
   if (!collection) throw new CmsNotFoundError(`collection "${slug}" not found`);
-  const access = decideAccess(
+  const access = await decideAccess(
     collection.access?.update,
     { req: null, user: ctx.user ?? null, tenant: ctx.tenant },
     options.overrideAccess,
@@ -51,7 +55,7 @@ export async function scheduleDocument(
   schedule: DocumentSchedule,
   options: OperationOptions = {},
 ): Promise<DocumentSchedule> {
-  assertCanSchedule(ctx, slug, options);
+  await assertCanSchedule(ctx, slug, options);
   const existing = await findDocumentByID(ctx, slug, id, { overrideAccess: true });
   if (!existing) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
 
@@ -84,7 +88,7 @@ export async function cancelSchedule(
   id: string,
   options: OperationOptions = {},
 ): Promise<void> {
-  assertCanSchedule(ctx, slug, options);
+  await assertCanSchedule(ctx, slug, options);
   const { where, bindings } = scope(ctx, slug, id);
   await exec(ctx.client, `delete from ${ident(table(ctx), ctx.engine)} where ${where}`, bindings);
 }

@@ -1,7 +1,7 @@
 {
   "name": "@adonis-agora/cms",
   "version": "0.0.0",
-  "description": "Config-first CMS for AdonisJS \u2014 collections, globals, every field type, drafts, i18n, access control, hooks, REST and a schema-driven admin. Part of the Agora ecosystem.",
+  "description": "Config-first CMS for AdonisJS — collections, globals, every field type, drafts, i18n, access control, hooks, REST and a schema-driven admin. Part of the Agora ecosystem.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -112,7 +112,10 @@
     }
   },
   "devDependencies": {
+    "@adonis-agora/authz": "0.20.1",
     "@adonis-agora/durable": "0.38.2",
+    "@adonis-agora/media": "0.28.1",
+    "@adonis-agora/telescope": "0.27.0",
     "@adonisjs/assembler": "^8.5.0",
     "@adonisjs/bouncer": "^4.0.1",
     "@adonisjs/core": "7.5.0",
@@ -124,6 +127,7 @@
     "knex": "^3.3.0",
     "mysql2": "^3.24.6",
     "pg": "^8.23.1",
+    "reflect-metadata": "^0.2.2",
     "typescript": "^7.0.2",
     "unplugin-swc": "1.5.11",
     "vitest": "^5.0.5"

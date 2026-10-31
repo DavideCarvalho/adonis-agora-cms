@@ -311,7 +311,9 @@ export type AccessArgs = {
   locale?: LocaleCode;
 };
 
-export type AccessFn = (args: AccessArgs) => boolean | WhereConstraint;
+export type AccessFn = (
+  args: AccessArgs,
+) => boolean | WhereConstraint | Promise<boolean | WhereConstraint>;
 
 export type CollectionAccess = {
   read?: AccessFn;
