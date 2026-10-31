@@ -27,31 +27,17 @@ export { assertValidConfig, validateConfig } from './config/validate.js';
 export { createCmsTables, diffSchema, dropCmsTables, syncCmsSchema } from './db/index.js';
 export type * from './db/types.js';
 export { CmsConfigError, CmsError, CmsSchemaError, CmsValidationError } from './errors.js';
-export {
-  adonisAuth,
-  adonisMail,
-  bouncerAccess,
-  driveMedia,
-  driveUploads,
-  durableJobs,
-  loggerObserver,
-  queueJobs,
-} from './integrations/adapters.js';
 export type { CmsAuthAdapter } from './integrations/authkit.js';
-export { authkitAdapter, authkitAuth, requiresRole, requiresUser } from './integrations/authkit.js';
+export { requiresRole, requiresUser } from './integrations/authkit.js';
 export type { CanCheck } from './integrations/authz.js';
-export { authzAccess, authzCollectionAccess } from './integrations/authz.js';
+export type { CmsAdapter } from './integrations/container.js';
 export type { CmsEvent, CmsEventBus, CmsEventListener } from './integrations/durable.js';
 export { createCmsEvents, durableBridge } from './integrations/durable.js';
+export { access, auth, jobs, media, observers, uploads } from './integrations/factories.js';
 export type { MediaAdapter, MediaAsset } from './integrations/media.js';
-export {
-  createMediaAdapter,
-  mediaLibraryAdapter,
-  mediaLibraryUploads,
-} from './integrations/media.js';
+export { createMediaAdapter } from './integrations/media.js';
 export { runWebhookDelivery } from './integrations/run_webhook.js';
 export type { CmsObservation, CmsObserver, TelescopeEntry } from './integrations/telescope.js';
-export { telescopeWatcher } from './integrations/telescope.js';
 export type { CmsJobs, DeliverWebhookInput, WebhookConfig } from './integrations/webhooks.js';
 export { deliverWebhook, listenQueuedWebhooks, listenWebhooks } from './integrations/webhooks.js';
 export type { Cms, CmsCollectionApi, CmsGlobalApi, CreateCmsOptions } from './local_api/index.js';

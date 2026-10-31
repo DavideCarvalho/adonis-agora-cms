@@ -3,13 +3,15 @@ import type { ApplicationService } from '@adonisjs/core/types';
 import { setCms } from '../services/main.js';
 import { resolveApiToken } from '../src/auth/api_tokens.js';
 import { type BuiltinAuth, registerAuthRoutes } from '../src/auth/builtin.js';
-import type { CmsConfig } from '../src/config/types.js';
+import type { CmsConfig, CmsUploadHandler, UploadsConfig } from '../src/config/types.js';
 import { resolveDbConfig, resolveTenancy } from '../src/config/types.js';
 import { validateConfig } from '../src/config/validate.js';
 import { detectEngine, readSchemaState, syncCmsSchema } from '../src/db/sync.js';
 import type { CmsKnex } from '../src/db/types.js';
 import { CmsConfigError } from '../src/errors.js';
 import { createCmsEvents } from '../src/integrations/durable.js';
+import type { BuiltIntegrations } from '../src/integrations/factories.js';
+import { buildAdapters } from '../src/integrations/factories.js';
 import { listenQueuedWebhooks, listenWebhooks } from '../src/integrations/webhooks.js';
 import { createCms } from '../src/local_api/index.js';
 import type { CmsRouter, RouteContext } from '../src/rest/routes.js';
@@ -65,8 +67,9 @@ export default class CmsProvider {
   private scheduler: ReturnType<typeof setInterval> | undefined;
 
   async boot(): Promise<void> {
-    const config = this.app.config.get('cms') as CmsConfig | undefined;
-    if (!config) return;
+    const declared = this.app.config.get('cms') as CmsConfig | undefined;
+    if (!declared) return;
+    const config = await buildAdapters(declared, this.app as never);
 
     const errors = validateConfig(config);
     if (errors.length > 0) {
@@ -81,7 +84,7 @@ export default class CmsProvider {
     const engine = detectEngine(client);
     const spec = compileSchema(config, { engine });
     const events = createCmsEvents();
-    const integrations = config.integrations;
+    const integrations = config.integrations as BuiltIntegrations | undefined;
     const cms = createCms({
       config,
       client,
@@ -164,7 +167,7 @@ export default class CmsProvider {
   ): Promise<void> {
     const router = (await this.app.container.make('router')) as CmsRouter;
     const prefix = config.rest?.prefix ?? '/api/cms';
-    const uploads = config.uploads;
+    const uploads = config.uploads as (UploadsConfig & { handler: CmsUploadHandler }) | undefined;
 
     if (!uploads) return;
 
@@ -267,7 +270,7 @@ export default class CmsProvider {
         return i18n?.locale;
       },
       resolveContext: async (context: RouteContext) => {
-        const auth = config.integrations?.auth;
+        const auth = (config.integrations as BuiltIntegrations | undefined)?.auth;
         const user = auth
           ? await auth.resolveUser(context)
           : ((context as { auth?: { user?: unknown } }).auth?.user ?? null);
