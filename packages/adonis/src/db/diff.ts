@@ -310,6 +310,7 @@ const INTERNAL_TABLE_SUFFIXES = [
   'preferences',
   'document_locks',
   'document_schedules',
+  'auth_credentials',
 ];
 
 export function isInternalTable(name: string, prefix: string): boolean {

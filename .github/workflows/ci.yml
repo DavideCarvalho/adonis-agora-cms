@@ -102,3 +102,4 @@ jobs:
           APP_KEY: e2e-only-key-not-a-secret-0123456789
           NODE_ENV: development
       - run: pnpm test:durable
+      - run: pnpm test:auth

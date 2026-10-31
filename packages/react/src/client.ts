@@ -100,6 +100,15 @@ export class AdminClient {
     return this.request<AdminDocument>('POST', `/collections/${slug}/${id}/discard-draft`);
   }
 
+  async authStatus(): Promise<{ needsFirstUser: boolean; canReset: boolean }> {
+    return this.request('GET', '/auth/status');
+  }
+
+  /** `login`, `first-user`, `logout`, `forgot`, `reset` and `password`. */
+  async auth(action: string, data: Record<string, unknown> = {}): Promise<unknown> {
+    return this.request('POST', `/auth/${action}`, data);
+  }
+
   async version(slug: string, id: string, version: number): Promise<VersionRecord> {
     return this.request('GET', `/collections/${slug}/${id}/versions/${version}?snapshot=true`);
   }

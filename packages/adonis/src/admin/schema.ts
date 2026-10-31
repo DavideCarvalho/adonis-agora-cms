@@ -47,7 +47,12 @@ export type AdminPermission = {
 
 export type AdminSchema = {
   version: 1;
-  admin: { title: string; path: string; theme?: { accent?: string; logoUrl?: string } };
+  admin: {
+    title: string;
+    path: string;
+    theme?: { accent?: string; logoUrl?: string };
+    auth?: { builtin: boolean; collection: string };
+  };
   locales: readonly string[];
   defaultLocale: string;
   tenancy: { strategy: string; required: boolean };
@@ -121,6 +126,10 @@ export async function toAdminSchema(
       title: config.admin?.title ?? 'CMS',
       path: config.admin?.path ?? '/admin',
       ...(config.admin?.theme ? { theme: config.admin.theme } : {}),
+      // The login screen only exists when the CMS owns the login.
+      ...(builtinAuthOf(config)
+        ? { auth: { builtin: true, collection: builtinAuthOf(config) as string } }
+        : {}),
     },
     locales: config.localization?.locales ?? [],
     defaultLocale: config.localization?.defaultLocale ?? 'en',
@@ -133,6 +142,11 @@ export async function toAdminSchema(
     user: options.user ?? null,
     permissions,
   };
+}
+
+function builtinAuthOf(config: CmsConfig): string | undefined {
+  const auth = config.integrations?.auth as { builtin?: { collection: string } } | undefined;
+  return auth?.builtin?.collection;
 }
 
 type AccessArgs = Parameters<typeof decideAccess>[1];

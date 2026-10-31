@@ -16,6 +16,7 @@
     "@adonisjs/core": "7.5.0",
     "@adonisjs/drive": "^4.0.0",
     "@adonisjs/lucid": "^22.4.2",
+    "@adonisjs/mail": "^10.4.0",
     "@adonisjs/queue": "^0.7.0",
     "@adonisjs/redis": "^11.0.0",
     "@adonisjs/session": "^8.3.0",
@@ -24,6 +25,7 @@
     "better-sqlite3": "^13.0.3",
     "ioredis": "^6.0.0",
     "luxon": "^3.7.2",
+    "nodemailer": "^10.3.1",
     "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {

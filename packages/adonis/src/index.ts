@@ -9,6 +9,8 @@ export {
   resolveApiToken,
   tokenCan,
 } from './auth/api_tokens.js';
+export type { BuiltinAuth, BuiltinAuthOptions, CmsMail } from './auth/builtin.js';
+export { cmsAuth, usersPlugin } from './auth/builtin.js';
 export { collection, global, labels } from './config/collection.js';
 export { defineConfig } from './config/define_config.js';
 export type { DefineFieldOptions } from './config/define_field.js';
@@ -27,6 +29,7 @@ export type * from './db/types.js';
 export { CmsConfigError, CmsError, CmsSchemaError, CmsValidationError } from './errors.js';
 export {
   adonisAuth,
+  adonisMail,
   bouncerAccess,
   driveMedia,
   driveUploads,

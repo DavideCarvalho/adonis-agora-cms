@@ -94,7 +94,7 @@ export async function createDocument(
   );
   if (!access.allowed) throw denied(ctx, `create "${slug}" is not allowed`);
 
-  let payload = { ...data };
+  let payload = await dropDeniedFields(ctx, slug, { ...data }, options);
   payload = await runHooks(ctx, slug, 'beforeValidate', payload, { operation: 'create' });
   payload = await runHooks(ctx, slug, 'beforeChange', payload, { operation: 'create' });
 
@@ -273,7 +273,7 @@ export async function updateDocument(
   );
   if (!access.allowed) throw denied(ctx, `update "${slug}" is not allowed`);
 
-  let payload = { ...data };
+  let payload = await dropDeniedFields(ctx, slug, { ...data }, options, previous);
   payload = await runHooks(ctx, slug, 'beforeValidate', payload, {
     operation: 'update',
     previousData: previous,
@@ -1192,6 +1192,26 @@ async function stripFieldsByAccess(
     const decision = await decideAccess(field.access.read, accessArgs(ctx));
     if (!decision.allowed) delete doc[field.name];
   }
+}
+
+/** `field.access.update`: a field the caller may not write keeps its value, whatever was sent. */
+async function dropDeniedFields(
+  ctx: RepoContext,
+  slug: string,
+  data: Record<string, unknown>,
+  options: OperationOptions,
+  doc?: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (options.overrideAccess) return data;
+  for (const field of documentFields(ctx.config, slug)) {
+    if (!field.access?.update || !(field.name in data)) continue;
+    const decision = await decideAccess(
+      field.access.update,
+      accessArgs(ctx, { data, ...(doc ? { doc } : {}) }),
+    );
+    if (!decision.allowed) delete data[field.name];
+  }
+  return data;
 }
 
 /** Whoever asks for drafts sees a published document with its pending edit on top. */

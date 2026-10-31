@@ -78,6 +78,8 @@ export type EditFormProps = {
   /** Saving a published document keeps what is live until it is published. */
   draftOverPublished?: boolean | undefined;
   onDiscardDraft?: (() => void) | undefined;
+  /** Extra controls in the header, before the primary actions. */
+  headerActions?: React.ReactNode;
   /** The pending publish/unpublish, and how to change it. Omit to hide the control. */
   schedule?: { at: string; action: string } | null | undefined;
   onSchedule?: ((at: string | null) => void) | undefined;
@@ -122,6 +124,7 @@ export function EditForm({
   canUnpublish = true,
   draftOverPublished = false,
   onDiscardDraft,
+  headerActions,
   schedule,
   onSchedule,
 }: EditFormProps) {
@@ -463,6 +466,8 @@ export function EditForm({
                 {t.preview}
               </Button>
             ) : null}
+
+            {headerActions}
 
             {onDuplicate && permission?.create !== false ? (
               <Button
