@@ -2,7 +2,7 @@ import { CmsConflictError, CmsForbiddenError, CmsNotFoundError } from '../errors
 import { decideAccess } from '../repository/access.js';
 import { type OperationOptions, updateDocument } from '../repository/crud.js';
 import type { RepoContext } from '../repository/document.js';
-import { exec, ident, selectOne } from '../repository/sql.js';
+import { exec, ident, selectOne, sqlTimestamp } from '../repository/sql.js';
 import { getVersion, latestPublished, listVersions } from './store.js';
 
 type PublishOptions = OperationOptions & { ttlSeconds?: number };
@@ -96,7 +96,7 @@ export async function lockDocument(
   await exec(
     ctx.client,
     `delete from ${ident(table, ctx.engine)} where ${ident('expires_at', ctx.engine)} < ?`,
-    [now.toISOString()],
+    [sqlTimestamp(now, ctx.engine)],
   );
 
   const existing = await getDocumentLock(ctx, slug, id);
@@ -111,13 +111,13 @@ export async function lockDocument(
     await exec(
       ctx.client,
       `update ${ident(table, ctx.engine)} set ${ident('expires_at', ctx.engine)} = ?, ${ident('user_id', ctx.engine)} = ? where ${ident('collection', ctx.engine)} = ? and ${ident('document_id', ctx.engine)} = ?`,
-      [expiresAt.toISOString(), userId, slug, id],
+      [sqlTimestamp(expiresAt, ctx.engine), userId, slug, id],
     );
     return { userId, expiresAt };
   }
 
   const columns = ['collection', 'document_id', 'user_id', 'expires_at'];
-  const values: unknown[] = [slug, id, userId, expiresAt.toISOString()];
+  const values: unknown[] = [slug, id, userId, sqlTimestamp(expiresAt, ctx.engine)];
 
   if (ctx.spec.tenancy.column) {
     columns.push(ctx.spec.tenancy.column);

@@ -289,3 +289,12 @@ schedulerInterval: false, // `CmsRunDueSchedules` ticks from `durable:work` inst
   (`schedulerInterval`), `CmsRunDueSchedules`, or your own cron. With none of them, nothing publishes.
 - For anything else that reacts to a write, use `cms.events.on(listener)`, or
   `durableBridge({ dispatch }).listen(cms.events)` to turn each write into a job.
+
+## MySQL
+
+Timestamps are stored as UTC. Set `timezone: 'Z'` on the connection, or the driver reads them back in
+the server's zone:
+
+```ts
+connection: { host, user, password, database, timezone: 'Z' }
+```

@@ -4,6 +4,15 @@ import type { Engine } from '../schema/types.js';
 
 export type Binding = unknown;
 
+/**
+ * A timestamp as this engine accepts it. MySQL rejects the `T...Z` form outright, so it gets UTC
+ * without the zone: set `timezone: 'Z'` on the connection so it reads back as UTC too.
+ */
+export function sqlTimestamp(date: Date, engine: Engine): string {
+  const iso = date.toISOString();
+  return engine === 'mysql' ? iso.replace('T', ' ').replace('Z', '') : iso;
+}
+
 /** Quotes an identifier. Names always come from the compiled spec, never from user input. */
 export function ident(name: string, engine: Engine): string {
   if (engine === 'mysql') return `\`${name.replace(/`/g, '``')}\``;

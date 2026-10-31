@@ -30,6 +30,7 @@ import {
   placeholders,
   selectOne,
   selectRows,
+  sqlTimestamp,
   transaction,
 } from './sql.js';
 import { validateDocument } from './validate.js';
@@ -343,7 +344,7 @@ export async function deleteDocument(
     await exec(
       ctx.client,
       `update ${ident(table.name, ctx.engine)} set ${ident('_deleted_at', ctx.engine)} = ? where ${ident('id', ctx.engine)} = ?`,
-      [new Date().toISOString(), id],
+      [sqlTimestamp(new Date(), ctx.engine), id],
     );
     await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete' });
     publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt);
