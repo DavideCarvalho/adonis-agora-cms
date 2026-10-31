@@ -1,7 +1,7 @@
-import type { InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
+import type { ComponentProps, InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { cn } from '../cn.js';
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className, ...props }: ComponentProps<'input'>) {
   return <input className={cn('input', className)} {...props} />;
 }
 

@@ -71,7 +71,7 @@ export function LoginScreen({ title }: { title: string }) {
         {mode !== 'reset' ? (
           <Field label={t.email} htmlFor="cms-email">
             <Input
-              ref={firstInput as never}
+              ref={firstInput}
               id="cms-email"
               name="email"
               type="email"
