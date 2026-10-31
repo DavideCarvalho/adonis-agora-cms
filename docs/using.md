@@ -212,32 +212,46 @@ export default withPlugins(defineConfig({ ... }), [
 
 ## Integrations
 
-The CMS depends on none of these libraries. Each port takes the Agora adapter, the official AdonisJS
-one, or your own object:
+The CMS depends on none of these libraries. Each port has a group of factories, like the transports of
+`@adonis-agora/durable`, and also takes your own object:
 
-| Port                     | Agora                                                                        | Official AdonisJS               | Default          |
-| ------------------------ | ---------------------------------------------------------------------------- | ------------------------------- | ---------------- |
-| `integrations.jobs`      | `durableJobs(() => engine)`                                                  | `queueJobs({ deliverWebhook })` | in process       |
-| `integrations.auth`      | `authkitAdapter({ resolveUser })`                                            | `adonisAuth({ guard })`         | `ctx.auth.user`  |
-| `integrations.media`     | `mediaLibraryAdapter(library)`                                               | `driveMedia(disk)`              | the id as stored |
-| `uploads.handler`        | your `media.upload` call                                                     | `driveUploads(disk)`            | none             |
-| `access` of a collection | `authzCollectionAccess(prefix, (user, ability) => authz.can(user, ability))` | `bouncerAccess(ability)`        | open             |
-| `integrations.observer`  | `telescopeWatcher(record)`                                                   | `loggerObserver(logger)`        | none             |
+```ts
+import { access, auth, defineConfig, jobs, media, uploads } from '@adonis-agora/cms';
+
+export default defineConfig({
+  integrations: {
+    auth: auth.adonis({ guard: 'web' }),
+    jobs: jobs.durable(),
+    media: media.drive(),
+  },
+  uploads: { handler: uploads.drive() },
+  collections: [collection('posts', { access: access.authz('posts'), fields: [] })],
+});
+```
+
+| Port                     | Agora                         | Official AdonisJS                                       | Default          |
+| ------------------------ | ----------------------------- | ------------------------------------------------------- | ---------------- |
+| `integrations.jobs`      | `jobs.durable()`              | `jobs.queue(() => import('#jobs/deliver_cms_webhook'))` | in process       |
+| `integrations.auth`      | `auth.authkit()`              | `auth.adonis({ guard })`                                | `ctx.auth.user`  |
+| `integrations.media`     | `media.library()`             | `media.drive()`                                         | the id as stored |
+| `uploads.handler`        | `uploads.library()`           | `uploads.drive()`                                       | none             |
+| `access` of a collection | `access.authz(prefix)`        | `access.bouncer(ability)`                               | open             |
+| `integrations.observer`  | `observers.telescope(record)` | `observers.logger()`                                    | none             |
+
+The provider builds these at boot, so a library that is missing or has no provider stops the app there
+instead of failing the first write.
 
 Access functions may be async. A rule that throws fails the operation instead of allowing it.
 
 ### Files with @adonisjs/drive
 
-The config file loads before the app boots, so import the service inside the function. A top-level
-`import drive from '@adonisjs/drive/services/main'` here would not be ready yet.
-
 ```ts
 // config/cms.ts
-const disk = async () => (await import('@adonisjs/drive/services/main')).default.use()
-
-uploads: { handler: driveUploads(disk) },
-integrations: { media: driveMedia(disk) },
+uploads: { handler: uploads.drive() },
+integrations: { media: media.drive() },
 ```
+
+Both use the default disk. Pass `{ disk: 's3' }` for another one from `config/drive.ts`.
 
 Keys are generated and must fit 64 characters, so keep `prefix` short. On a private disk pass
 `{ signed: true }` to both, or the URLs answer 403; a signed URL lasts `expiresIn` (default `1h`).
@@ -260,12 +274,7 @@ export default class DeliverCmsWebhook extends Job<DeliverWebhookInput> {
 ```ts
 // config/cms.ts
 integrations: {
-  jobs: queueJobs({
-    deliverWebhook: async (input) => {
-      const { default: job } = await import('#jobs/deliver_cms_webhook')
-      return job.dispatch(input)
-    },
-  }),
+  jobs: jobs.queue(() => import('#jobs/deliver_cms_webhook')),
 },
 ```
 
@@ -279,7 +288,7 @@ export { CmsDeliverWebhook, CmsRunDueSchedules } from '@adonis-agora/cms/durable
 ```ts
 // config/cms.ts
 integrations: {
-  jobs: durableJobs(async () => (await import('@adonis-agora/durable/services/main')).default),
+  jobs: jobs.durable(),
 },
 schedulerInterval: false, // `CmsRunDueSchedules` ticks from `durable:work` instead
 ```
@@ -309,7 +318,7 @@ For an app with no login of its own:
 ```ts
 export default withPlugins(
   defineConfig({
-    integrations: { auth: cmsAuth({ secret: env.get('CMS_AUTH_SECRET') }) },
+    integrations: { auth: auth.builtin({ secret: env.get('CMS_AUTH_SECRET') }) },
     ...
   }),
   [usersPlugin()],
@@ -318,7 +327,7 @@ export default withPlugins(
 
 The panel asks for the first user, who becomes the admin, and shows a login screen after that. Passwords
 sit in their own table, hashed with scrypt, so no API can read one. Changing a password ends every other
-session. Reset links need `mail`: `adonisMail(async () => (await import('@adonisjs/mail/services/main')).default)`.
+session. Reset links need `mail: true`, or the name of a mailer.
 
 This only protects the panel. Set `access` on your collections so the API asks for a user too.
 

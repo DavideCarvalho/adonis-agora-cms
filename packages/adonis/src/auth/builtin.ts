@@ -150,7 +150,7 @@ export function cmsAuth(options: BuiltinAuthOptions): BuiltinAuth {
   if (!options.secret || options.secret.length < 32) {
     throw new CmsConfigError(
       'integrations.auth',
-      'cmsAuth needs a secret of at least 32 characters',
+      'auth.builtin needs a secret of at least 32 characters',
     );
   }
   const settings = {

@@ -6,7 +6,7 @@ type Mode = 'login' | 'first' | 'forgot' | 'reset';
 
 const resetTokenOf = (hash: string) => /^#\/reset\/(.+)$/.exec(hash)?.[1];
 
-/** The login screen for `cmsAuth`. An app with its own login never reaches it. */
+/** The login screen for `auth.builtin`. An app with its own login never reaches it. */
 export function LoginScreen({ title }: { title: string }) {
   const t = useMessages();
   const { client } = useCms();

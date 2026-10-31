@@ -1,4 +1,5 @@
 import type { CmsAuthAdapter } from '../integrations/authkit.js';
+import type { CmsAdapter } from '../integrations/container.js';
 import type { CmsEvent } from '../integrations/durable.js';
 import type { MediaAdapter } from '../integrations/media.js';
 import type { CmsObserver } from '../integrations/telescope.js';
@@ -472,14 +473,14 @@ export type LocalizationConfig = {
  * `media: true` only declares that uploads are not a collection here; pass an adapter to resolve them.
  */
 export type IntegrationsConfig = {
-  /** Who is asking. Default: `ctx.auth.user`. See `adonisAuth`, `authkitAdapter`. */
-  auth?: CmsAuthAdapter;
-  /** Background work. Default: in process. See `durableJobs`, `queueJobs`. */
-  jobs?: CmsJobs;
-  /** Resolves `upload` ids on read. See `mediaLibraryAdapter`, `driveMedia`. */
-  media?: boolean | MediaAdapter;
-  /** Every write's timing. See `telescopeWatcher`, `loggerObserver`. */
-  observer?: CmsObserver;
+  /** Who is asking. Default: `ctx.auth.user`. See `auth`. */
+  auth?: CmsAuthAdapter | CmsAdapter<CmsAuthAdapter>;
+  /** Background work. Default: in process. See `jobs`. */
+  jobs?: CmsJobs | CmsAdapter<CmsJobs>;
+  /** Resolves `upload` ids on read. See `media`. */
+  media?: boolean | MediaAdapter | CmsAdapter<MediaAdapter>;
+  /** Every write's timing. See `observers`. */
+  observer?: CmsObserver | CmsAdapter<CmsObserver>;
 };
 
 /** Context handed to the tenant resolver. Never used inside the compiler (which stays pure). */
@@ -590,7 +591,8 @@ export type CmsUploadAsset = {
 };
 
 export type UploadsConfig = {
-  handler: CmsUploadHandler;
+  /** See `uploads`. */
+  handler: CmsUploadHandler | CmsAdapter<CmsUploadHandler>;
   /** Max accepted size in bytes; the provider rejects larger files with 413. */
   maxSize?: number;
   /** Accepted MIME types, e.g. `['image/*']`. */

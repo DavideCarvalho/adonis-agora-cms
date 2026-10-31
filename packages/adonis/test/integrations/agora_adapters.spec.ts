@@ -4,16 +4,11 @@ import { MediaLibrary, StorageManager } from '@adonis-agora/media';
 import { InMemoryMediaStore, inMemoryDiskResolver } from '@adonis-agora/media/testing';
 import { InMemoryTelescopeStore } from '@adonis-agora/telescope';
 import { afterEach, describe, expect, test } from 'vitest';
-import {
-  authkitAuth,
-  authzCollectionAccess,
-  collection,
-  defineConfig,
-  fields,
-  mediaLibraryAdapter,
-  mediaLibraryUploads,
-  telescopeWatcher,
-} from '../../src/index.js';
+import { collection, defineConfig, fields } from '../../src/index.js';
+import { authkitAuth } from '../../src/integrations/authkit.js';
+import { authzCollectionAccess } from '../../src/integrations/authz.js';
+import { mediaLibraryAdapter, mediaLibraryUploads } from '../../src/integrations/media.js';
+import { telescopeWatcher } from '../../src/integrations/telescope.js';
 import { createCms } from '../../src/local_api/index.js';
 import { createTestCms, type TestCms } from '../../src/testing/create_test_cms.js';
 
@@ -93,7 +88,10 @@ describe('@adonis-agora/media', () => {
     expect(asset.id.length).toBeLessThanOrEqual(64);
     expect(asset.url).toBeTruthy();
 
-    const resolved = await mediaLibraryAdapter(media as never).resolveMany([asset.id, 'missing']);
+    const resolved = await mediaLibraryAdapter(() => media as never).resolveMany([
+      asset.id,
+      'missing',
+    ]);
     expect(resolved.get(asset.id)).toMatchObject({ id: asset.id, mime: 'text/plain' });
     expect(resolved.get(asset.id)?.url).toBe(asset.url);
     expect(resolved.has('missing')).toBe(false);

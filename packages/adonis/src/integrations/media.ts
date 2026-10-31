@@ -60,15 +60,17 @@ type MediaRecordLike = {
   conversions?: Record<string, unknown>;
 };
 
-/**
- * `@adonis-agora/media` on read: pass `media.library`. Its records carry no URL, so each one comes
- * from `library.url(id)`. Structural, so the CMS does not depend on the media package at runtime.
- */
-export function mediaLibraryAdapter(library: {
+export type ReadLibrary = {
   find(id: string): Promise<MediaRecordLike | null>;
   url?(id: string, conversion?: string): Promise<string>;
-}): MediaAdapter {
+};
+
+/** `@adonis-agora/media` on read. Its records carry no URL, so each one comes from `library.url(id)`. */
+export function mediaLibraryAdapter(
+  source: () => ReadLibrary | Promise<ReadLibrary>,
+): MediaAdapter {
   return createMediaAdapter(async (ids) => {
+    const library = await source();
     const found = await Promise.all(
       ids.map(async (id): Promise<MediaAsset | null> => {
         const record = await library.find(id);
@@ -99,16 +101,13 @@ export function mediaLibraryAdapter(library: {
   });
 }
 
-/**
- * `@adonis-agora/media` for `uploads.handler`. The library is behind a function because the service
- * only exists after boot. `collection` is one of the library's media collections.
- */
+/** `@adonis-agora/media` for `uploads.handler`. `collection` is one of the library's media collections. */
 export function mediaLibraryUploads(
-  library: () => MediaUploadLibrary | Promise<MediaUploadLibrary>,
+  source: () => MediaUploadLibrary | Promise<MediaUploadLibrary>,
   options: { ownerType?: string; ownerId?: string; collection?: string } = {},
 ): CmsUploadHandler {
   return async (file, context) => {
-    const target = await library();
+    const target = await source();
     const record = await target.attach({
       ownerType: options.ownerType ?? 'cms',
       ownerId: options.ownerId ?? 'cms',
@@ -127,7 +126,7 @@ export function mediaLibraryUploads(
   };
 }
 
-type MediaUploadLibrary = {
+export type MediaUploadLibrary = {
   attach(input: {
     ownerType: string;
     ownerId: string;
