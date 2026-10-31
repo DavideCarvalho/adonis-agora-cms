@@ -8,10 +8,28 @@ Part of the [Agora](https://github.com/DavideCarvalho) ecosystem, alongside
 [`@adonis-agora/filter`](https://github.com/DavideCarvalho/adonis-agora-filter),
 `@adonis-agora/authkit` and `@adonis-agora/authz`.
 
-> **Status:** the full surface is implemented — schema/DDL, Local API, REST, versioning, i18n,
-> tenancy, admin schema endpoint, media/authkit/authz adapters, the React building blocks and the
-> admin SPA. telescope/durable adapters are the remaining wiring. See the
-> [architecture spec](./docs/specs/2026-10-30-adonis-cms-design.md).
+## Quick start
+
+In an AdonisJS 7 app with Lucid (`node ace add @adonisjs/lucid` if you don't have it):
+
+```bash
+node ace add @adonis-agora/cms
+node ace add @adonis-agora/cms-admin
+node ace serve --hmr
+```
+
+Open <http://localhost:3333/admin>. You have a `posts` collection to play with, and its tables were created
+at boot. Change `config/cms.ts` and the form, the tables, the REST API and the types follow.
+
+```ts
+import cms from '#services/cms';
+
+const { docs } = await cms.collection('posts').find({ where: { slug: { equals: 'hello' } } });
+```
+
+**Before production:** in development anyone can write, so a new app works before it has a login. In
+production, an anonymous write to a collection with no `access` rule gets a 401. Pick a login with
+[`integrations.auth`](./docs/using.md#integrations) and run `node ace cms:sync` when you deploy.
 
 ## The idea
 
@@ -59,19 +77,9 @@ That config is the single source of truth for:
 | ----------- | ---------------------------------------------------------------------------------- |
 | Database    | `cms:diff` prints a plan, `cms:sync` applies it, `cms:generate` writes a migration |
 | Types       | `CmsDocument<typeof config, 'posts'>` — no codegen                                 |
-| REST        | `/api/cms/collections/posts` with filter/sort/pagination (next milestone)          |
-| Local API   | `cms.collection('posts').find({ where: ... })` (next milestone)                    |
+| REST        | `/api/cms/collections/posts` with filter/sort/pagination                           |
+| Local API   | `cms.collection('posts').find({ where: ... })`                                     |
 | Admin panel | React SPA, one field component per field type (next milestone)                     |
-
-## Install
-
-```bash
-node ace add @adonisjs/lucid
-node ace configure @adonis-agora/cms
-```
-
-The configure hook registers the provider and the `cms:*` commands, publishes `config/cms.ts`
-and a migration that creates the schema.
 
 ## Schema workflow
 

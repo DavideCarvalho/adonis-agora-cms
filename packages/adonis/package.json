@@ -92,7 +92,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json && pnpm run copy:stubs",
-    "copy:stubs": "mkdir -p dist/stubs && cp -r stubs/config stubs/database dist/stubs/",
+    "copy:stubs": "mkdir -p dist/stubs && cp -r stubs/config stubs/database stubs/services dist/stubs/",
     "prepack": "pnpm run build",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",

@@ -8,7 +8,7 @@ import { resolveDbConfig, resolveTenancy } from '../src/config/types.js';
 import { validateConfig } from '../src/config/validate.js';
 import { detectEngine, readSchemaState, syncCmsSchema } from '../src/db/sync.js';
 import type { CmsKnex } from '../src/db/types.js';
-import { CmsConfigError } from '../src/errors.js';
+import { CmsConfigError, CmsSchemaError } from '../src/errors.js';
 import { createCmsEvents } from '../src/integrations/durable.js';
 import type { BuiltIntegrations } from '../src/integrations/factories.js';
 import { buildAdapters } from '../src/integrations/factories.js';
@@ -79,6 +79,13 @@ export default class CmsProvider {
       );
     }
 
+    if (
+      !(this.app.container as unknown as { hasBinding(name: string): boolean }).hasBinding(
+        'lucid.db',
+      )
+    ) {
+      throw new CmsConfigError('db', 'the CMS needs Lucid: run `node ace add @adonisjs/lucid`');
+    }
     const database = (await this.app.container.make('lucid.db')) as LucidDatabase;
     const client = database.connection().getWriteClient() as CmsKnex;
     const engine = detectEngine(client);
@@ -151,7 +158,16 @@ export default class CmsProvider {
       return;
     }
 
-    await syncCmsSchema(client, spec, { engine });
+    try {
+      await syncCmsSchema(client, spec, { engine });
+    } catch (error) {
+      // Removing a field must not stop the app, or the command that would apply it could not run.
+      if (!(error instanceof CmsSchemaError)) throw error;
+      const logger = await this.app.container.make('logger');
+      (logger as { warn(message: string): void }).warn(
+        'cms: the schema was not updated, it would delete data. See it with `node ace cms:diff`, apply it with `node ace cms:sync --force`.',
+      );
+    }
   }
 
   /**
@@ -182,6 +198,19 @@ export default class CmsProvider {
       if (principal && !principal.abilities.includes('write')) {
         write.json({ error: { code: 'CMS_FORBIDDEN', message: 'token is read-only' } });
         return;
+      }
+
+      if (this.app.inProduction && !principal && config.rest?.publicWrites !== true) {
+        const auth = (config.integrations as BuiltIntegrations | undefined)?.auth;
+        const user = auth
+          ? await auth.resolveUser(context)
+          : (context as { auth?: { user?: unknown } }).auth?.user;
+        if (!user) {
+          ctx.response.status(401).json({
+            error: { code: 'CMS_UNAUTHORIZED', message: 'sign in to upload' },
+          });
+          return;
+        }
       }
 
       const file = ctx.request.file('file');
@@ -264,6 +293,7 @@ export default class CmsProvider {
 
     registerCmsRoutes(router, cms, {
       prefix: config.rest?.prefix ?? '/api/cms',
+      requireUserForWrites: this.app.inProduction && config.rest?.publicWrites !== true,
       resolveToken: (token) => resolveApiToken(cms.repoContext(), token),
       resolveLocale: (context) => {
         const i18n = (context as { i18n?: { locale?: string } }).i18n;

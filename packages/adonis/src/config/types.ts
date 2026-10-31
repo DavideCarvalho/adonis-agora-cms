@@ -533,6 +533,11 @@ export type RestConfig = {
   enabled?: boolean;
   /** Base path for the generated routes. Defaults to `/api/cms`. */
   prefix?: string;
+  /**
+   * In production, an anonymous write to a collection with no `access` rule is refused. Set this to
+   * allow it anyway. Development and test always allow it, so a new app works before it has a login.
+   */
+  publicWrites?: boolean;
 };
 
 export type CmsWriteListener = (event: CmsEvent, cms: unknown) => unknown;
