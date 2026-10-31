@@ -24,11 +24,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      # The admin bundles the built cms-react, so the workspace builds in dependency order first.
+      - run: pnpm build
       - run: pnpm --filter @adonis-agora/cms typecheck
       - run: pnpm --filter @adonis-agora/cms test
       - run: pnpm --filter @adonis-agora/cms-react typecheck
       - run: pnpm --filter @adonis-agora/cms-react test
-      - run: pnpm --filter @adonis-agora/cms-admin build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec playwright test
 
@@ -41,10 +42,10 @@ jobs:
         include:
           - engine: pg
             image: postgres:16
-            env: CMS_TEST_PG_URL=postgres://cms:cms@localhost:5432/cms
+            pg_url: postgres://cms:cms@localhost:5432/cms
           - engine: mysql
             image: mysql:8
-            env: CMS_TEST_MYSQL_URL=mysql://cms:cms@localhost:3306/cms
+            mysql_url: mysql://cms:cms@localhost:3306/cms
     services:
       database:
         image: ${{ matrix.image }}
@@ -64,7 +65,9 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
-    env: ${{ matrix.env }}
+    env:
+      CMS_TEST_PG_URL: ${{ matrix.pg_url }}
+      CMS_TEST_MYSQL_URL: ${{ matrix.mysql_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
