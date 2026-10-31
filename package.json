@@ -2,7 +2,7 @@
   "name": "adonis-cms",
   "version": "0.0.0",
   "private": true,
-  "description": "Config-first CMS for the Agora AdonisJS ecosystem — collections, globals, drafts, i18n and a schema-driven admin.",
+  "description": "Config-first CMS for the Agora AdonisJS ecosystem \u2014 collections, globals, drafts, i18n and a schema-driven admin.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -23,7 +23,8 @@
     "changeset": "changeset",
     "release": "pnpm --filter './packages/*' build && changeset publish",
     "version-packages": "changeset version && pnpm install --lockfile-only && biome check --write .",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test:official": "bash scripts/test-official.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.11",

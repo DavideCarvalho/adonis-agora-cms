@@ -5,13 +5,20 @@ export default defineConfig({
     () => import('@adonisjs/core/commands'),
     () => import('@adonisjs/lucid/commands'),
     () => import('@adonis-agora/cms/commands'),
+    () => import('@adonisjs/queue/commands'),
   ],
   providers: [
     () => import('@adonisjs/core/providers/app_provider'),
     () => import('@adonisjs/lucid/database_provider'),
+    () => import('@adonisjs/session/session_provider'),
+    () => import('@adonisjs/auth/auth_provider'),
+    () => import('@adonisjs/redis/redis_provider'),
     () => import('@adonisjs/drive/drive_provider'),
     () => import('@adonisjs/queue/queue_provider'),
-    () => import('@adonis-agora/durable/durable_provider'),
+    // Only with `CMS_JOBS=durable`: an app picks one queue, and this one needs its own worker setup.
+    ...(process.env.CMS_JOBS === 'durable'
+      ? [() => import('@adonis-agora/durable/durable_provider')]
+      : []),
     () => import('@adonis-agora/cms/cms_provider'),
     () => import('@adonis-agora/cms-admin/cms_admin_provider'),
   ],

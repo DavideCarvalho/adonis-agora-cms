@@ -9,16 +9,22 @@
   },
   "dependencies": {
     "@adonis-agora/cms": "workspace:*",
-    "@adonisjs/core": "7.5.0",
-    "@adonisjs/lucid": "^22.4.2",
-    "better-sqlite3": "^13.0.3",
-    "luxon": "^3.7.2",
-    "reflect-metadata": "^0.2.2",
     "@adonis-agora/cms-admin": "workspace:*",
     "@adonis-agora/cms-mcp": "workspace:*",
     "@adonis-agora/durable": "0.38.2",
+    "@adonisjs/auth": "^10.1.0",
+    "@adonisjs/core": "7.5.0",
     "@adonisjs/drive": "^4.0.0",
-    "@adonisjs/queue": "^0.7.0"
+    "@adonisjs/lucid": "^22.4.2",
+    "@adonisjs/queue": "^0.7.0",
+    "@adonisjs/redis": "^11.0.0",
+    "@adonisjs/session": "^8.3.0",
+    "@aws-sdk/client-s3": "^3.1160.0",
+    "@aws-sdk/s3-request-presigner": "^3.1160.0",
+    "better-sqlite3": "^13.0.3",
+    "ioredis": "^6.0.0",
+    "luxon": "^3.7.2",
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@adonisjs/ace": "^14.1.1",
