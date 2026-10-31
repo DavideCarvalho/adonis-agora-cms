@@ -1,6 +1,6 @@
 {
   "name": "@adonis-agora/cms",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Config-first CMS for AdonisJS — collections, globals, every field type, drafts, i18n, access control, hooks, REST and a schema-driven admin. Part of the Agora ecosystem.",
   "license": "MIT",
   "repository": {

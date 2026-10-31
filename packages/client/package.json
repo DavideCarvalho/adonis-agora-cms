@@ -1,6 +1,6 @@
 {
   "name": "@adonis-agora/cms-client",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Read-only content client for a @adonis-agora/cms server — token-bound tenant, filter wire format, no Adonis dependency.",
   "license": "MIT",
   "type": "module",

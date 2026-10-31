@@ -1,6 +1,6 @@
 {
   "name": "@adonis-agora/cms-mcp",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Model Context Protocol server for @adonis-agora/cms — let an AI read, create, publish and restore content with the same access rules as the admin.",
   "license": "MIT",
   "type": "module",
