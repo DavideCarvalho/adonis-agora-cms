@@ -1,3 +1,4 @@
+import { hashPassword, verifyPassword } from '../auth/builtin.js';
 import { resolveLocalization, versionsFor } from '../config/types.js';
 import {
   CmsConflictError,
@@ -16,6 +17,7 @@ import {
   documentFields,
   documentTable,
   loadChildTree,
+  passwordFields,
   type RepoContext,
   type Row,
   rowToDocument,
@@ -100,7 +102,8 @@ export async function createDocument(
   payload = await runHooks(ctx, slug, 'beforeValidate', payload, { operation: 'create' });
   payload = await runHooks(ctx, slug, 'beforeChange', payload, { operation: 'create' });
 
-  const validated = validate(ctx, slug, payload);
+  const validated = await validate(ctx, slug, payload);
+  await hashPasswords(validated, passwordFields(documentFields(ctx.config, slug)));
   await assertUnique(ctx, table, validated, undefined);
 
   const status = options.status ?? (options.draft === true ? 'draft' : 'published');
@@ -295,17 +298,36 @@ export async function updateDocument(
   const base = pending ? { ...previous, ...pending } : previous;
 
   const merged = options.replace === true ? payload : mergeDocument(base, payload);
-  const validated = validate(ctx, slug, merged);
+  // Reads never carry the hash, so what was not sent comes from the row, and only what was is hashed.
+  const passwords = passwordFields(documentFields(ctx.config, slug));
+  const changed = passwords.filter((name) => isNewPassword(payload[name]));
+  if (passwords.length > changed.length) {
+    const row = await selectStored(ctx, table, id);
+    for (const name of passwords) {
+      if (changed.includes(name)) continue;
+      const stored = row?.[resolveColumnName(ctx, table, name)];
+      if (stored) merged[name] = stored;
+      else delete merged[name];
+    }
+  }
+  const validated = await validate(ctx, slug, merged);
+  await hashPasswords(validated, changed);
   await assertUnique(ctx, table, validated, id);
 
   if (keepLive) {
     await recordVersion(ctx, slug, id, {
       status: 'draft',
-      snapshot: validated,
+      snapshot: withoutKeys(validated, passwords),
       autosave: options.autosave === true,
       locale: options.locale ?? null,
     });
-    const overlaid = { ...previous, ...validated, id, _status: 'published', _hasDraft: true };
+    const overlaid = {
+      ...previous,
+      ...withoutKeys(validated, passwords),
+      id,
+      _status: 'published',
+      _hasDraft: true,
+    };
     return overlaid;
   }
 
@@ -836,14 +858,54 @@ async function deleteDescendants(
 
 /* --------------------------------------------------------------- validation */
 
-function validate(
+function isNewPassword(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+async function hashPasswords(data: Record<string, unknown>, names: readonly string[]) {
+  for (const name of names) {
+    const value = data[name];
+    if (isNewPassword(value)) data[name] = await hashPassword(value);
+    else delete data[name];
+  }
+}
+
+function withoutKeys(data: Record<string, unknown>, names: readonly string[]) {
+  return Object.fromEntries(Object.entries(data).filter(([key]) => !names.includes(key)));
+}
+
+async function selectStored(ctx: RepoContext, table: TableSpec, id: string) {
+  const where = buildWhere(ctx, table, {}, undefined, false);
+  const idColumn = `${ident('id', ctx.engine)} = ?`;
+  return selectOne(
+    ctx.client,
+    `select * from ${ident(table.name, ctx.engine)}${where.sql ? `${where.sql} and ${idColumn}` : ` where ${idColumn}`}`,
+    [...where.bindings, id],
+  );
+}
+
+/** Checks a `fields.password` value. A missing document, or a field that is no password, is `false`. */
+export async function checkDocumentPassword(
+  ctx: RepoContext,
+  slug: string,
+  id: string,
+  field: string,
+  password: string,
+): Promise<boolean> {
+  if (!passwordFields(documentFields(ctx.config, slug)).includes(field)) return false;
+  const table = documentTable(ctx.spec, slug);
+  const stored = (await selectStored(ctx, table, id))?.[resolveColumnName(ctx, table, field)];
+  return typeof stored === 'string' && verifyPassword(password, stored);
+}
+
+async function validate(
   ctx: RepoContext,
   slug: string,
   data: Record<string, unknown>,
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   const fields = documentFields(ctx.config, slug);
   const localization = resolveLocalization(ctx.config);
-  const result = validateDocument(fields, data, {
+  const result = await validateDocument(fields, data, {
     locales: ctx.spec.locales,
     defaultLocale: ctx.spec.defaultLocale,
     localizedRequired: localization.localizedRequired,
@@ -984,7 +1046,10 @@ function fieldCondition(
   value: unknown,
 ): { sql: string; bindings: unknown[] } {
   const entry = resolveEntry(ctx.spec, field, table.name);
-  if (!entry) return { sql: '1 = 0', bindings: [] };
+  // A filter on the hash would read it one character at a time.
+  if (!entry || passwordFields(documentFields(ctx.config, table.slug)).includes(field)) {
+    return { sql: '1 = 0', bindings: [] };
+  }
 
   const conditions = isOperatorObject(value)
     ? Object.entries(value).map(([operator, operand]) =>
@@ -1133,6 +1198,9 @@ function buildSort(ctx: RepoContext, table: TableSpec, sort: string | undefined)
     const descending = item.startsWith('-');
     const field = descending ? item.slice(1) : item;
     const entry = resolveEntry(ctx.spec, field, table.name);
+    if (passwordFields(documentFields(ctx.config, table.slug)).includes(field)) {
+      throw new CmsValidationError({ [field]: 'cannot sort by a password' });
+    }
     const column = entry?.column ?? field;
     return `${ident(column, ctx.engine)} ${descending ? 'desc' : 'asc'}`;
   });

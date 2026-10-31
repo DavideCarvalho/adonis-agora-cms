@@ -6,6 +6,7 @@ import type { CmsEventBus } from '../integrations/durable.js';
 import type { MediaAdapter } from '../integrations/media.js';
 import type { CmsObservation } from '../integrations/telescope.js';
 import {
+  checkDocumentPassword,
   createDocument,
   deleteDocument,
   type FindQuery,
@@ -87,6 +88,8 @@ export type CmsCollectionApi<C, S extends string> = {
   delete(id: string, options?: OperationOptions): Promise<void>;
   restore(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   count(query?: FindQuery): Promise<number>;
+  /** Whether `password` matches a `fields.password` value, which no read returns. */
+  checkPassword(id: string, field: string, password: string): Promise<boolean>;
   publish(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   unpublish(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   versions(
@@ -231,6 +234,10 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
 
           async restore(id, operation) {
             return (await restoreDocument(ctx, slug, id, operation)) as CmsDocument<C, S>;
+          },
+
+          checkPassword(id, field, password) {
+            return checkDocumentPassword(ctx, slug, id, field, password);
           },
 
           async count(query) {

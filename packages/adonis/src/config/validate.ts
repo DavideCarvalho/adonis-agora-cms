@@ -244,6 +244,8 @@ type CollectionContext = {
   collections: readonly CollectionConfig[];
   /** Field names of the collection or global being validated. */
   ownNames?: readonly string[];
+  /** Inside an array, group or block: a password cannot live there. */
+  nested?: boolean;
   previewConfigured: boolean;
   locales: readonly LocaleCode[];
   customTypes: Set<string>;
@@ -344,6 +346,20 @@ function validateGlobal(
   return errors;
 }
 
+/** Options that were accepted and did nothing. Saying so beats a setting that silently has no effect. */
+function unsupportedOptions(field: FieldConfig): [string, string][] {
+  const raw = field as unknown as Record<string, unknown>;
+  const admin = (field.admin ?? {}) as Record<string, unknown>;
+  const found: [string, string][] = [];
+  if (raw.hooks) found.push(['hooks', 'use the hooks of the collection']);
+  if (raw.withTime !== undefined) found.push(['withTime', 'a date field always stores the time']);
+  if (raw.language !== undefined) found.push(['language', 'the code editor has no highlighting']);
+  if (raw.hashWith !== undefined)
+    found.push(['hashWith', 'passwords are always hashed with scrypt']);
+  if (admin.position !== undefined) found.push(['admin.position', 'the form has a single column']);
+  return found;
+}
+
 function validateFields(
   fields: readonly FieldConfig[],
   path: string,
@@ -378,6 +394,24 @@ function validateFields(
           `"${field.name}" is reserved: every document already has id, createdAt and updatedAt`,
         ),
       );
+    }
+
+    for (const [option, hint] of unsupportedOptions(field)) {
+      errors.push(
+        new CmsConfigError(`${fieldPath}.${option}`, `"${option}" is not supported: ${hint}`),
+      );
+    }
+
+    if (field.type === 'password' && ctx.nested) {
+      errors.push(
+        new CmsConfigError(
+          fieldPath,
+          'a password field has to be at the top level of the document',
+        ),
+      );
+    }
+    if (field.type === 'password' && field.localized) {
+      errors.push(new CmsConfigError(`${fieldPath}.localized`, 'a password cannot be localized'));
     }
 
     if (field.type === 'slug' && field.from && !ctx.ownNames?.includes(field.from)) {
@@ -503,7 +537,8 @@ function validateNested(
         new CmsConfigError(`${fieldPath}.fields`, `"${field.type}" needs at least one field`),
       );
     }
-    errors.push(...validateFields(field.fields, `${fieldPath}.fields`, ctx));
+    const nested = ctx.nested || (field.type !== 'row' && field.type !== 'collapsible');
+    errors.push(...validateFields(field.fields, `${fieldPath}.fields`, { ...ctx, nested }));
     return errors;
   }
 
@@ -528,7 +563,9 @@ function validateNested(
         );
       }
       seen.add(blockDefinition.slug);
-      errors.push(...validateFields(blockDefinition.fields, `${blockPath}.fields`, ctx));
+      errors.push(
+        ...validateFields(blockDefinition.fields, `${blockPath}.fields`, { ...ctx, nested: true }),
+      );
     });
 
     return errors;
