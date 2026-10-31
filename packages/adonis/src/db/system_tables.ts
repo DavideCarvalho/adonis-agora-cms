@@ -125,7 +125,7 @@ export function schedulesTable(spec: SystemTableContext): TableSpec {
   };
 }
 
-/** Passwords for `cmsAuth`, out of the users collection so no API can ever read one. */
+/** Passwords for `auth.builtin`, out of the users collection so no API can ever read one. */
 export function credentialsTable(spec: SystemTableContext): TableSpec {
   return {
     name: `${spec.tablePrefix}auth_credentials`,

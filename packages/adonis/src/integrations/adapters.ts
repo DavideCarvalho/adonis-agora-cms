@@ -9,22 +9,17 @@ import type { CmsObserver } from './telescope.js';
 import type { CmsJobs, DeliverWebhookInput } from './webhooks.js';
 
 /*
- * Each port has an Agora adapter and an official AdonisJS one, or takes a plain function. All of them
- * are structural: the host passes its own instance, so the CMS imports none of these libraries, none
- * is a dependency, and two copies of a package in `node_modules` cannot break a class lookup.
+ * The ports themselves, built by the factories in `factories.ts` once the app exists. They only know the
+ * shape of each library, so the CMS imports none of them and none is a dependency.
  */
 
 /* ---------------------------------------------------------------- jobs */
 
-/**
- * `@adonis-agora/durable`. Export `CmsDeliverWebhook` from `app/workflows`. The engine comes from a
- * function because it does not exist yet when the config file loads.
- */
-export function durableJobs(
-  engine: () =>
-    | { start(workflow: string, input: unknown, runId: string): Promise<unknown> }
-    | Promise<{ start(workflow: string, input: unknown, runId: string): Promise<unknown> }>,
-): CmsJobs {
+export type DurableEngine = {
+  start(workflow: string, input: unknown, runId: string): Promise<unknown>;
+};
+
+export function durableJobs(engine: () => Promise<DurableEngine>): CmsJobs {
   return {
     async deliverWebhook(input) {
       return (await engine()).start('cms.deliver-webhook', input, randomUUID());
@@ -32,16 +27,23 @@ export function durableJobs(
   };
 }
 
+type WebhookJobModule = {
+  default: { dispatch(input: DeliverWebhookInput): unknown };
+};
+
 /**
- * `@adonisjs/queue`, or any other queue: pass how to enqueue, and have the job call
- * `runWebhookDelivery(payload)`. The job comes from a dynamic import: it needs the booted app.
+ * `@adonisjs/queue`: `queueJobs(() => import('#jobs/deliver_cms_webhook'))`, where the job calls
+ * `runWebhookDelivery(this.payload)`. For any other queue, pass `{ deliverWebhook }`.
  */
-export function queueJobs(options: {
-  deliverWebhook: (input: DeliverWebhookInput) => unknown;
-}): CmsJobs {
+export function queueJobs(
+  source:
+    | (() => Promise<WebhookJobModule>)
+    | { deliverWebhook: (input: DeliverWebhookInput) => unknown },
+): CmsJobs {
   return {
     async deliverWebhook(input) {
-      return options.deliverWebhook(input);
+      if (typeof source !== 'function') return source.deliverWebhook(input);
+      return (await source()).default.dispatch(input);
     },
   };
 }
@@ -94,7 +96,7 @@ export function bouncerAccess(ability: BouncerAbility): AccessFn {
 
 /* -------------------------------------------------------------- storage */
 
-type DriveDisk = {
+export type DriveDisk = {
   put(
     key: string,
     contents: Uint8Array | string,
@@ -104,12 +106,11 @@ type DriveDisk = {
   getSignedUrl?(key: string, options?: { expiresIn?: string | number }): Promise<string>;
 };
 
-/** A disk from `drive.use()`, usually behind a function: the service only exists after boot. */
-type DiskSource = DriveDisk | (() => DriveDisk | Promise<DriveDisk>);
+export type DriveManager = { use(name?: string): DriveDisk };
 
-const resolveDisk = async (disk: DiskSource) => (typeof disk === 'function' ? disk() : disk);
+type DiskSource = () => DriveDisk | Promise<DriveDisk>;
 
-type UrlOptions = {
+export type UrlOptions = {
   /** For a private disk: a plain URL there answers 403. */
   signed?: boolean;
   /** Lifetime of a signed URL. Default `1h`. */
@@ -136,7 +137,7 @@ export function driveUploads(
   options: { prefix?: string } & UrlOptions = {},
 ): CmsUploadHandler {
   return async (file) => {
-    const target = await resolveDisk(disk);
+    const target = await disk();
     const extension = extname(file.filename)
       .replace(/[^.a-zA-Z0-9]/g, '')
       .slice(0, 12);
@@ -144,7 +145,7 @@ export function driveUploads(
     if (key.length > MAX_KEY_LENGTH) {
       throw new CmsConfigError(
         'uploads',
-        `driveUploads prefix is too long for a ${MAX_KEY_LENGTH} character key`,
+        `uploads.drive prefix is too long for a ${MAX_KEY_LENGTH} character key`,
       );
     }
     await target.put(key, file.contents, { contentType: file.mimeType });
@@ -160,7 +161,7 @@ export function driveUploads(
 export function driveMedia(disk: DiskSource, options: UrlOptions = {}): MediaAdapter {
   return {
     async resolveMany(ids) {
-      const target = await resolveDisk(disk);
+      const target = await disk();
       const unique = [...new Set(ids)].filter(Boolean);
       const urls = await Promise.all(unique.map((id) => urlOf(target, id, options)));
       return new Map(unique.map((id, index) => [id, { id, url: urls[index] as string }]));
@@ -170,7 +171,7 @@ export function driveMedia(disk: DiskSource, options: UrlOptions = {}): MediaAda
 
 /* ----------------------------------------------------------------- mail */
 
-type AdonisMailer = {
+export type AdonisMailer = {
   send(callback: (message: never) => unknown): Promise<unknown>;
 };
 type AdonisMessage = {
@@ -179,12 +180,12 @@ type AdonisMessage = {
   text(content: string): AdonisMessage;
 };
 
-/** `@adonisjs/mail` for `cmsAuth`. The service only exists after boot, hence the function. */
-export function adonisMail(mailer: () => unknown): CmsMail {
+export type AdonisMailManager = AdonisMailer & { use(name: string): AdonisMailer };
+
+export function adonisMail(mailer: () => Promise<AdonisMailer>): CmsMail {
   return {
     async send({ to, subject, text }) {
-      const target = (await mailer()) as AdonisMailer;
-      return target.send(((message: AdonisMessage) =>
+      return (await mailer()).send(((message: AdonisMessage) =>
         message.to(to).subject(subject).text(text)) as (message: never) => unknown);
     },
   };
@@ -192,13 +193,19 @@ export function adonisMail(mailer: () => unknown): CmsMail {
 
 /* -------------------------------------------------------- observability */
 
-/** The AdonisJS logger. For `@adonis-agora/telescope`, use `telescopeWatcher`. */
-export function loggerObserver(logger: {
+export type AdonisLogger = {
   info(data: unknown, message: string): void;
   error(data: unknown, message: string): void;
-}): CmsObserver {
+};
+
+export function loggerObserver(logger: () => Promise<AdonisLogger>): CmsObserver {
   return (observation) => {
-    if (observation.ok) logger.info(observation, 'cms write');
-    else logger.error(observation, 'cms write failed');
+    // An observer must never fail the write it is reporting on.
+    logger()
+      .then((target) => {
+        if (observation.ok) target.info(observation, 'cms write');
+        else target.error(observation, 'cms write failed');
+      })
+      .catch((error: unknown) => console.error('[cms] observer failed', error));
   };
 }

@@ -1,6 +1,11 @@
 import { Bouncer } from '@adonisjs/bouncer';
 import { describe, expect, test, vi } from 'vitest';
-import { adonisAuth, bouncerAccess, driveMedia, driveUploads } from '../../src/index.js';
+import {
+  adonisAuth,
+  bouncerAccess,
+  driveMedia,
+  driveUploads,
+} from '../../src/integrations/adapters.js';
 
 /* The queue and Drive adapters run for real in `examples/blog`, through the official providers. */
 
@@ -21,16 +26,16 @@ describe('driveUploads', () => {
 
     expect(asset.id).toMatch(/^cms\/[0-9a-f-]{36}\.png$/);
     expect(put.mock.calls[0]?.[0]).toBe(asset.id);
-    expect((await driveMedia(disk).resolveMany([asset.id])).get(asset.id)?.url).toBe(
+    expect((await driveMedia(() => disk).resolveMany([asset.id])).get(asset.id)?.url).toBe(
       `/files/${asset.id}`,
     );
   });
 
   test('refuses a prefix that would not fit the column', async () => {
     const disk = { put: vi.fn(), getUrl: async () => '' };
-    await expect(driveUploads(disk, { prefix: 'x'.repeat(40) })(file, context)).rejects.toThrow(
-      /too long/,
-    );
+    await expect(
+      driveUploads(() => disk, { prefix: 'x'.repeat(40) })(file, context),
+    ).rejects.toThrow(/too long/);
     expect(disk.put).not.toHaveBeenCalled();
   });
 });

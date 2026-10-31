@@ -61,11 +61,11 @@ describe('media adapter', () => {
   });
 
   test('mediaLibraryAdapter resolves through find() and drops what is missing', async () => {
-    const library = mediaLibraryAdapter({
+    const library = mediaLibraryAdapter(() => ({
       async find(id) {
         return id === 'a' ? { id, url: '/a' } : null;
       },
-    });
+    }));
 
     const resolved = await library.resolveMany(['a', 'b']);
     expect(resolved.get('a')).toEqual({ id: 'a', url: '/a' });

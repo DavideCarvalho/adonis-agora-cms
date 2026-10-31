@@ -1,20 +1,17 @@
 import type { AccessArgs } from '@adonis-agora/cms';
 import {
-  adonisAuth,
-  adonisMail,
-  cmsAuth,
+  auth,
   collection,
   defineConfig,
-  driveUploads,
-  durableJobs,
   fields,
   formsPlugin,
   global,
+  jobs,
   nestedDocsPlugin,
-  queueJobs,
   redirectsPlugin,
   searchPlugin,
   seoPlugin,
+  uploads,
   usersPlugin,
   withPlugins,
 } from '@adonis-agora/cms';
@@ -33,28 +30,20 @@ export default withPlugins(
     ],
     // The official queue by default; `CMS_JOBS=durable` runs the same webhooks through Agora's.
     integrations: {
-      ...(process.env.CMS_AUTH === 'adonis' ? { auth: adonisAuth({ guard: 'web' }) } : {}),
+      ...(process.env.CMS_AUTH === 'adonis' ? { auth: auth.adonis({ guard: 'web' }) } : {}),
       // `CMS_AUTH=builtin` is for an app with no login: the CMS owns the users and the screen.
       ...(process.env.CMS_AUTH === 'builtin'
         ? {
-            auth: cmsAuth({
+            auth: auth.builtin({
               secret: 'e2e-only-secret-not-for-production-0123',
-              mail: adonisMail(async () => (await import('@adonisjs/mail/services/main')).default),
+              mail: true,
             }),
           }
         : {}),
       jobs:
         process.env.CMS_JOBS === 'durable'
-          ? durableJobs(async () => {
-              const { default: engine } = await import('@adonis-agora/durable/services/main');
-              return engine;
-            })
-          : queueJobs({
-              deliverWebhook: async (input) => {
-                const { default: job } = await import('#jobs/deliver_cms_webhook');
-                return job.dispatch(input);
-              },
-            }),
+          ? jobs.durable()
+          : jobs.queue(() => import('#jobs/deliver_cms_webhook')),
     },
     admin: {
       title: 'Blog',
@@ -64,13 +53,7 @@ export default withPlugins(
     uploads: {
       maxSize: 5 * 1024 * 1024,
       mimeTypes: ['image/*', 'application/pdf'],
-      handler: driveUploads(
-        async () => {
-          const { default: drive } = await import('@adonisjs/drive/services/main');
-          return drive.use();
-        },
-        { signed: process.env.DRIVE_DISK === 's3' },
-      ),
+      handler: uploads.drive({ signed: process.env.DRIVE_DISK === 's3' }),
     },
     collections: [
       collection('authors', {
