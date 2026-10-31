@@ -26,7 +26,8 @@
     "e2e": "playwright test",
     "test:official": "bash scripts/test-official.sh",
     "test:durable": "bash scripts/test-durable.sh",
-    "test:auth": "bash scripts/test-auth.sh"
+    "test:auth": "bash scripts/test-auth.sh",
+    "test:first-run": "bash scripts/test-first-run.sh"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.11",

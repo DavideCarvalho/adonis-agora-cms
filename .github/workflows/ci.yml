@@ -102,3 +102,4 @@ jobs:
           NODE_ENV: development
       - run: pnpm test:durable
       - run: pnpm test:auth
+      - run: pnpm test:first-run

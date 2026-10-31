@@ -41,6 +41,8 @@ export type RouteContext = {
   params: Record<string, string>;
   method?: string;
   request: {
+    method?(): string;
+    url?(): string;
     qs(): Record<string, unknown>;
     body(): unknown;
     hostname?(): string;
@@ -56,6 +58,8 @@ export type RouteContext = {
 
 export type RegisterCmsRoutesOptions = {
   prefix?: string;
+  /** Refuses an anonymous write with no `access` rule for that operation. The provider sets it in production. */
+  requireUserForWrites?: boolean;
   /** Resolves `Authorization: Bearer` into an app principal (tenant comes from the token). */
   resolveToken?: (
     token: string,
@@ -92,7 +96,8 @@ export function registerCmsRoutes(
   const prefix = options.prefix ?? '/api/cms';
   const dispatch = (handler: Handler) => async (context: unknown) => {
     const ctx = context as RouteContext;
-    const method = (ctx.method ?? 'GET').toUpperCase();
+    // Adonis has it on the request; `ctx.method` is always undefined there.
+    const method = (ctx.request.method?.() ?? ctx.method ?? 'GET').toUpperCase();
     const authorization = ctx.request.headers?.().authorization ?? '';
     const bearer = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
     const principal = bearer && options.resolveToken ? await options.resolveToken(bearer) : null;
@@ -119,6 +124,23 @@ export function registerCmsRoutes(
     const scoped = principal
       ? cms.forTenant(requestedTenant ?? principal.tenant)
       : await scope(cms, ctx, options);
+
+    if (
+      options.requireUserForWrites &&
+      !principal &&
+      ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) &&
+      !scoped.user &&
+      !hasAccessRule(cms.config, ctx.params?.slug, operationOf(method, ctx))
+    ) {
+      ctx.response.status(401).json({
+        error: {
+          code: 'CMS_UNAUTHORIZED',
+          message:
+            'sign in to write. Set `integrations.auth`, an `access` rule on this collection, or `rest.publicWrites`',
+        },
+      });
+      return;
+    }
 
     const request = toRequest(ctx);
     const negotiated = options.resolveLocale?.(ctx);
@@ -169,6 +191,30 @@ export function registerCmsRoutes(
   router.delete(`${prefix}/collections/:slug/:id/schedule`, dispatch(handleCollectionUnschedule));
   router.get(`${prefix}/globals/:slug`, dispatch(handleGlobalGet));
   router.patch(`${prefix}/globals/:slug`, dispatch(handleGlobalUpdate));
+}
+
+type WriteOperation = 'create' | 'update' | 'delete';
+
+/** A POST to the collection creates and a DELETE of a document deletes. Publish, lock and the rest update. */
+function operationOf(method: string, ctx: RouteContext): WriteOperation {
+  const { id } = ctx.params ?? {};
+  if (method === 'POST' && !id) return 'create';
+  if (method === 'DELETE' && id && !ctx.request.url?.().endsWith('/lock')) return 'delete';
+  return 'update';
+}
+
+/** Per operation: a rule for `read` says nothing about who may write. */
+function hasAccessRule(
+  config: CmsConfig,
+  slug: string | undefined,
+  operation: WriteOperation,
+): boolean {
+  const target = [...(config.collections ?? []), ...(config.globals ?? [])].find(
+    (item) => item.slug === slug,
+  );
+  return Boolean(
+    (target?.access as Partial<Record<WriteOperation, unknown>> | undefined)?.[operation],
+  );
 }
 
 async function scope(

@@ -43,10 +43,7 @@ export type Labels = {
   plural: string;
 };
 
-export type AdminPosition = 'main' | 'sidebar';
-
 export type FieldAdmin = {
-  position?: AdminPosition;
   description?: string;
   /** Component id registered in the admin `FieldRegistry`. */
   component?: string;
@@ -74,18 +71,6 @@ export type FieldValidator = (args: {
   data: Record<string, unknown>;
   locale?: LocaleCode;
 }) => string | undefined | Promise<string | undefined>;
-
-export type FieldHook = (args: {
-  value: unknown;
-  data: Record<string, unknown>;
-  locale?: LocaleCode;
-}) => unknown | Promise<unknown>;
-
-export type FieldHooks = {
-  beforeValidate?: readonly FieldHook[];
-  beforeChange?: readonly FieldHook[];
-  afterRead?: readonly FieldHook[];
-};
 
 /** Plain-data column metadata for a custom field type (serializable on purpose). */
 export type CustomColumn = {
@@ -123,7 +108,6 @@ export type FieldCommon = {
   admin?: FieldAdmin;
   access?: FieldAccess;
   validate?: FieldValidator;
-  hooks?: FieldHooks;
   /** Set by `defineField` on custom types; the compiler reads it to emit the column. */
   __column?: CustomColumn;
 };
@@ -151,8 +135,6 @@ export type EmailField = FieldCommon & {
 
 export type PasswordField = FieldCommon & {
   type: 'password';
-  /** Hook name used to hash the value; defaults to the configured auth adapter. */
-  hashWith?: string;
 };
 
 export type NumberFormat = 'int' | 'float' | 'decimal';
@@ -172,7 +154,6 @@ export type CheckboxField = FieldCommon & {
 
 export type DateField = FieldCommon & {
   type: 'date';
-  withTime?: boolean;
 };
 
 export type SelectField<Options extends readonly SelectOption[] = readonly SelectOption[]> =
@@ -194,7 +175,6 @@ export type JsonField = FieldCommon & {
 
 export type CodeField = FieldCommon & {
   type: 'code';
-  language?: string;
 };
 
 export type SlugField = FieldCommon & {
@@ -533,6 +513,11 @@ export type RestConfig = {
   enabled?: boolean;
   /** Base path for the generated routes. Defaults to `/api/cms`. */
   prefix?: string;
+  /**
+   * In production, an anonymous write to a collection with no `access` rule is refused. Set this to
+   * allow it anyway. Development and test always allow it, so a new app works before it has a login.
+   */
+  publicWrites?: boolean;
 };
 
 export type CmsWriteListener = (event: CmsEvent, cms: unknown) => unknown;

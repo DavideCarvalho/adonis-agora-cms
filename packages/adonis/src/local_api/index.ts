@@ -6,6 +6,7 @@ import type { CmsEventBus } from '../integrations/durable.js';
 import type { MediaAdapter } from '../integrations/media.js';
 import type { CmsObservation } from '../integrations/telescope.js';
 import {
+  checkDocumentPassword,
   createDocument,
   deleteDocument,
   type FindQuery,
@@ -18,7 +19,13 @@ import {
 import type { RepoContext } from '../repository/document.js';
 import { compileSchema } from '../schema/compile.js';
 import type { Engine, SchemaSpec } from '../schema/types.js';
-import type { CmsCreateInput, CmsDocument, CmsUpdateInput } from '../types/document.js';
+import type {
+  CmsCreateInput,
+  CmsDocument,
+  CmsUpdateInput,
+  CollectionSlug,
+  GlobalSlug,
+} from '../types/document.js';
 import {
   type DocumentLock,
   discardDraft,
@@ -81,6 +88,8 @@ export type CmsCollectionApi<C, S extends string> = {
   delete(id: string, options?: OperationOptions): Promise<void>;
   restore(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   count(query?: FindQuery): Promise<number>;
+  /** Whether `password` matches a `fields.password` value, which no read returns. */
+  checkPassword(id: string, field: string, password: string): Promise<boolean>;
   publish(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   unpublish(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   versions(
@@ -115,8 +124,8 @@ export type Cms<C extends CmsConfig = CmsConfig> = {
   readonly config: C;
   readonly user: unknown;
   readonly tenant: string | null;
-  collection<S extends string>(slug: S): CmsCollectionApi<C, S>;
-  global<S extends string>(slug: S): CmsGlobalApi<C, S>;
+  collection<S extends CollectionSlug<C>>(slug: S): CmsCollectionApi<C, S>;
+  global<S extends GlobalSlug<C>>(slug: S): CmsGlobalApi<C, S>;
   /** A scoped instance sharing the same schema and connection. */
   forTenant(tenant: string | null): Cms<C>;
   /** A scoped instance with a different request user. */
@@ -225,6 +234,10 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
 
           async restore(id, operation) {
             return (await restoreDocument(ctx, slug, id, operation)) as CmsDocument<C, S>;
+          },
+
+          checkPassword(id, field, password) {
+            return checkDocumentPassword(ctx, slug, id, field, password);
           },
 
           async count(query) {

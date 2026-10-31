@@ -4,6 +4,8 @@ export type ValidateContext = {
   locales: readonly string[];
   defaultLocale: string;
   localizedRequired: 'default' | 'all';
+  /** Async `validate` functions still running; `validateDocument` waits for them. */
+  pending?: Promise<void>[];
 };
 
 export type ValidateResult = {
@@ -11,13 +13,15 @@ export type ValidateResult = {
   errors: Record<string, string>;
 };
 
-export function validateDocument(
+export async function validateDocument(
   fields: readonly FieldConfig[],
   input: Record<string, unknown>,
   ctx: ValidateContext,
-): ValidateResult {
+): Promise<ValidateResult> {
   const errors: Record<string, string> = {};
-  const data = validateFields(fields, input, '', ctx, errors);
+  const pending: Promise<void>[] = [];
+  const data = validateFields(fields, input, '', { ...ctx, pending }, errors);
+  await Promise.all(pending);
   return { data, errors };
 }
 
@@ -125,6 +129,19 @@ function validateLeaf(
   errors: Record<string, string>,
   siblings: Record<string, unknown>,
 ): unknown {
+  const value = parseLeaf(field, raw, path, ctx, errors, siblings);
+  if (value === undefined || errors[path] !== undefined) return value;
+  return applyCustomValidator(field, value, path, ctx, errors, siblings);
+}
+
+function parseLeaf(
+  field: FieldConfig,
+  raw: unknown,
+  path: string,
+  ctx: ValidateContext,
+  errors: Record<string, string>,
+  siblings: Record<string, unknown>,
+): unknown {
   if (raw === null || raw === undefined) return undefined;
 
   const fail = (message: string) => {
@@ -151,16 +168,14 @@ function validateLeaf(
       if (field.type === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw)) {
         return fail('must be a valid email');
       }
-      return applyCustomValidator(field, raw, path, errors, siblings);
+      return raw;
 
     case 'slug': {
-      const value =
-        typeof raw === 'string' && raw.length > 0
-          ? raw
-          : field.from
-            ? slugify(String(siblings[field.from] ?? ''))
-            : '';
-      return applyCustomValidator(field, value, path, errors, siblings);
+      return typeof raw === 'string' && raw.length > 0
+        ? raw
+        : field.from
+          ? slugify(String(siblings[field.from] ?? ''))
+          : '';
     }
 
     case 'number': {
@@ -172,7 +187,7 @@ function validateLeaf(
       if (field.min !== undefined && value < field.min)
         return fail(`must be at least ${field.min}`);
       if (field.max !== undefined && value > field.max) return fail(`must be at most ${field.max}`);
-      return applyCustomValidator(field, value, path, errors, siblings);
+      return value;
     }
 
     case 'checkbox':
@@ -241,6 +256,12 @@ function validateLeaf(
 
     case 'blocks': {
       if (!Array.isArray(raw)) return fail('must be an array');
+      if (field.minRows !== undefined && raw.length < field.minRows) {
+        return fail(`must have at least ${field.minRows} rows`);
+      }
+      if (field.maxRows !== undefined && raw.length > field.maxRows) {
+        return fail(`must have at most ${field.maxRows} rows`);
+      }
       return raw.map((row, index) => validateBlock(field, row, `${path}[${index}]`, ctx, errors));
     }
 
@@ -273,12 +294,21 @@ function applyCustomValidator(
   field: FieldConfig,
   value: unknown,
   path: string,
+  ctx: ValidateContext,
   errors: Record<string, string>,
   data: Record<string, unknown>,
 ): unknown {
   if (!field.validate) return value;
   const message = field.validate({ value, data });
-  if (typeof message === 'string' && message.length > 0) {
+  if (message instanceof Promise) {
+    ctx.pending?.push(
+      message.then((resolved) => {
+        if (resolved) errors[path] = resolved;
+      }),
+    );
+    return value;
+  }
+  if (message) {
     errors[path] = message;
     return undefined;
   }

@@ -47,6 +47,19 @@ export function documentTable(spec: SchemaSpec, slug: string): TableSpec {
   return table;
 }
 
+/**
+ * Names of the password fields of a document. They hold a hash that nothing may read: `rowToDocument`
+ * drops them, so a read, a populated relation, a version and a webhook never carry one.
+ */
+export function passwordFields(fields: readonly FieldConfig[]): string[] {
+  return fields.flatMap((field) => {
+    if (field.type === 'password') return [field.name];
+    if (field.type === 'tabs') return field.tabs.flatMap((tab) => passwordFields(tab.fields));
+    if (field.type === 'row' || field.type === 'collapsible') return passwordFields(field.fields);
+    return [];
+  });
+}
+
 export function documentFields(config: CmsConfig, slug: string): readonly FieldConfig[] {
   const collection = (config.collections ?? []).find((item) => item.slug === slug);
   if (collection) return collection.fields;
@@ -267,6 +280,10 @@ export function rowToDocument(
     const fieldName = child.path?.split('.').at(-1) ?? '';
     const rows = byParent.get(String(row.id)) ?? [];
     setByPath(doc, fieldName, childValue(ctx, child, rows, children, options));
+  }
+
+  for (const name of passwordFields(documentFields(ctx.config, table.slug))) {
+    delete doc[name];
   }
 
   return doc;

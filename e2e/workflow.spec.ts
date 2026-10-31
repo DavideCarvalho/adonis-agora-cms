@@ -405,7 +405,8 @@ test('rich text holds a block and a link to a document', async ({ page, request 
   await page.goto(`/admin#/collections/posts/${((await other.json()) as { id: string }).id}`);
   await page.locator('.rich-text__body').click();
   await page.keyboard.type('link me');
-  await page.keyboard.press('Shift+Home');
+  // Select all is a command the editor runs at once; Shift+Home reaches it on a later `selectionchange`.
+  await page.keyboard.press('ControlOrMeta+a');
   await page.getByRole('button', { name: 'Link', exact: true }).click();
   await page.getByLabel('Link to a document').selectOption({ index: 1 });
   await expect(page.locator('.rich-text__body a[href^="cms:"]')).toHaveCount(1);
