@@ -135,8 +135,13 @@ test('ctrl+k jumps to a document, and the list filters and picks columns', async
 
   await page.goto('/admin');
   await expect(page.locator('.brand')).toBeVisible();
-  await page.keyboard.press('Control+k');
-  await page.getByRole('textbox', { name: /search documents/i }).fill(title);
+  // The palette mounts once the schema has loaded, which can be after the brand shows.
+  const palette = page.getByRole('textbox', { name: /search documents/i });
+  await expect(async () => {
+    await page.keyboard.press('Control+k');
+    await expect(palette).toBeVisible({ timeout: 500 });
+  }).toPass();
+  await palette.fill(title);
   await page
     .locator('.palette-dialog__item')
     .filter({ hasText: title })
@@ -547,7 +552,9 @@ test('a relation to many keeps every pick', async ({ page, context }) => {
     .locator('.field, [class*="field"]')
     .filter({ has: page.locator('[id="related"]') });
   for (const title of titles) {
-    await related.getByRole('searchbox').fill(title);
+    // The search box only appears past 100 documents.
+    const search = related.getByRole('searchbox');
+    if (await search.isVisible()) await search.fill(title);
     await related.getByRole('checkbox', { name: title }).check();
   }
   await page.getByRole('button', { name: 'Save draft' }).click();
