@@ -156,7 +156,7 @@ export default withPlugins(
       collection('posts', {
         softDelete: true,
         labels: { singular: 'Post', plural: 'Posts' },
-        admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug'] },
+        admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug'], livePreview: true },
         fields: [
           fields.text('title', { required: true }),
           fields.text('subtitle', { localized: true }),

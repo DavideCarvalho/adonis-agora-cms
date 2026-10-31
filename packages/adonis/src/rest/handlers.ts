@@ -59,6 +59,8 @@ export async function handlePreviewToken(
       };
     }
 
+    const own = cms.config.collections?.find((item) => item.slug === slug)?.admin?.livePreview;
+    const ownUrl = typeof own === 'object' ? own.url : undefined;
     const ttlSeconds = livePreview.ttlSeconds ?? 300;
     const userId = (cms.user as { id?: unknown } | null)?.id;
     const token = signPreviewToken(
@@ -74,7 +76,7 @@ export async function handlePreviewToken(
 
     return {
       status: 200,
-      body: { token, url: previewUrl(livePreview.url, token), expiresIn: ttlSeconds },
+      body: { token, url: previewUrl(ownUrl ?? livePreview.url, token), expiresIn: ttlSeconds },
     };
   });
 }

@@ -1154,7 +1154,8 @@ function EditView({
   const update = useUpdateDocument(collection.slug, id ?? '', { draft: canReadDrafts });
   const publish = usePublishDocument(collection.slug, id ?? '');
   const remove = useDeleteDocument(collection.slug);
-  const preview = usePreviewToken(collection.slug, id);
+  const previewable = Boolean(collection.admin?.livePreview || collection.admin?.visualEditor);
+  const preview = usePreviewToken(collection.slug, previewable ? id : undefined);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const back = () => onNavigate({ view: 'list', slug: collection.slug });

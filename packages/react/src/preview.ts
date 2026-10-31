@@ -69,8 +69,9 @@ const STYLE = `
 
 .cms-block-bar {
   position: fixed;
-  top: max(6px, calc(var(--cms-top) + 6px));
-  left: calc(var(--cms-left) + 6px);
+  /* Above the block, so it never covers the text being edited. */
+  top: max(6px, calc(var(--cms-top) - 38px));
+  left: var(--cms-left);
   z-index: 2147483000;
   display: flex;
   gap: 2px;
@@ -359,15 +360,20 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
   document.addEventListener('pointermove', function (event) {
     if (!drag) return;
 
-    var under = document.elementFromPoint(event.clientX, event.clientY);
-    var candidate = under && under.closest ? under.closest('[' + BLOCK + ']') : null;
-    var ref = candidate ? parse(candidate) : null;
-
+    // The nearest sibling, not the one under the pointer: gaps and neighbours must not lose the drop.
+    var nearest = null;
+    var distance = Infinity;
     blocksOf(drag.ref.field).forEach(function (node) {
       node.removeAttribute('data-cms-drop');
+      var box = node.getBoundingClientRect();
+      var away = Math.max(box.top - event.clientY, event.clientY - box.bottom, 0);
+      if (away < distance) {
+        distance = away;
+        nearest = node;
+      }
     });
 
-    drag.target = candidate && ref && ref.field === drag.ref.field ? candidate : null;
+    drag.target = nearest && nearest !== drag.node ? nearest : null;
     if (drag.target) drag.target.setAttribute('data-cms-drop', '1');
   });
 

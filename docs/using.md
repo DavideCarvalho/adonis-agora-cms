@@ -159,7 +159,8 @@ router.get('/preview', async ({ request, response }) => {
 });
 ```
 
-The admin panel gets a **Preview** button as soon as `livePreview` is configured.
+A collection shows the **Preview** button when it asks for it, with `admin: { livePreview: true }`,
+`admin: { livePreview: { url: '/articles/preview' } }` for its own page, or `admin: { visualEditor: true }`.
 
 ## 7. Open the panel
 

@@ -389,9 +389,11 @@ export type CollectionAdmin = {
   group?: string;
   description?: string;
   icon?: string;
-  livePreview?: {
-    url?: string;
-  };
+  /**
+   * Shows the preview on this collection's documents; `visualEditor` implies it. A `url` replaces
+   * `admin.livePreview.url`, whose secret still signs the token.
+   */
+  livePreview?: boolean | { url?: string };
 };
 
 export type CollectionConfigInput = {

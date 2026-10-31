@@ -38,6 +38,7 @@ export type AdminCollection = {
     defaultColumns?: readonly string[];
     group?: string;
     visualEditor?: boolean;
+    livePreview?: boolean | { url?: string };
   };
   versioned: boolean;
   drafts: boolean;

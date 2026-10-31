@@ -175,7 +175,8 @@ test('preview toolbar deletes and reorders blocks', async ({ page, request }) =>
 
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  // Just past the block: a drop that misses every block still goes to the nearest one.
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height + 4, { steps: 12 });
   await page.mouse.up();
 
   await expect(pageBlocks.nth(0)).toContainText(/call to action/i);

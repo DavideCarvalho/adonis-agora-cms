@@ -32,3 +32,14 @@ test('preview marks editable regions and a click focuses the field', async ({ pa
   await heading.click();
   await expect(page.getByRole('textbox', { name: /^title \*/i })).toBeFocused();
 });
+
+test('a collection that does not ask for it has no preview', async ({ page, request }) => {
+  const created = await request.post('/api/cms/collections/authors', {
+    data: { name: `No preview ${Date.now().toString(36)}` },
+  });
+  const { id } = (await created.json()) as { id: string };
+
+  await page.goto(`/admin#/collections/authors/${id}`);
+  await expect(page.getByRole('button', { name: 'Save' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Preview' })).toHaveCount(0);
+});
