@@ -63,6 +63,15 @@ const STYLE = `
   outline-offset: 3px;
   background: rgba(168, 85, 247, 0.06);
 }
+/* A dragged block lands on this side of its target. */
+[${PREVIEW_BLOCK_ATTRIBUTE}][data-cms-drop="before"] {
+  box-shadow: 0 -4px 0 #a855f7;
+  border-radius: 0;
+}
+[${PREVIEW_BLOCK_ATTRIBUTE}][data-cms-drop="after"] {
+  box-shadow: 0 4px 0 #a855f7;
+  border-radius: 0;
+}
 [${PREVIEW_BLOCK_ATTRIBUTE}][data-cms-dragging="1"] {
   opacity: 0.45;
 }
@@ -374,7 +383,10 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
     });
 
     drag.target = nearest && nearest !== drag.node ? nearest : null;
-    if (drag.target) drag.target.setAttribute('data-cms-drop', '1');
+    if (drag.target) {
+      var after = parse(drag.target).index > drag.ref.index;
+      drag.target.setAttribute('data-cms-drop', after ? 'after' : 'before');
+    }
   });
 
   document.addEventListener('pointerup', function () {

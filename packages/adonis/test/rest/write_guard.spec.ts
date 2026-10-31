@@ -9,6 +9,7 @@ const config = defineConfig({
   db: { id: 'uuid' },
   collections: [
     collection('open', { fields: [fields.text('title')] }),
+    collection('read_only_rule', { access: { read: () => true }, fields: [fields.text('title')] }),
     collection('ruled', {
       access: { create: () => true },
       fields: [fields.text('title')],
@@ -65,6 +66,11 @@ describe('anonymous writes', () => {
   test('an access rule decides for itself', async () => {
     const { post } = await mount({ requireUserForWrites: true });
     expect(await post('ruled')).toBe(201);
+  });
+
+  test('a rule for reading does not open writing', async () => {
+    const { post } = await mount({ requireUserForWrites: true });
+    expect(await post('read_only_rule')).toBe(401);
   });
 
   test('a signed-in user passes', async () => {

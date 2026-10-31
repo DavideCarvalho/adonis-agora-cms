@@ -18,7 +18,13 @@ import {
 import type { RepoContext } from '../repository/document.js';
 import { compileSchema } from '../schema/compile.js';
 import type { Engine, SchemaSpec } from '../schema/types.js';
-import type { CmsCreateInput, CmsDocument, CmsUpdateInput } from '../types/document.js';
+import type {
+  CmsCreateInput,
+  CmsDocument,
+  CmsUpdateInput,
+  CollectionSlug,
+  GlobalSlug,
+} from '../types/document.js';
 import {
   type DocumentLock,
   discardDraft,
@@ -115,8 +121,8 @@ export type Cms<C extends CmsConfig = CmsConfig> = {
   readonly config: C;
   readonly user: unknown;
   readonly tenant: string | null;
-  collection<S extends string>(slug: S): CmsCollectionApi<C, S>;
-  global<S extends string>(slug: S): CmsGlobalApi<C, S>;
+  collection<S extends CollectionSlug<C>>(slug: S): CmsCollectionApi<C, S>;
+  global<S extends GlobalSlug<C>>(slug: S): CmsGlobalApi<C, S>;
   /** A scoped instance sharing the same schema and connection. */
   forTenant(tenant: string | null): Cms<C>;
   /** A scoped instance with a different request user. */

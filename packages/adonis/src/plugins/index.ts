@@ -324,7 +324,8 @@ export function formsPlugin(options: { canRead?: AccessFn } = {}): CmsPlugin {
         labels: { singular: 'Submission', plural: 'Submissions' },
         admin: { defaultColumns: ['form'] },
         versions: { drafts: false },
-        access: { read: canRead, update: () => false, delete: canRead },
+        // `create` is declared: submitting is public on purpose, including in production.
+        access: { read: canRead, create: () => true, update: () => false, delete: canRead },
         fields: [
           fields.relation('form', { relationTo: 'forms', required: true }),
           fields.json('answers', { required: true }),

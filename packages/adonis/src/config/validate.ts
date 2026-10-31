@@ -40,6 +40,54 @@ const BUILTIN_TYPES = new Set([
 ]);
 const NON_UNIQUEABLE = new Set(['array', 'blocks', 'group', 'json', 'richText', 'tabs', 'row']);
 const STRUCTURAL = new Set(['group', 'array', 'row', 'collapsible']);
+/** Every document already has these; a field with the same name would collide with them. */
+const SYSTEM_FIELDS = new Set(['id', 'createdAt', 'updatedAt', 'created_at', 'updated_at']);
+
+function editDistance(a: string, b: string): number {
+  let row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      next[j] = Math.min(
+        (row[j] as number) + 1,
+        (next[j - 1] as number) + 1,
+        (row[j - 1] as number) + cost,
+      );
+    }
+    row = next;
+  }
+  return row[b.length] as number;
+}
+
+/** ` Did you mean "title"?` for a likely typo, or nothing. */
+function didYouMean(name: string, options: Iterable<string>): string {
+  let best: string | undefined;
+  let distance = Math.max(2, Math.floor(name.length / 3)) + 1;
+  for (const option of options) {
+    const away = editDistance(name.toLowerCase(), option.toLowerCase());
+    if (away < distance) {
+      distance = away;
+      best = option;
+    }
+  }
+  return best ? ` Did you mean "${best}"?` : '';
+}
+
+/** Every field name in a list, through layout fields, tabs, groups and blocks. */
+function allFieldNames(fields: readonly FieldConfig[]): string[] {
+  return fields.flatMap((field) => {
+    const own = field.name ? [field.name] : [];
+    if (field.type === 'tabs') {
+      return [...own, ...field.tabs.flatMap((tab) => allFieldNames(tab.fields))];
+    }
+    if (field.type === 'blocks') {
+      return [...own, ...field.blocks.flatMap((item) => allFieldNames(item.fields))];
+    }
+    if ('fields' in field && field.fields) return [...own, ...allFieldNames(field.fields)];
+    return own;
+  });
+}
 
 /**
  * Validates a config and returns **all** problems instead of throwing on the first one.
@@ -81,6 +129,10 @@ export function validateConfig(config: CmsConfig): CmsConfigError[] {
     errors.push(
       ...validateCollection(collection, {
         collectionSlugs,
+        collections,
+        previewConfigured: Boolean(
+          config.admin?.livePreview?.url && config.admin.livePreview.secret,
+        ),
         locales: localization.locales,
         customTypes: new Set(config.fieldTypes ?? []),
         mediaEnabled: Boolean(config.integrations?.media),
@@ -189,6 +241,10 @@ function validateTenancy(
 
 type CollectionContext = {
   collectionSlugs: Set<string>;
+  collections: readonly CollectionConfig[];
+  /** Field names of the collection or global being validated. */
+  ownNames?: readonly string[];
+  previewConfigured: boolean;
   locales: readonly LocaleCode[];
   customTypes: Set<string>;
   mediaEnabled: boolean;
@@ -205,7 +261,25 @@ function validateCollection(
     errors.push(new CmsConfigError(`${path}.fields`, 'a collection needs at least one field'));
   }
 
-  errors.push(...validateFields(collection.fields, `${path}.fields`, ctx));
+  const ownNames = allFieldNames(collection.fields);
+  errors.push(...validateFields(collection.fields, `${path}.fields`, { ...ctx, ownNames }));
+
+  if (
+    collection.admin?.visualEditor &&
+    !collection.fields.some((field) => field.type === 'blocks')
+  ) {
+    errors.push(
+      new CmsConfigError(`${path}.admin.visualEditor`, 'the visual editor needs a `blocks` field'),
+    );
+  }
+  if ((collection.admin?.visualEditor || collection.admin?.livePreview) && !ctx.previewConfigured) {
+    errors.push(
+      new CmsConfigError(
+        `${path}.admin`,
+        'the preview needs `admin.livePreview` with a `url` and a `secret` at the top of the config',
+      ),
+    );
+  }
 
   if (collection.admin?.useAsTitle) {
     const titleField = findField(collection.fields, collection.admin.useAsTitle);
@@ -213,7 +287,7 @@ function validateCollection(
       errors.push(
         new CmsConfigError(
           `${path}.admin.useAsTitle`,
-          `"${collection.admin.useAsTitle}" is not a field of this collection`,
+          `"${collection.admin.useAsTitle}" is not a field of this collection.${didYouMean(collection.admin.useAsTitle, ownNames)}`,
         ),
       );
     } else if (!TEXTUAL_TYPES.has(titleField.type) || titleField.type === 'richText') {
@@ -232,7 +306,7 @@ function validateCollection(
       errors.push(
         new CmsConfigError(
           `${path}.admin.defaultColumns`,
-          `"${column}" is not a field of this collection`,
+          `"${column}" is not a field of this collection.${didYouMean(column, ownNames)}`,
         ),
       );
     }
@@ -250,6 +324,9 @@ function validateGlobal(
   const path = `globals.${item.slug}`;
   const ctx: CollectionContext = {
     collectionSlugs: new Set((config.collections ?? []).map((c) => c.slug)),
+    collections: config.collections ?? [],
+    ownNames: allFieldNames(item.fields),
+    previewConfigured: false,
     locales,
     customTypes: new Set(config.fieldTypes ?? []),
     mediaEnabled: Boolean(config.integrations?.media),
@@ -292,6 +369,56 @@ function validateFields(
           `invalid field name "${field.name}": must match ${FIELD_NAME_PATTERN}`,
         ),
       );
+    }
+
+    if (field.name && SYSTEM_FIELDS.has(field.name)) {
+      errors.push(
+        new CmsConfigError(
+          `${fieldPath}.name`,
+          `"${field.name}" is reserved: every document already has id, createdAt and updatedAt`,
+        ),
+      );
+    }
+
+    if (field.type === 'slug' && field.from && !ctx.ownNames?.includes(field.from)) {
+      errors.push(
+        new CmsConfigError(
+          `${fieldPath}.from`,
+          `"${field.from}" is not a field of this collection.${didYouMean(field.from, ctx.ownNames ?? [])}`,
+        ),
+      );
+    }
+
+    const visibleWhen = field.admin?.visibleWhen?.field;
+    if (visibleWhen && !ctx.ownNames?.includes(visibleWhen)) {
+      errors.push(
+        new CmsConfigError(
+          `${fieldPath}.admin.visibleWhen.field`,
+          `"${visibleWhen}" is not a field of this collection.${didYouMean(visibleWhen, ctx.ownNames ?? [])}`,
+        ),
+      );
+    }
+
+    if (field.type === 'join') {
+      const target = ctx.collections.find((item) => item.slug === field.collection);
+      if (!target) {
+        errors.push(
+          new CmsConfigError(
+            `${fieldPath}.collection`,
+            `join target "${field.collection}" is not a declared collection.${didYouMean(field.collection, ctx.collectionSlugs)}`,
+          ),
+        );
+      } else {
+        const names = allFieldNames(target.fields);
+        if (!names.includes(field.on)) {
+          errors.push(
+            new CmsConfigError(
+              `${fieldPath}.on`,
+              `"${field.on}" is not a field of "${field.collection}".${didYouMean(field.on, names)}`,
+            ),
+          );
+        }
+      }
     }
 
     if (seen.has(label)) {
@@ -338,7 +465,7 @@ function validateFields(
           errors.push(
             new CmsConfigError(
               `${fieldPath}.relationTo`,
-              `relation target "${target}" is not a declared collection`,
+              `relation target "${target}" is not a declared collection.${didYouMean(target, ctx.collectionSlugs)}`,
             ),
           );
         }
@@ -352,7 +479,7 @@ function validateFields(
         errors.push(
           new CmsConfigError(
             `${fieldPath}.relationTo`,
-            `upload target "${field.relationTo}" is not a collection; install @adonis-agora/media and set integrations.media: true`,
+            `upload target "${field.relationTo}" is not a collection.${didYouMean(field.relationTo, ctx.collectionSlugs)} Or install @adonis-agora/media and set integrations.media: true`,
           ),
         );
       }

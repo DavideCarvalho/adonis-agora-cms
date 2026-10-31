@@ -28,7 +28,20 @@ node ace configure @adonis-agora/cms </dev/null
 node ace configure @adonis-agora/cms-admin </dev/null
 test -f config/cms.ts
 test -f app/services/cms.ts
+# The types a new user gets through `#services/cms`: a real field checks, a typo in one does not.
+cat > app/services/cms_types_check.ts <<'EOF'
+import cms from '#services/cms'
+
+export async function check() {
+  const { docs } = await cms.collection('posts').find()
+  const title: string = docs[0]!.title
+  // @ts-expect-error not a field of posts
+  docs[0]!.titel
+  return title
+}
+EOF
 npx tsc --noEmit
+rm app/services/cms_types_check.ts
 
 expect() {
   if [ "$2" != "$3" ]; then
