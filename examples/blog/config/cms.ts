@@ -1,5 +1,6 @@
 import type { AccessArgs } from '@adonis-agora/cms';
 import {
+  adonisAuth,
   collection,
   defineConfig,
   driveUploads,
@@ -18,9 +19,15 @@ export default withPlugins(
     localization: { locales: ['pt-BR', 'en'], defaultLocale: 'pt-BR' },
     versions: { drafts: true },
     schedulerInterval: 500,
-    webhooks: [{ url: 'http://127.0.0.1:5611/webhook-sink', secret: 'demo' }],
+    webhooks: [
+      {
+        url: `http://127.0.0.1:${process.env.CMS_WEBHOOK_PORT ?? 5611}/webhook-sink`,
+        secret: 'demo',
+      },
+    ],
     // The official queue by default; `CMS_JOBS=durable` runs the same webhooks through Agora's.
     integrations: {
+      ...(process.env.CMS_AUTH === 'adonis' ? { auth: adonisAuth({ guard: 'web' }) } : {}),
       jobs:
         process.env.CMS_JOBS === 'durable'
           ? durableJobs(async () => {
@@ -41,10 +48,13 @@ export default withPlugins(
     uploads: {
       maxSize: 5 * 1024 * 1024,
       mimeTypes: ['image/*', 'application/pdf'],
-      handler: driveUploads(async () => {
-        const { default: drive } = await import('@adonisjs/drive/services/main');
-        return drive.use();
-      }),
+      handler: driveUploads(
+        async () => {
+          const { default: drive } = await import('@adonisjs/drive/services/main');
+          return drive.use();
+        },
+        { signed: process.env.DRIVE_DISK === 's3' },
+      ),
     },
     collections: [
       collection('authors', {

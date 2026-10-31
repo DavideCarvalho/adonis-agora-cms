@@ -68,3 +68,13 @@ function mimeFor(path: string): string {
   if (extension === 'pdf') return 'application/pdf';
   return 'application/octet-stream';
 }
+
+if (process.env.CMS_AUTH === 'adonis') {
+  router.post('/dev-login', async (ctx) => {
+    const { auth } = ctx as unknown as {
+      auth: { use(guard: string): { login(user: { id: string }): Promise<void> } };
+    };
+    await auth.use('web').login({ id: String(ctx.request.input('name')) });
+    return { ok: true };
+  });
+}

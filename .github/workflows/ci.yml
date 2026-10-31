@@ -80,3 +80,24 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @adonis-agora/cms exec vitest run test/db/engines.spec.ts
+
+  official:
+    name: official libraries (auth · drive on S3 · queue on Redis)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.24.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      # The script starts Redis and S3 in containers, the app and a separate queue worker.
+      - run: pnpm test:official
+        env:
+          APP_KEY: e2e-only-key-not-a-secret-0123456789
+          NODE_ENV: development

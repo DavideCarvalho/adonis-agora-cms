@@ -237,7 +237,8 @@ uploads: { handler: driveUploads(disk) },
 integrations: { media: driveMedia(disk) },
 ```
 
-Keys are generated and must fit 64 characters, so keep `prefix` short.
+Keys are generated and must fit 64 characters, so keep `prefix` short. On a private disk pass
+`{ signed: true }` to both, or the URLs answer 403; a signed URL lasts `expiresIn` (default `1h`).
 
 ### Jobs with @adonisjs/queue
 

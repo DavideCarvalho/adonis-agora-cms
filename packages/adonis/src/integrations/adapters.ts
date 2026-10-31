@@ -108,12 +108,28 @@ type DriveDisk = {
     options?: { contentType?: string },
   ): Promise<void>;
   getUrl(key: string): Promise<string>;
+  getSignedUrl?(key: string, options?: { expiresIn?: string | number }): Promise<string>;
 };
 
 /** A disk from `drive.use()`, usually behind a function: the service only exists after boot. */
 type DiskSource = DriveDisk | (() => DriveDisk | Promise<DriveDisk>);
 
 const resolveDisk = async (disk: DiskSource) => (typeof disk === 'function' ? disk() : disk);
+
+type UrlOptions = {
+  /** For a private disk: a plain URL there answers 403. */
+  signed?: boolean;
+  /** Lifetime of a signed URL. Default `1h`. */
+  expiresIn?: string | number;
+};
+
+function urlOf(disk: DriveDisk, key: string, options: UrlOptions): Promise<string> {
+  if (!options.signed) return disk.getUrl(key);
+  if (!disk.getSignedUrl) {
+    throw new CmsConfigError('uploads', 'this disk cannot sign URLs');
+  }
+  return disk.getSignedUrl(key, { expiresIn: options.expiresIn ?? '1h' });
+}
 
 /** The `upload` column holds this many characters. */
 const MAX_KEY_LENGTH = 64;
@@ -124,7 +140,7 @@ const MAX_KEY_LENGTH = 64;
  */
 export function driveUploads(
   disk: DiskSource,
-  options: { prefix?: string } = {},
+  options: { prefix?: string } & UrlOptions = {},
 ): CmsUploadHandler {
   return async (file) => {
     const target = await resolveDisk(disk);
@@ -139,16 +155,21 @@ export function driveUploads(
       );
     }
     await target.put(key, file.contents, { contentType: file.mimeType });
-    return { id: key, filename: file.filename, url: await target.getUrl(key), mime: file.mimeType };
+    return {
+      id: key,
+      filename: file.filename,
+      url: await urlOf(target, key, options),
+      mime: file.mimeType,
+    };
   };
 }
 
-export function driveMedia(disk: DiskSource): MediaAdapter {
+export function driveMedia(disk: DiskSource, options: UrlOptions = {}): MediaAdapter {
   return {
     async resolveMany(ids) {
       const target = await resolveDisk(disk);
       const unique = [...new Set(ids)].filter(Boolean);
-      const urls = await Promise.all(unique.map((id) => target.getUrl(id)));
+      const urls = await Promise.all(unique.map((id) => urlOf(target, id, options)));
       return new Map(unique.map((id, index) => [id, { id, url: urls[index] as string }]));
     },
   };
