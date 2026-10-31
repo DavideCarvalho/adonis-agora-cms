@@ -6,7 +6,7 @@ import type { CmsEventBus } from '../integrations/durable.js';
 import type { MediaAdapter } from '../integrations/media.js';
 import type { CmsObservation } from '../integrations/telescope.js';
 import type { ColumnSpec, Engine, SchemaSpec, TableSpec } from '../schema/types.js';
-import { ident, placeholders, selectRows } from './sql.js';
+import { ident, placeholders, selectRows, sqlTimestamp } from './sql.js';
 
 export type RepoContext = {
   spec: SchemaSpec;
@@ -64,7 +64,7 @@ export function buildWriteRows(
 ): WriteRows {
   const table = documentTable(ctx.spec, slug);
   const id = options.id ?? (ctx.spec.idKind === 'uuid' ? randomUUID() : undefined);
-  const now = new Date().toISOString();
+  const now = sqlTimestamp(new Date(), ctx.engine);
 
   const root: Row = {
     ...(id !== undefined ? { id } : {}),
@@ -456,7 +456,11 @@ export function toColumnValue(value: unknown, column: ColumnSpec, engine: Engine
       if (engine === 'pg') return value;
       return value ? 1 : 0;
     case 'timestamp':
-      return value instanceof Date ? value.toISOString() : String(value);
+      if (value instanceof Date) return sqlTimestamp(value, engine);
+      // A date picked in the panel arrives as a string; MySQL still refuses a zone in it.
+      return engine === 'mysql' && /T.*Z$/.test(String(value))
+        ? sqlTimestamp(new Date(String(value)), engine)
+        : String(value);
     default:
       return value;
   }

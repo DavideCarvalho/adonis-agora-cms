@@ -75,7 +75,11 @@ function suite(engine: Engine, clientName: string, envVar: string) {
     let client: CmsKnex;
 
     beforeAll(async () => {
-      db = knexFactory({ client: clientName, connection: url });
+      db = knexFactory({
+        client: clientName,
+        // Timestamps are stored as UTC; this makes MySQL read them back as UTC too.
+        connection: clientName === 'mysql2' ? { uri: url, timezone: 'Z' } : url,
+      } as never);
       client = db as unknown as CmsKnex;
       await dropCmsTables(client, 'cms_it_');
     });
@@ -137,6 +141,14 @@ function suite(engine: Engine, clientName: string, envVar: string) {
 
       afterAll(async () => {
         await dropCmsTables(client, 'cms_wf_').catch(() => undefined);
+      });
+
+      test('timestamps round-trip exactly', async () => {
+        const before = Date.now();
+        const note = await notes.create({ title: 'Clock' });
+        const read = await notes.findByID(note.id);
+        const stored = new Date(read.createdAt).getTime();
+        expect(Math.abs(stored - before)).toBeLessThan(60_000);
       });
 
       test('search ignores accents and case', async () => {

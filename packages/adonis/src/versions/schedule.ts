@@ -3,7 +3,7 @@ import { decideAccess } from '../repository/access.js';
 import type { OperationOptions } from '../repository/crud.js';
 import { findDocumentByID } from '../repository/crud.js';
 import type { RepoContext } from '../repository/document.js';
-import { exec, ident, selectOne, selectRows } from '../repository/sql.js';
+import { exec, ident, selectOne, selectRows, sqlTimestamp } from '../repository/sql.js';
 import { publishDocument, unpublishDocument } from './actions.js';
 
 export type ScheduleAction = 'publish' | 'unpublish';
@@ -59,7 +59,12 @@ export async function scheduleDocument(
   await exec(ctx.client, `delete from ${ident(table(ctx), ctx.engine)} where ${where}`, bindings);
 
   const columns = ['collection', 'document_id', 'action', 'run_at'];
-  const values: (string | null)[] = [slug, id, schedule.action, schedule.at.toISOString()];
+  const values: (string | null)[] = [
+    slug,
+    id,
+    schedule.action,
+    sqlTimestamp(schedule.at, ctx.engine),
+  ];
   if (ctx.spec.tenancy.column) {
     columns.push(ctx.spec.tenancy.column);
     values.push(ctx.tenant);
@@ -111,7 +116,7 @@ export async function runDueSchedules(ctx: RepoContext, now = new Date()): Promi
   const rows = await selectRows(
     ctx.client,
     `select * from ${name} where ${ident('run_at', ctx.engine)} <= ?`,
-    [now.toISOString()],
+    [sqlTimestamp(now, ctx.engine)],
   );
 
   let done = 0;

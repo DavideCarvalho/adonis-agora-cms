@@ -1,6 +1,13 @@
 import type { RepoContext } from '../repository/document.js';
 import { documentTable } from '../repository/document.js';
-import { exec, ident, placeholders, selectOne, selectRows } from '../repository/sql.js';
+import {
+  exec,
+  ident,
+  placeholders,
+  selectOne,
+  selectRows,
+  sqlTimestamp,
+} from '../repository/sql.js';
 
 export type VersionRecord = {
   id: number;
@@ -40,7 +47,7 @@ export async function recordVersion(
 ): Promise<number> {
   const table = `${ctx.spec.tablePrefix}versions`;
   const next = (await maxVersion(ctx, slug, documentId)) + 1;
-  const now = new Date().toISOString();
+  const now = sqlTimestamp(new Date(), ctx.engine);
   const userId = userIdentifier(ctx.user);
 
   await exec(

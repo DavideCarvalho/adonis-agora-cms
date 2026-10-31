@@ -1,4 +1,5 @@
 import { CmsSchemaError } from '../errors.js';
+import { sqlTimestamp } from '../repository/sql.js';
 import type { ColumnSpec, Engine, SchemaSpec, TableSpec } from '../schema/types.js';
 import { diffSchema } from './diff.js';
 import { firstRow, introspect, rowsOf } from './introspect/index.js';
@@ -317,7 +318,7 @@ export async function writeSchemaState(
 
   await client.raw(
     `insert into ${table} (spec_hash, engine, plan, applied_at) values (?, ?, ?, ?)`,
-    [spec.hash, spec.engine, JSON.stringify(plan), new Date().toISOString()],
+    [spec.hash, spec.engine, JSON.stringify(plan), sqlTimestamp(new Date(), spec.engine)],
   );
 }
 

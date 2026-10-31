@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { RepoContext } from '../repository/document.js';
-import { exec, ident, selectOne, selectRows } from '../repository/sql.js';
+import { exec, ident, selectOne, selectRows, sqlTimestamp } from '../repository/sql.js';
 
 export type ApiTokenPrincipal = {
   id: number;
@@ -43,8 +43,8 @@ export async function createApiToken(
       hash,
       options.tenant ?? null,
       JSON.stringify(options.abilities ?? ['read']),
-      options.expiresAt ? options.expiresAt.toISOString() : null,
-      new Date().toISOString(),
+      options.expiresAt ? sqlTimestamp(options.expiresAt, ctx.engine) : null,
+      sqlTimestamp(new Date(), ctx.engine),
     ],
   );
 
@@ -71,7 +71,7 @@ export async function resolveApiToken(
   await exec(
     ctx.client,
     `update ${ident(table, ctx.engine)} set ${ident('last_used_at', ctx.engine)} = ? where ${ident('id', ctx.engine)} = ?`,
-    [now.toISOString(), row.id],
+    [sqlTimestamp(now, ctx.engine), row.id],
   );
 
   return toPrincipal(row);
