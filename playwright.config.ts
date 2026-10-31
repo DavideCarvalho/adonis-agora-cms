@@ -10,6 +10,13 @@ export default defineConfig({
   webServer: {
     command: 'node ace.js serve --no-watch',
     cwd: 'examples/blog',
+    // The example's `.env` is not committed, so a clean checkout (CI) gets its values here.
+    env: {
+      HOST: '127.0.0.1',
+      PORT: '5611',
+      APP_KEY: 'e2e-only-key-not-a-secret-0123456789',
+      NODE_ENV: 'development',
+    },
     url: 'http://127.0.0.1:5611/admin',
     reuseExistingServer: true,
     timeout: 60_000,
