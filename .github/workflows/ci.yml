@@ -12,7 +12,8 @@ concurrency:
 jobs:
   quality:
     name: lint · typecheck · test (sqlite)
-    runs-on: ubuntu-latest
+    # Playwright has no Chromium build for the newer image `ubuntu-latest` points to.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
