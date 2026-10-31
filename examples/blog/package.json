@@ -41,6 +41,7 @@
     "#config/*": "./config/*.js",
     "#controllers/*": "./app/controllers/*.js",
     "#services/*": "./app/services/*.js",
-    "#jobs/*": "./app/jobs/*.js"
+    "#jobs/*": "./app/jobs/*.js",
+    "#workflows/*": "./app/workflows/*.js"
   }
 }

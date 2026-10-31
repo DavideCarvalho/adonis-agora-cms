@@ -51,11 +51,8 @@ export type FieldAdmin = {
   /** Component id registered in the admin `FieldRegistry`. */
   component?: string;
   placeholder?: string;
-  /** Shown only when the predicate holds for the current form value. */
-  condition?: (data: Record<string, unknown>) => boolean;
   /**
-   * The same idea as data, so it reaches the panel (a function cannot cross the wire): the field
-   * shows only while the sibling `field` equals `equals` (or one of them, for an array).
+   * Data, so it reaches the panel (a function cannot cross the wire): the field shows only while the sibling `field` equals `equals` (or one of them, for an array).
    */
   visibleWhen?: { field: string; equals: unknown };
   /** Hide from the list view. */

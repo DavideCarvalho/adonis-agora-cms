@@ -176,7 +176,7 @@ test('a scheduled publish goes live on its own', async ({ page, context, request
         });
         return ((await response.json()) as { totalDocs: number }).totalDocs;
       },
-      { timeout: 8000 },
+      { timeout: Number(process.env.E2E_SCHEDULE_TIMEOUT ?? 8000) },
     )
     .toBe(1);
 });
@@ -457,4 +457,106 @@ test('plugins: search stays in step, forms check answers, pages nest', async ({ 
     data: { parent: child.id },
   });
   expect(cycle.status()).toBe(422);
+});
+
+test('saved filters come back after a reload, and can be deleted', async ({ page }) => {
+  await page.goto('/admin#/collections/notes');
+  const kind = page.getByRole('combobox', { name: 'Kind' });
+  await kind.selectOption('link');
+  page.once('dialog', (dialog) => void dialog.accept('Only links'));
+  await page.getByRole('button', { name: 'Save these filters' }).click();
+
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: 'Kind' })).toHaveValue('');
+  await page.getByRole('combobox', { name: 'Saved filters' }).selectOption('Only links');
+  await expect(page.getByRole('combobox', { name: 'Kind' })).toHaveValue('link');
+
+  await page.getByRole('button', { name: 'Delete these saved filters' }).click();
+  await expect(page.getByRole('combobox', { name: 'Saved filters' })).toHaveCount(0);
+});
+
+test('media: the library browses by folder, and a click sets the focal point', async ({
+  page,
+  request,
+}) => {
+  const pixel =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==';
+  const folder = unique('folder');
+  const inFolder = `${unique('in').replace(' ', '-')}.png`;
+  const outside = `${unique('out').replace(' ', '-')}.png`;
+  const created = await request.post('/api/cms/collections/media', {
+    data: { filename: inFolder, url: pixel, mime: 'image/png', folder },
+  });
+  const { id } = (await created.json()) as { id: string };
+  await request.post('/api/cms/collections/media', {
+    data: { filename: outside, url: pixel, mime: 'image/png' },
+  });
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/admin#/collections/media/${id}`);
+  const image = page.getByRole('button', { name: 'Focal point' });
+  await image.locator('img').evaluate((node) => {
+    (node as HTMLImageElement).style.width = '200px';
+  });
+  const box = await image.boundingBox();
+  await page.mouse.click(
+    (box?.x ?? 0) + (box?.width ?? 0) / 4,
+    (box?.y ?? 0) + (box?.height ?? 0) / 2,
+  );
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect
+    .poll(async () => {
+      const doc = (await (await request.get(`/api/cms/collections/media/${id}`)).json()) as {
+        focalPoint?: { x: number; y: number };
+      };
+      return doc.focalPoint;
+    })
+    .toMatchObject({ x: expect.closeTo(0.25, 1), y: expect.closeTo(0.5, 1) });
+
+  const post = await request.post('/api/cms/collections/posts', {
+    data: { title: unique('Folders') },
+  });
+  await page.goto(`/admin#/collections/posts/${((await post.json()) as { id: string }).id}`);
+  await page.getByRole('button', { name: 'Pick existing' }).click();
+  await page.getByRole('combobox', { name: 'Folder' }).selectOption(folder);
+  await expect(page.locator('.library__item').filter({ hasText: inFolder })).toBeVisible();
+  await expect(page.locator('.library__item')).toHaveCount(1);
+  await expect(page.locator('.library__thumb img')).toHaveCSS(
+    'object-position',
+    /^2\d(\.\d+)?% [45]\d(\.\d+)?%$/,
+  );
+});
+
+test('a relation to many keeps every pick', async ({ page, context }) => {
+  await signIn(context);
+  const request = context.request;
+  const titles = [unique('First'), `${unique('Second')}x`];
+  const ids: string[] = [];
+  for (const title of titles) {
+    const post = await request.post('/api/cms/collections/posts', { data: { title } });
+    ids.push(((await post.json()) as { id: string }).id);
+  }
+  const note = await request.post('/api/cms/collections/notes', {
+    data: { title: unique('Many') },
+  });
+  const { id } = (await note.json()) as { id: string };
+
+  await page.goto(`/admin#/collections/notes/${id}`);
+  await page.getByRole('tab', { name: 'Details' }).click();
+  const related = page
+    .locator('.field, [class*="field"]')
+    .filter({ has: page.locator('[id="related"]') });
+  for (const title of titles) {
+    await related.getByRole('searchbox').fill(title);
+    await related.getByRole('checkbox', { name: title }).check();
+  }
+  await page.getByRole('button', { name: 'Save draft' }).click();
+  await expect
+    .poll(async () => {
+      const doc = (await (
+        await request.get(`/api/cms/collections/notes/${id}?draft=true&depth=0`)
+      ).json()) as { related?: string[] };
+      return [...(doc.related ?? [])].sort();
+    })
+    .toEqual([...ids].sort());
 });

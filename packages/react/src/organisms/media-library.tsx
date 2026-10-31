@@ -6,6 +6,12 @@ import { useCms, useMessages } from '../context.js';
 import { useAdminSchema } from '../queries.js';
 import type { AdminDocument } from '../types.js';
 
+function objectPosition(point: unknown) {
+  const { x, y } = (point ?? {}) as { x?: unknown; y?: unknown };
+  if (typeof x !== 'number' || typeof y !== 'number') return undefined;
+  return { objectPosition: `${x * 100}% ${y * 100}%` };
+}
+
 /** Grid of what is already in the media collection: pick by looking, not by reading ids. */
 export function MediaLibrary({
   collection,
@@ -22,8 +28,10 @@ export function MediaLibrary({
   const dialog = useRef<HTMLDialogElement>(null);
   const [term, setTerm] = useState('');
   const [search, setSearch] = useState('');
-  const titleField = schema.data?.collections.find((item) => item.slug === collection)?.admin
-    ?.useAsTitle;
+  const target = schema.data?.collections.find((item) => item.slug === collection);
+  const titleField = target?.admin?.useAsTitle;
+  const hasFolders = target?.fields.some((item) => item.name === 'folder') ?? false;
+  const [folder, setFolder] = useState('');
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -35,14 +43,26 @@ export function MediaLibrary({
   }, [term]);
 
   const query = useQuery({
-    queryKey: ['cms', 'media-library', collection, search],
+    queryKey: ['cms', 'media-library', collection, search, folder],
     placeholderData: (previous) => previous,
     queryFn: () =>
       client.list(collection, {
         limit: 60,
         depth: 0,
-        ...(search && titleField ? { where: { [titleField]: { iContains: search } } } : {}),
+        where: {
+          ...(search && titleField ? { [titleField]: { iContains: search } } : {}),
+          ...(folder ? { folder: { equals: folder } } : {}),
+        },
       }),
+  });
+  const folders = useQuery({
+    queryKey: ['cms', 'media-library', collection, 'folders'],
+    enabled: hasFolders,
+    queryFn: async () => {
+      const { docs: all } = await client.list(collection, { limit: 500, depth: 0 });
+      const names = all.map((doc) => doc.folder).filter((name) => typeof name === 'string' && name);
+      return [...new Set(names as string[])].sort();
+    },
   });
   const docs = query.data?.docs ?? [];
 
@@ -70,6 +90,21 @@ export function MediaLibrary({
             />
           </div>
         ) : null}
+        {hasFolders ? (
+          <select
+            className="select select--inline"
+            aria-label={t.folder}
+            value={folder}
+            onChange={(event) => setFolder(event.target.value)}
+          >
+            <option value="">{t.allFolders}</option>
+            {(folders.data ?? []).map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <Button size="sm" tone="ghost" aria-label={t.close} title={t.close} onClick={onClose}>
           <X aria-hidden />
         </Button>
@@ -92,7 +127,7 @@ export function MediaLibrary({
             >
               <span className="library__thumb">
                 {url && mime.startsWith('image/') ? (
-                  <img src={url} alt="" loading="lazy" />
+                  <img src={url} alt="" loading="lazy" style={objectPosition(doc.focalPoint)} />
                 ) : (
                   <FileText aria-hidden />
                 )}

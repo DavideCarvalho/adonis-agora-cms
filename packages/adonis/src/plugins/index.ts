@@ -18,6 +18,28 @@ export function withPlugins<const C extends CmsConfigInput>(
   return plugins.reduce<CmsConfigInput>((current, plugin) => plugin(current), config) as C;
 }
 
+/**
+ * Adds `folder` and `focalPoint` to the given media collections: the library browses by folder, and
+ * `focalPoint` is `{ x, y }` from 0 to 1, for `object-position` when a front end crops the image.
+ */
+export function mediaPlugin(options: { collections: readonly string[] }): CmsPlugin {
+  return (config) => ({
+    ...config,
+    collections: (config.collections ?? []).map((item) =>
+      options.collections.includes(item.slug)
+        ? ({
+            ...item,
+            fields: [
+              ...item.fields,
+              fields.text('folder'),
+              fields.json('focalPoint', { admin: { component: 'focal-point' } }),
+            ],
+          } as CollectionConfig)
+        : item,
+    ),
+  });
+}
+
 /** Adds a `seo` group (title, description, noindex) to the given collections. */
 export function seoPlugin(options: { collections: readonly string[] }): CmsPlugin {
   return (config) => ({

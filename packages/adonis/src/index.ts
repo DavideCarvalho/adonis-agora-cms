@@ -46,6 +46,7 @@ export type { CmsPlugin } from './plugins/index.js';
 export {
   findRedirect,
   formsPlugin,
+  mediaPlugin,
   nestedDocsPlugin,
   redirectsPlugin,
   searchPlugin,

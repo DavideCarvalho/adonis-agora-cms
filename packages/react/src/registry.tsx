@@ -1,5 +1,5 @@
 import { type ChangeEvent, type ComponentType, useEffect, useRef, useState } from 'react';
-import { Checkbox, Field, Input, Select, Textarea } from './atoms/index.js';
+import { Button, Checkbox, Field, Input, Select, Textarea } from './atoms/index.js';
 import { useMessages } from './context.js';
 import { RelationPicker } from './organisms/relation-picker.js';
 import { RichText } from './organisms/rich-text.js';
@@ -14,6 +14,8 @@ export type FieldComponentProps = {
   locale?: string | undefined;
   id?: string | undefined;
   disabled?: boolean | undefined;
+  /** The other fields at this level of the form. */
+  siblings?: Record<string, unknown> | undefined;
 };
 
 /**
@@ -267,6 +269,65 @@ export function JsonField({ field, value, onChange, error, id, disabled }: Field
 }
 
 /** `[longitude, latitude]`, the order GeoJSON and most map libraries use. */
+/** Click the image to choose what stays in frame when it is cropped. */
+export function FocalPointField({
+  field,
+  value,
+  onChange,
+  error,
+  disabled,
+  siblings,
+}: FieldComponentProps) {
+  const t = useMessages();
+  const url = typeof siblings?.url === 'string' ? siblings.url : undefined;
+  const point = value as { x?: unknown; y?: unknown } | null | undefined;
+  const placed = typeof point?.x === 'number' && typeof point?.y === 'number';
+
+  return (
+    <Field
+      label={fieldTitle(field)}
+      description={field.admin?.description}
+      error={error}
+      required={field.required}
+    >
+      {url ? (
+        <div className="focal">
+          <button
+            type="button"
+            className="focal__image"
+            aria-label={fieldTitle(field)}
+            disabled={disabled}
+            onClick={(event) => {
+              const box = event.currentTarget.getBoundingClientRect();
+              const round = (ratio: number) =>
+                Math.round(Math.min(1, Math.max(0, ratio)) * 1000) / 1000;
+              onChange({
+                x: round((event.clientX - box.left) / box.width),
+                y: round((event.clientY - box.top) / box.height),
+              });
+            }}
+          >
+            <img src={url} alt="" />
+            {placed ? (
+              <span
+                className="focal__marker"
+                style={{ left: `${Number(point.x) * 100}%`, top: `${Number(point.y) * 100}%` }}
+              />
+            ) : null}
+          </button>
+          {placed && !disabled ? (
+            <Button size="sm" tone="ghost" onClick={() => onChange(null)}>
+              {t.clearFocalPoint}
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="hint">{t.focalPointNeedsImage}</p>
+      )}
+    </Field>
+  );
+}
+
 export function PointField({ field, value, onChange, error, id, disabled }: FieldComponentProps) {
   const t = useMessages();
   const point = Array.isArray(value) ? (value as (number | null)[]) : [null, null];
@@ -351,3 +412,4 @@ registerField('relation', RelationPicker);
 registerField('upload', UploadField);
 registerField('point', PointField);
 registerField('join', JoinFieldView);
+registerField('focal-point', FocalPointField);

@@ -208,6 +208,8 @@ export default withPlugins(defineConfig({ ... }), [
 - `redirectsPlugin()` adds a `redirects` collection; call `findRedirect(cms, path)` from a middleware.
 - `searchPlugin({ collections })` keeps a public `search` collection in step, with published documents.
 - `nestedDocsPlugin({ collections })` adds `parent` and `breadcrumbs`, and refuses a page inside itself.
+- `mediaPlugin({ collections })` adds `folder`, which the media library browses by, and `focalPoint`, set
+  by clicking the image: `{ x, y }` from 0 to 1, ready for `object-position`.
 - `formsPlugin()` adds `forms` and `form_submissions`. Anyone can submit, so put a rate limit in front.
 
 ## Integrations
@@ -292,6 +294,9 @@ integrations: {
 },
 schedulerInterval: false, // `CmsRunDueSchedules` ticks from `durable:work` instead
 ```
+
+The worker finds these through durable's discovery: register `@adonis-agora/durable/hooks/workflows` as an
+`init` hook in `adonisrc.ts`, and add `"#workflows/*": "./app/workflows/*.js"` to the `imports` of `package.json`.
 
 ### What holds for any queue
 
