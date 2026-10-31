@@ -42,6 +42,7 @@ export type RouteContext = {
   method?: string;
   request: {
     method?(): string;
+    url?(): string;
     qs(): Record<string, unknown>;
     body(): unknown;
     hostname?(): string;
@@ -57,7 +58,7 @@ export type RouteContext = {
 
 export type RegisterCmsRoutesOptions = {
   prefix?: string;
-  /** Refuses an anonymous write to anything without an `access` rule. The provider sets it in production. */
+  /** Refuses an anonymous write with no `access` rule for that operation. The provider sets it in production. */
   requireUserForWrites?: boolean;
   /** Resolves `Authorization: Bearer` into an app principal (tenant comes from the token). */
   resolveToken?: (
@@ -129,7 +130,7 @@ export function registerCmsRoutes(
       !principal &&
       ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) &&
       !scoped.user &&
-      !hasAccessRule(cms.config, ctx.params?.slug)
+      !hasAccessRule(cms.config, ctx.params?.slug, operationOf(method, ctx))
     ) {
       ctx.response.status(401).json({
         error: {
@@ -192,11 +193,28 @@ export function registerCmsRoutes(
   router.patch(`${prefix}/globals/:slug`, dispatch(handleGlobalUpdate));
 }
 
-function hasAccessRule(config: CmsConfig, slug: string | undefined): boolean {
+type WriteOperation = 'create' | 'update' | 'delete';
+
+/** A POST to the collection creates and a DELETE of a document deletes. Publish, lock and the rest update. */
+function operationOf(method: string, ctx: RouteContext): WriteOperation {
+  const { id } = ctx.params ?? {};
+  if (method === 'POST' && !id) return 'create';
+  if (method === 'DELETE' && id && !ctx.request.url?.().endsWith('/lock')) return 'delete';
+  return 'update';
+}
+
+/** Per operation: a rule for `read` says nothing about who may write. */
+function hasAccessRule(
+  config: CmsConfig,
+  slug: string | undefined,
+  operation: WriteOperation,
+): boolean {
   const target = [...(config.collections ?? []), ...(config.globals ?? [])].find(
     (item) => item.slug === slug,
   );
-  return Boolean(target?.access);
+  return Boolean(
+    (target?.access as Partial<Record<WriteOperation, unknown>> | undefined)?.[operation],
+  );
 }
 
 async function scope(

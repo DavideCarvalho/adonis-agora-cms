@@ -31,6 +31,18 @@ const { docs } = await cms.collection('posts').find({ where: { slug: { equals: '
 production, an anonymous write to a collection with no `access` rule gets a 401. Pick a login with
 [`integrations.auth`](./docs/using.md#integrations) and run `node ace cms:sync` when you deploy.
 
+## Documentation
+
+| Guide                                     | For                                                      |
+| ----------------------------------------- | -------------------------------------------------------- |
+| [Using the CMS](./docs/using.md)          | From the first collection to rendering pages and plugins |
+| [Fields](./docs/fields.md)                | Every field type and its options                         |
+| [Access control](./docs/access.md)        | Who can read and write what                              |
+| [Local API](./docs/local-api.md)          | Reading and writing from your own code                   |
+| [REST](./docs/rest.md)                    | The HTTP API                                             |
+| [Versions and drafts](./docs/versions.md) | Drafts, history and scheduled publishing                 |
+| [Going to production](./docs/deploy.md)   | The login, the schema and what to do on each deploy      |
+
 ## The idea
 
 ```ts

@@ -92,6 +92,8 @@ export function TextField({ field, value, onChange, error, id, disabled }: Field
       <Input
         id={id}
         type={INPUT_TYPES[field.type] ?? 'text'}
+        // A browser filling this in would change the stored password on the next save.
+        autoComplete={field.type === 'password' ? 'new-password' : undefined}
         className={field.type === 'slug' ? 'mono' : undefined}
         value={asString(value)}
         disabled={disabled}

@@ -1,9 +1,11 @@
 import { expectTypeOf, test } from 'vitest';
+import type { Cms, CmsCollectionApi } from '../../src/local_api/index.js';
 import type {
   CmsCreateInput,
   CmsDocument,
   CmsGlobal,
   CmsUpload,
+  CollectionSlug,
   RichTextValue,
 } from '../../src/types/document.js';
 import { blogConfig } from '../fixtures/blog_config.js';
@@ -69,4 +71,15 @@ test('globals use the same machinery', () => {
   type Settings = CmsGlobal<Config, 'site_settings'>;
   expectTypeOf<Settings['siteName']>().toEqualTypeOf<string | null>();
   expectTypeOf<Settings['logo']>().toEqualTypeOf<CmsUpload | null>();
+});
+
+test('the typed service returns the document of a literal slug', () => {
+  type Service = Cms<Config>;
+  type Posts =
+    ReturnType<Service['collection']> extends unknown
+      ? Awaited<ReturnType<CmsCollectionApi<Config, 'posts'>['findByID']>>
+      : never;
+  expectTypeOf<NonNullable<Posts>['title']>().toEqualTypeOf<string>();
+  expectTypeOf<CollectionSlug<Config>>().toMatchTypeOf<string>();
+  expectTypeOf<'posts'>().toMatchTypeOf<CollectionSlug<Config>>();
 });
