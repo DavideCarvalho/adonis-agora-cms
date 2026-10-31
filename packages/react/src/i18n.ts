@@ -20,6 +20,11 @@ export type CmsMessages = {
   current: string;
   noVersions: string;
   deleteConfirm: string;
+  saveDraft: string;
+  publishChanges: string;
+  discardDraft: string;
+  pendingChanges: string;
+  discardDraftBody: string;
   schedule: string;
   schedulePublish: string;
   scheduleUnpublish: string;
@@ -149,6 +154,11 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     current: 'Current',
     noVersions: 'No versions yet.',
     deleteConfirm: 'Delete this document?',
+    saveDraft: 'Save draft',
+    publishChanges: 'Publish changes',
+    discardDraft: 'Discard changes',
+    pendingChanges: 'Published, with unpublished changes',
+    discardDraftBody: 'The page goes back to what is live.',
     schedule: 'Schedule',
     schedulePublish: 'Publish on',
     scheduleUnpublish: 'Unpublish on',
@@ -276,6 +286,11 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     current: 'Atual',
     noVersions: 'Nenhuma versão ainda.',
     deleteConfirm: 'Excluir este documento?',
+    saveDraft: 'Salvar rascunho',
+    publishChanges: 'Publicar alterações',
+    discardDraft: 'Descartar alterações',
+    pendingChanges: 'Publicado, com alterações não publicadas',
+    discardDraftBody: 'A página volta ao que está no ar.',
     schedule: 'Agendar',
     schedulePublish: 'Publicar em',
     scheduleUnpublish: 'Despublicar em',

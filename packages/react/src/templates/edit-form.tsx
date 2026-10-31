@@ -75,6 +75,9 @@ export type EditFormProps = {
   lockedBy?: string | null | undefined;
   /** Off when unpublishing would make the document unreachable from this panel. */
   canUnpublish?: boolean | undefined;
+  /** Saving a published document keeps what is live until it is published. */
+  draftOverPublished?: boolean | undefined;
+  onDiscardDraft?: (() => void) | undefined;
   /** The pending publish/unpublish, and how to change it. Omit to hide the control. */
   schedule?: { at: string; action: string } | null | undefined;
   onSchedule?: ((at: string | null) => void) | undefined;
@@ -117,6 +120,8 @@ export function EditForm({
   autosaveInterval,
   lockedBy,
   canUnpublish = true,
+  draftOverPublished = false,
+  onDiscardDraft,
   schedule,
   onSchedule,
 }: EditFormProps) {
@@ -178,7 +183,7 @@ export function EditForm({
 
   const [autosaved, setAutosaved] = useState(false);
   const canAutosave = Boolean(
-    onAutosave && autosaveInterval && doc._status === 'draft' && !lockedBy,
+    onAutosave && autosaveInterval && (doc._status === 'draft' || draftOverPublished) && !lockedBy,
   );
   useEffect(() => {
     if (dirty) setAutosaved(false);
@@ -369,6 +374,8 @@ export function EditForm({
         : `${singular} — ${t.new.toLowerCase()}`;
   const canPublish = Boolean(onPublish && collection.drafts && permission?.update !== false);
   const published = doc._status === 'published';
+  // Publishing is what is on offer whenever an edit is waiting, here or in the form.
+  const pendingPublish = !published || Boolean(doc._hasDraft) || (dirty && draftOverPublished);
 
   return (
     <FieldErrorsContext.Provider value={errorMap}>
@@ -390,8 +397,8 @@ export function EditForm({
             <div className="form-head__title">
               <h1 className="page-title">{title}</h1>
               {doc._status ? (
-                <Badge tone={published ? 'good' : 'warn'}>
-                  {published ? t.published : t.draft}
+                <Badge tone={published && !doc._hasDraft ? 'good' : 'warn'}>
+                  {doc._hasDraft ? t.pendingChanges : published ? t.published : t.draft}
                 </Badge>
               ) : null}
               {dirty ? <span className="dirty">{t.unsavedChanges}</span> : null}
@@ -501,18 +508,24 @@ export function EditForm({
               />
             ) : null}
 
-            {canPublish && (!published || canUnpublish) ? (
+            {onDiscardDraft && doc._hasDraft ? (
+              <Button size="md" tone="ghost" onClick={onDiscardDraft}>
+                {t.discardDraft}
+              </Button>
+            ) : null}
+
+            {canPublish && (pendingPublish || canUnpublish) ? (
               <Button
                 size="md"
                 disabled={saving}
                 onClick={() => void write(() => onPublish?.(values, dirty))}
               >
-                {published ? t.unpublish : t.publish}
+                {pendingPublish ? (published ? t.publishChanges : t.publish) : t.unpublish}
               </Button>
             ) : null}
 
             <Button size="md" tone="accent" type="submit" disabled={saving || readOnly || !dirty}>
-              {saving ? t.saving : t.save}
+              {saving ? t.saving : published && draftOverPublished ? t.saveDraft : t.save}
             </Button>
           </div>
         </div>

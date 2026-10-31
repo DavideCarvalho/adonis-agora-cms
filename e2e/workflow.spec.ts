@@ -249,3 +249,34 @@ test('the media library picks an existing asset', async ({ page, request }) => {
     })
     .toBe(assetId);
 });
+
+test('editing a published document keeps what is live until publishing', async ({
+  page,
+  context,
+  request,
+}) => {
+  await signIn(context);
+  const live = unique('Live');
+  const created = await request.post('/api/cms/collections/notes', { data: { title: live } });
+  const { id } = (await created.json()) as { id: string };
+  const publicTitle = async () =>
+    ((await (await request.get(`/api/cms/collections/notes/${id}`)).json()) as { title: string })
+      .title;
+
+  await page.goto(`/admin#/collections/notes/${id}`);
+  const input = page.getByRole('textbox', { name: /^title \*/i });
+  await input.fill(`${live} edited`);
+  await page.getByRole('button', { name: 'Save draft' }).click();
+  await expect(page.getByText('Published, with unpublished changes')).toBeVisible();
+  expect(await publicTitle()).toBe(live);
+
+  // Discarding goes back to what is live.
+  await page.getByRole('button', { name: 'Discard changes' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Discard' }).click();
+  await expect(input).toHaveValue(live);
+
+  await input.fill(`${live} final`);
+  await page.getByRole('button', { name: 'Publish changes' }).click();
+  await expect.poll(publicTitle).toBe(`${live} final`);
+  await expect(page.getByText('Published, with unpublished changes')).toHaveCount(0);
+});

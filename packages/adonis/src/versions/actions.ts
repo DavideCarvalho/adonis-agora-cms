@@ -1,9 +1,15 @@
 import { CmsConflictError, CmsForbiddenError, CmsNotFoundError } from '../errors.js';
 import { decideAccess } from '../repository/access.js';
-import { type OperationOptions, updateDocument } from '../repository/crud.js';
+import { findDocumentByID, type OperationOptions, updateDocument } from '../repository/crud.js';
 import type { RepoContext } from '../repository/document.js';
 import { exec, ident, selectOne, sqlTimestamp } from '../repository/sql.js';
-import { getVersion, latestPublished, listVersions } from './store.js';
+import {
+  getVersion,
+  latestDraftSnapshot,
+  latestPublished,
+  listVersions,
+  recordVersion,
+} from './store.js';
 
 type PublishOptions = OperationOptions & { ttlSeconds?: number };
 
@@ -14,7 +20,10 @@ export async function publishDocument(
   id: string,
   options: PublishOptions = {},
 ): Promise<Record<string, unknown>> {
-  return updateDocument(ctx, slug, id, {}, { ...options, status: 'published' });
+  return updateDocument(ctx, slug, id, await pendingEdit(ctx, slug, id), {
+    ...options,
+    status: 'published',
+  });
 }
 
 /** Back to draft. Published versions stay in the history. */
@@ -24,7 +33,10 @@ export async function unpublishDocument(
   id: string,
   options: PublishOptions = {},
 ): Promise<Record<string, unknown>> {
-  return updateDocument(ctx, slug, id, {}, { ...options, status: 'draft' });
+  return updateDocument(ctx, slug, id, await pendingEdit(ctx, slug, id), {
+    ...options,
+    status: 'draft',
+  });
 }
 
 /**
@@ -32,6 +44,32 @@ export async function unpublishDocument(
  *
  * History is never rewritten: the restore itself becomes the next version.
  */
+/** What publishing applies: the pending edit, if there is one. */
+async function pendingEdit(ctx: RepoContext, slug: string, id: string) {
+  const pending = await latestDraftSnapshot(ctx, slug, id);
+  return pending ? stripSystemFields(pending) : {};
+}
+
+/** Throws the pending edit away: the document goes back to what is live. */
+export async function discardDraft(
+  ctx: RepoContext,
+  slug: string,
+  id: string,
+  options: OperationOptions = {},
+): Promise<Record<string, unknown>> {
+  const live = await findDocumentByID(ctx, slug, id, { ...options, draft: false, depth: 0 });
+  if (!live) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
+  if (await latestDraftSnapshot(ctx, slug, id)) {
+    await recordVersion(ctx, slug, id, {
+      status: live._status === 'published' ? 'published' : 'draft',
+      snapshot: live,
+      autosave: false,
+      locale: null,
+    });
+  }
+  return live;
+}
+
 export async function restoreVersion(
   ctx: RepoContext,
   slug: string,
@@ -206,7 +244,7 @@ function currentUserId(user: unknown): string | null {
 
 function stripSystemFields(doc: Record<string, unknown>): Record<string, unknown> {
   const clean = { ...doc };
-  for (const key of ['id', 'createdAt', 'updatedAt', '_status']) {
+  for (const key of ['id', 'createdAt', 'updatedAt', '_status', '_hasDraft']) {
     delete clean[key];
   }
   return clean;

@@ -169,6 +169,39 @@ export async function getVersion(
   return row ? toVersionRecord(row, true) : null;
 }
 
+/**
+ * The pending edit of a published document: its latest version, when that version is a draft. The
+ * main row keeps what is live until it is published.
+ */
+export async function latestDraftSnapshot(
+  ctx: RepoContext,
+  slug: string,
+  documentId: string,
+): Promise<Record<string, unknown> | null> {
+  const table = `${ctx.spec.tablePrefix}versions`;
+  const conditions = [
+    `${ident('collection', ctx.engine)} = ?`,
+    `${ident('document_id', ctx.engine)} = ?`,
+    `${ident('is_latest', ctx.engine)} = ?`,
+  ];
+  const bindings: unknown[] = [slug, documentId, bool(ctx.engine, true)];
+
+  if (ctx.spec.tenancy.column) {
+    conditions.push(tenantFragment(ctx));
+    if (ctx.tenant !== null) bindings.push(ctx.tenant);
+  }
+
+  const row = await selectOne(
+    ctx.client,
+    `select ${ident('status', ctx.engine)}, ${ident('snapshot', ctx.engine)} from ${ident(table, ctx.engine)} where ${conditions.join(' and ')}`,
+    bindings,
+  );
+  if (row?.status !== 'draft') return null;
+
+  const parsed = typeof row.snapshot === 'string' ? JSON.parse(row.snapshot) : row.snapshot;
+  return (parsed as { doc?: Record<string, unknown> } | null)?.doc ?? null;
+}
+
 export async function latestPublished(
   ctx: RepoContext,
   slug: string,
