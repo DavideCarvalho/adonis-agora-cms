@@ -17,6 +17,8 @@ export type AdminField = {
   };
   options?: readonly { label: string; value: string }[];
   relationTo?: string | readonly string[];
+  /** On a `join`: the relation field on the other collection. */
+  on?: string;
   mimeTypes?: readonly string[];
   hasMany?: boolean;
   minRows?: number;

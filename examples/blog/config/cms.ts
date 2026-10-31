@@ -72,7 +72,11 @@ export default withPlugins(
       collection('authors', {
         labels: { singular: 'Author', plural: 'Authors' },
         admin: { useAsTitle: 'name', defaultColumns: ['name'] },
-        fields: [fields.text('name', { required: true }), fields.text('bio')],
+        fields: [
+          fields.join('posts', { collection: 'posts', on: 'author' }),
+          fields.text('name', { required: true }),
+          fields.text('bio'),
+        ],
       }),
       collection('pages', {
         labels: { singular: 'Page', plural: 'Pages' },
@@ -199,6 +203,8 @@ export default withPlugins(
               {
                 label: 'Details',
                 fields: [
+                  fields.point('location'),
+                  fields.date('dueOn'),
                   fields.select('kind', {
                     defaultValue: 'plain',
                     options: [

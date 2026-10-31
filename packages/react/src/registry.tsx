@@ -266,6 +266,74 @@ export function JsonField({ field, value, onChange, error, id, disabled }: Field
   );
 }
 
+/** `[longitude, latitude]`, the order GeoJSON and most map libraries use. */
+export function PointField({ field, value, onChange, error, id, disabled }: FieldComponentProps) {
+  const t = useMessages();
+  const point = Array.isArray(value) ? (value as (number | null)[]) : [null, null];
+  const update = (index: number, raw: string) => {
+    const next = [point[0] ?? null, point[1] ?? null];
+    next[index] = raw === '' ? null : Number(raw);
+    onChange(next[0] === null && next[1] === null ? null : next);
+  };
+
+  return (
+    <Field
+      label={fieldTitle(field)}
+      description={field.admin?.description}
+      error={error}
+      required={field.required}
+    >
+      <div className="point-field">
+        <Input
+          id={id}
+          type="number"
+          step="any"
+          min={-180}
+          max={180}
+          aria-label={`${fieldTitle(field)} ${t.longitude}`}
+          placeholder={t.longitude}
+          value={asString(point[0])}
+          disabled={disabled}
+          onChange={(event) => update(0, event.target.value)}
+        />
+        <Input
+          type="number"
+          step="any"
+          min={-90}
+          max={90}
+          aria-label={`${fieldTitle(field)} ${t.latitude}`}
+          placeholder={t.latitude}
+          value={asString(point[1])}
+          disabled={disabled}
+          onChange={(event) => update(1, event.target.value)}
+        />
+      </div>
+    </Field>
+  );
+}
+
+/** Read-only: the documents of another collection that point at this one. */
+export function JoinFieldView({ field, value }: FieldComponentProps) {
+  const t = useMessages();
+  const docs = (value as { docs?: Record<string, unknown>[] } | null)?.docs ?? [];
+  const target = String(field.relationTo ?? '');
+
+  return (
+    <Field label={fieldTitle(field)} description={field.admin?.description}>
+      {docs.length === 0 ? <p className="hint">{t.nothingLinked}</p> : null}
+      <ul className="join-list">
+        {docs.map((doc) => (
+          <li key={String(doc.id)}>
+            <a href={`#/collections/${target}/${String(doc.id)}`}>
+              {String(doc.title ?? doc.titulo ?? doc.name ?? doc.email ?? doc.slug ?? doc.id)}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </Field>
+  );
+}
+
 registerField('text', TextField);
 registerField('slug', TextField);
 registerField('email', TextField);
@@ -281,3 +349,5 @@ registerField('radio', SelectField);
 registerField('json', JsonField);
 registerField('relation', RelationPicker);
 registerField('upload', UploadField);
+registerField('point', PointField);
+registerField('join', JoinFieldView);

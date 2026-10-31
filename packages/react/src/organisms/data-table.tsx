@@ -31,6 +31,8 @@ export type DataTableProps = {
   filters?: ReactNode;
   /** Publishes every selected row; omit to hide the button. */
   onPublishMany?: ((docs: AdminDocument[], action: 'publish' | 'unpublish') => void) | undefined;
+  /** Sets one field on every selected row; omit to hide the button. */
+  onEditMany?: ((docs: AdminDocument[]) => void) | undefined;
 };
 
 const SORTABLE = new Set([
@@ -68,6 +70,7 @@ export function DataTable({
   onSort,
   filters,
   onPublishMany,
+  onEditMany,
 }: DataTableProps) {
   const t = useMessages();
   const { locale } = useCms();
@@ -229,6 +232,15 @@ export function DataTable({
           <span>
             <span className="num">{picked.size}</span> {t.selected}
           </span>
+          {onEditMany && permission?.update !== false ? (
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() => onEditMany(docs.filter((doc) => picked.has(String(doc.id))))}
+            >
+              {t.editSelected}
+            </Button>
+          ) : null}
           {onPublishMany && collection.drafts && permission?.update !== false ? (
             <>
               <Button

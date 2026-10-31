@@ -33,7 +33,8 @@ export type FieldType =
   | 'blocks'
   | 'tabs'
   | 'row'
-  | 'collapsible';
+  | 'collapsible'
+  | 'join';
 
 export type Labels = {
   singular: string;
@@ -215,6 +216,16 @@ export type RelationField = FieldCommon & {
   hasMany?: boolean;
 };
 
+/** The other side of a relation. No column: it is read from the collection that points here. */
+export type JoinField = FieldCommon & {
+  type: 'join';
+  collection: string;
+  /** The relation field on `collection` that points at this document. */
+  on: string;
+  /** Default 10. */
+  limit?: number;
+};
+
 export type UploadField = FieldCommon & {
   type: 'upload';
   relationTo: string;
@@ -291,7 +302,8 @@ export type FieldConfig =
   | BlocksField
   | TabsField
   | RowField
-  | CollapsibleField;
+  | CollapsibleField
+  | JoinField;
 
 export type WhereConstraint =
   | { and: readonly WhereConstraint[] }

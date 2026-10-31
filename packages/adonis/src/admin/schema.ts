@@ -3,6 +3,7 @@ import { resolveVersions } from '../config/types.js';
 import { decideAccess } from '../repository/access.js';
 
 export type AdminField = {
+  on?: string;
   type: string;
   name: string;
   label?: unknown;
@@ -195,6 +196,11 @@ async function serializeField(field: FieldConfig, accessArgs: AccessArgs): Promi
 
   if (field.type === 'group' || field.type === 'row' || field.type === 'collapsible') {
     serialized.fields = await serializeFields(field.fields, accessArgs);
+  }
+
+  if (field.type === 'join') {
+    serialized.relationTo = field.collection;
+    serialized.on = field.on;
   }
 
   if (field.type === 'blocks') {

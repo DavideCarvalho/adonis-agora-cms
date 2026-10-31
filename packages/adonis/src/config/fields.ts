@@ -5,6 +5,7 @@
  * load-bearing: they keep `name`, `type` and `options[].value` as literal types, which is what
  * lets `CmsDocument<typeof config, 'posts'>` infer the document shape without codegen.
  */
+import { defineField } from './define_field.js';
 import type {
   ArrayField,
   BlockDefinition,
@@ -16,6 +17,7 @@ import type {
   EmailField,
   FieldConfig,
   GroupField,
+  JoinField,
   JsonField,
   NumberField,
   PasswordField,
@@ -202,6 +204,17 @@ export function block<
   return { slug, ...definition };
 }
 
+/** Reads the documents of `collection` whose `on` points at this one. Read-only, no column. */
+function join<const N extends string, const O extends Omit<JoinField, 'type' | 'name'>>(
+  name: N,
+  options: O,
+) {
+  return { type: 'join', name, ...options } as const;
+}
+
+/** A coordinate, stored as `[longitude, latitude]`. */
+const point = defineField({ type: 'point', column: { type: 'json' }, component: 'point' });
+
 export const fields = {
   text,
   textarea,
@@ -224,6 +237,8 @@ export const fields = {
   tabs,
   row,
   collapsible,
+  join,
+  point,
 } as const;
 
 export type FieldBuilder = typeof fields;

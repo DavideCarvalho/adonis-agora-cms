@@ -171,6 +171,10 @@ function compileField(
       return;
     }
 
+    // Read from the other collection: there is nothing to store.
+    case 'join':
+      return;
+
     case 'group': {
       compileFields(table, field.fields, ctx, {
         prefix: `${scope.prefix}${field.name}_`,

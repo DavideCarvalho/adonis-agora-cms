@@ -1692,6 +1692,31 @@ tr:hover .table__actions,
   white-space: nowrap;
 }
 
+.point-field {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.join-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.join-list li {
+  padding: 3px 0;
+}
+.bulk-edit {
+  display: none;
+}
+.bulk-edit[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bulk-edit .confirm__actions {
+  margin-top: 6px;
+}
+
 /* ----------------------------------------------------------- small screens */
 
 @media (max-width: 1100px) {

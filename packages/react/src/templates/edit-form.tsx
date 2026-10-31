@@ -412,6 +412,37 @@ export function EditForm({
           <div className="toolbar">
             {locales.length > 1 ? (
               <select
+                aria-label={t.copyFromLocale}
+                className="select select--inline"
+                value=""
+                onChange={(event) => {
+                  const from = event.target.value;
+                  if (!from) return;
+                  setUndoStack((stack) => [...stack.slice(-49), valuesRef.current]);
+                  setValues((current) => {
+                    const next = { ...current };
+                    for (const field of flattenFields(collection.fields)) {
+                      const bucket = next[field.name];
+                      if (!field.localized || !bucket || typeof bucket !== 'object') continue;
+                      const map = bucket as Record<string, unknown>;
+                      next[field.name] = { ...map, [locale]: map[from] };
+                    }
+                    return next;
+                  });
+                }}
+              >
+                <option value="">{t.copyFromLocale}…</option>
+                {locales
+                  .filter((item) => item !== locale)
+                  .map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+              </select>
+            ) : null}
+            {locales.length > 1 ? (
+              <select
                 aria-label="locale"
                 className="select select--inline"
                 value={locale}
