@@ -1693,6 +1693,34 @@ tr:hover .table__actions,
   white-space: nowrap;
 }
 
+.focal {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+.focal__image {
+  position: relative;
+  display: block;
+  max-width: 360px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: crosshair;
+}
+.focal__image img {
+  display: block;
+  max-width: 100%;
+}
+.focal__marker {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 60%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
 .point-field {
   display: grid;
   grid-template-columns: 1fr 1fr;

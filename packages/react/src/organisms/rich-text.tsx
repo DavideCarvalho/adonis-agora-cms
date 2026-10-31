@@ -123,6 +123,7 @@ export function RichText({ field, value, onChange, error, id, disabled }: FieldC
   const { upload } = useCms();
   const imageInput = useRef<HTMLInputElement>(null);
   const [linking, setLinking] = useState(false);
+  const linkRange = useRef<{ from: number; to: number } | null>(null);
   const [href, setHref] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
   const editor = useEditor({
@@ -153,7 +154,10 @@ export function RichText({ field, value, onChange, error, id, disabled }: FieldC
 
   const applyLink = (url: string) => {
     if (editor) {
-      const chain = editor.chain().focus().extendMarkRange('link');
+      // The selection from when the panel opened: focus left the editor to get here.
+      const chain = editor.chain().focus();
+      if (linkRange.current) chain.setTextSelection(linkRange.current);
+      chain.extendMarkRange('link');
       if (url && isSafeLink(url)) chain.setLink({ href: url }).run();
       else chain.unsetLink().run();
     }
@@ -206,6 +210,10 @@ export function RichText({ field, value, onChange, error, id, disabled }: FieldC
               title={t.link}
               disabled={disabled}
               onClick={() => {
+                if (editor) {
+                  const { from, to } = editor.state.selection;
+                  linkRange.current = { from, to };
+                }
                 setHref(String(editor?.getAttributes('link').href ?? ''));
                 setLinking((open) => !open);
               }}

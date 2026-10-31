@@ -1,3 +1,4 @@
+export { configure } from '../configure.js';
 export type { AdminCollection, AdminField, AdminPermission, AdminSchema } from './admin/schema.js';
 export { toAdminSchema } from './admin/schema.js';
 export type { ApiTokenPrincipal, CreateApiTokenOptions } from './auth/api_tokens.js';
@@ -46,6 +47,7 @@ export type { CmsPlugin } from './plugins/index.js';
 export {
   findRedirect,
   formsPlugin,
+  mediaPlugin,
   nestedDocsPlugin,
   redirectsPlugin,
   searchPlugin,

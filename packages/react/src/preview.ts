@@ -63,14 +63,24 @@ const STYLE = `
   outline-offset: 3px;
   background: rgba(168, 85, 247, 0.06);
 }
+/* A dragged block lands on this side of its target. */
+[${PREVIEW_BLOCK_ATTRIBUTE}][data-cms-drop="before"] {
+  box-shadow: 0 -4px 0 #a855f7;
+  border-radius: 0;
+}
+[${PREVIEW_BLOCK_ATTRIBUTE}][data-cms-drop="after"] {
+  box-shadow: 0 4px 0 #a855f7;
+  border-radius: 0;
+}
 [${PREVIEW_BLOCK_ATTRIBUTE}][data-cms-dragging="1"] {
   opacity: 0.45;
 }
 
 .cms-block-bar {
   position: fixed;
-  top: max(6px, calc(var(--cms-top) + 6px));
-  left: calc(var(--cms-left) + 6px);
+  /* Above the block, so it never covers the text being edited. */
+  top: max(6px, calc(var(--cms-top) - 38px));
+  left: var(--cms-left);
   z-index: 2147483000;
   display: flex;
   gap: 2px;
@@ -359,16 +369,24 @@ export const PREVIEW_BRIDGE_SOURCE = `(function () {
   document.addEventListener('pointermove', function (event) {
     if (!drag) return;
 
-    var under = document.elementFromPoint(event.clientX, event.clientY);
-    var candidate = under && under.closest ? under.closest('[' + BLOCK + ']') : null;
-    var ref = candidate ? parse(candidate) : null;
-
+    // The nearest sibling, not the one under the pointer: gaps and neighbours must not lose the drop.
+    var nearest = null;
+    var distance = Infinity;
     blocksOf(drag.ref.field).forEach(function (node) {
       node.removeAttribute('data-cms-drop');
+      var box = node.getBoundingClientRect();
+      var away = Math.max(box.top - event.clientY, event.clientY - box.bottom, 0);
+      if (away < distance) {
+        distance = away;
+        nearest = node;
+      }
     });
 
-    drag.target = candidate && ref && ref.field === drag.ref.field ? candidate : null;
-    if (drag.target) drag.target.setAttribute('data-cms-drop', '1');
+    drag.target = nearest && nearest !== drag.node ? nearest : null;
+    if (drag.target) {
+      var after = parse(drag.target).index > drag.ref.index;
+      drag.target.setAttribute('data-cms-drop', after ? 'after' : 'before');
+    }
   });
 
   document.addEventListener('pointerup', function () {

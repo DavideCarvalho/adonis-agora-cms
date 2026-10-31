@@ -157,6 +157,17 @@ type SystemFields<C> = {
   _status: 'draft' | 'published';
 };
 
+/**
+ * The slugs of a config, for autocomplete. Any string still type-checks: `withPlugins` adds collections
+ * the config's type cannot see.
+ */
+export type CollectionSlug<C> =
+  | (C extends { collections: readonly { slug: infer S }[] } ? S & string : never)
+  | (string & {});
+export type GlobalSlug<C> =
+  | (C extends { globals: readonly { slug: infer S }[] } ? S & string : never)
+  | (string & {});
+
 export type CmsDocument<C, S extends string> = ObjectOutput<
   FieldsOf<CollectionOf<C, S>>,
   LocaleOf<C>

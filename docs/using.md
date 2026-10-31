@@ -6,10 +6,12 @@ integration actually do — the snippets compile and run.
 ## 1. Install
 
 ```bash
-node ace add @adonisjs/lucid
-node ace configure @adonis-agora/cms          # provider, cms:* commands, config stub, migration
-node ace configure @adonis-agora/cms-admin    # the provider that serves the admin SPA
+node ace add @adonisjs/lucid        # if the app does not have it yet
+node ace add @adonis-agora/cms      # provider, commands, config/cms.ts and app/services/cms.ts
+node ace add @adonis-agora/cms-admin
 ```
+
+The panel is at `/admin`. The tables are created when the app boots in development.
 
 ## 2. Declare the content
 
@@ -159,7 +161,8 @@ router.get('/preview', async ({ request, response }) => {
 });
 ```
 
-The admin panel gets a **Preview** button as soon as `livePreview` is configured.
+A collection shows the **Preview** button when it asks for it, with `admin: { livePreview: true }`,
+`admin: { livePreview: { url: '/articles/preview' } }` for its own page, or `admin: { visualEditor: true }`.
 
 ## 7. Open the panel
 
@@ -208,6 +211,8 @@ export default withPlugins(defineConfig({ ... }), [
 - `redirectsPlugin()` adds a `redirects` collection; call `findRedirect(cms, path)` from a middleware.
 - `searchPlugin({ collections })` keeps a public `search` collection in step, with published documents.
 - `nestedDocsPlugin({ collections })` adds `parent` and `breadcrumbs`, and refuses a page inside itself.
+- `mediaPlugin({ collections })` adds `folder`, which the media library browses by, and `focalPoint`, set
+  by clicking the image: `{ x, y }` from 0 to 1, ready for `object-position`.
 - `formsPlugin()` adds `forms` and `form_submissions`. Anyone can submit, so put a rate limit in front.
 
 ## Integrations
@@ -292,6 +297,9 @@ integrations: {
 },
 schedulerInterval: false, // `CmsRunDueSchedules` ticks from `durable:work` instead
 ```
+
+The worker finds these through durable's discovery: register `@adonis-agora/durable/hooks/workflows` as an
+`init` hook in `adonisrc.ts`, and add `"#workflows/*": "./app/workflows/*.js"` to the `imports` of `package.json`.
 
 ### What holds for any queue
 

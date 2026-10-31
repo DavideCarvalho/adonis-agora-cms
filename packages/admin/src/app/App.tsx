@@ -33,7 +33,7 @@ import {
   VIEW_REGISTRY,
 } from '@adonis-agora/cms-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Moon, Sun, Upload } from 'lucide-react';
+import { BookmarkPlus, BookmarkX, Download, Moon, Sun, Upload } from 'lucide-react';
 import React, {
   createContext,
   useCallback,
@@ -474,6 +474,13 @@ function ListView({
   );
   const [dateRanges, setDateRanges] = useState<Record<string, { from?: string; to?: string }>>({});
   const [editing, setEditing] = useState<AdminDocument[] | null>(null);
+  const filtersNow: SavedFilter = { status, fieldFilters, dateRanges };
+  const applyFilter = (saved: SavedFilter) => {
+    setStatus(saved.status);
+    setFieldFilters(saved.fieldFilters);
+    setDateRanges(saved.dateRanges);
+    setPage(1);
+  };
 
   const where = useMemo(() => {
     const clause: Record<string, unknown> = {};
@@ -582,6 +589,7 @@ function ListView({
         onSearch={searchField ? onSearch : undefined}
         filters={
           <>
+            <SavedFilters slug={collection.slug} current={filtersNow} onApply={applyFilter} />
             <Button
               size="md"
               tone="ghost"
@@ -832,6 +840,95 @@ function useDocumentLock(slug: string, id: string | undefined, signedIn: boolean
 }
 
 /** Options come from the related collection, the first 100 by title. */
+type SavedFilter = {
+  status: string;
+  fieldFilters: Record<string, string>;
+  dateRanges: Record<string, { from?: string; to?: string }>;
+};
+
+const savedFiltersKey = (slug: string) => `cms:saved-filters:${slug}`;
+
+function readSavedFilters(slug: string): Record<string, SavedFilter> {
+  try {
+    return JSON.parse(window.localStorage.getItem(savedFiltersKey(slug)) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
+/** Kept in this browser: a view of the list, not content the API should know about. */
+function SavedFilters({
+  slug,
+  current,
+  onApply,
+}: {
+  slug: string;
+  current: SavedFilter;
+  onApply: (saved: SavedFilter) => void;
+}) {
+  const t = useMessages();
+  const [saved, setSaved] = useState(() => readSavedFilters(slug));
+  const [active, setActive] = useState('');
+  const names = Object.keys(saved).sort();
+  const store = (next: Record<string, SavedFilter>) => {
+    window.localStorage.setItem(savedFiltersKey(slug), JSON.stringify(next));
+    setSaved(next);
+  };
+
+  return (
+    <>
+      {names.length > 0 ? (
+        <select
+          className="select select--inline"
+          aria-label={t.savedFilters}
+          value={active}
+          onChange={(event) => {
+            const choice = saved[event.target.value];
+            setActive(event.target.value);
+            if (choice) onApply(choice);
+          }}
+        >
+          <option value="">{t.savedFilters}</option>
+          {names.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      {active ? (
+        <Button
+          size="md"
+          tone="ghost"
+          aria-label={t.deleteSavedFilter}
+          title={t.deleteSavedFilter}
+          onClick={() => {
+            const { [active]: _gone, ...rest } = saved;
+            store(rest);
+            setActive('');
+          }}
+        >
+          <BookmarkX aria-hidden />
+        </Button>
+      ) : null}
+      <Button
+        size="md"
+        tone="ghost"
+        aria-label={t.saveFilters}
+        title={t.saveFilters}
+        onClick={() => {
+          const name = window.prompt(t.saveFiltersAs)?.trim();
+          if (!name) return;
+          store({ ...saved, [name]: current });
+          setActive(name);
+        }}
+      >
+        <BookmarkPlus aria-hidden />
+      </Button>
+    </>
+  );
+}
+
 function RelationFilter({
   field,
   schema,
@@ -1057,7 +1154,8 @@ function EditView({
   const update = useUpdateDocument(collection.slug, id ?? '', { draft: canReadDrafts });
   const publish = usePublishDocument(collection.slug, id ?? '');
   const remove = useDeleteDocument(collection.slug);
-  const preview = usePreviewToken(collection.slug, id);
+  const previewable = Boolean(collection.admin?.livePreview || collection.admin?.visualEditor);
+  const preview = usePreviewToken(collection.slug, previewable ? id : undefined);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const back = () => onNavigate({ view: 'list', slug: collection.slug });

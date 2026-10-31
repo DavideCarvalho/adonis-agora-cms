@@ -1223,6 +1223,7 @@ function FieldRenderer({
       locale={locale}
       disabled={readOnly || field.restricted === true}
       id={fieldPath}
+      siblings={siblings}
     />
   );
 }

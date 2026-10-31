@@ -7,6 +7,7 @@ import {
   formsPlugin,
   global,
   jobs,
+  mediaPlugin,
   nestedDocsPlugin,
   redirectsPlugin,
   searchPlugin,
@@ -21,7 +22,8 @@ export default withPlugins(
     db: { id: 'uuid', tablePrefix: 'cms_' },
     localization: { locales: ['pt-BR', 'en'], defaultLocale: 'pt-BR' },
     versions: { drafts: true },
-    schedulerInterval: 500,
+    // `CMS_SCHEDULER=off`: `CmsRunDueSchedules` ticks from `durable:work` instead.
+    schedulerInterval: process.env.CMS_SCHEDULER === 'off' ? false : 500,
     webhooks: [
       {
         url: `http://127.0.0.1:${process.env.CMS_WEBHOOK_PORT ?? 5611}/webhook-sink`,
@@ -154,7 +156,7 @@ export default withPlugins(
       collection('posts', {
         softDelete: true,
         labels: { singular: 'Post', plural: 'Posts' },
-        admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug'] },
+        admin: { useAsTitle: 'title', defaultColumns: ['title', 'slug'], livePreview: true },
         fields: [
           fields.text('title', { required: true }),
           fields.text('subtitle', { localized: true }),
@@ -222,6 +224,7 @@ export default withPlugins(
   [
     seoPlugin({ collections: ['notes'] }),
     redirectsPlugin(),
+    mediaPlugin({ collections: ['media'] }),
     formsPlugin(),
     searchPlugin({ collections: { notes: { title: 'title' } } }),
     nestedDocsPlugin({ collections: ['pages'] }),

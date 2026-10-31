@@ -67,6 +67,14 @@ export type CmsMessages = {
   imported: string;
   failedRows: string;
   mediaLibrary: string;
+  folder: string;
+  allFolders: string;
+  focalPointNeedsImage: string;
+  clearFocalPoint: string;
+  savedFilters: string;
+  saveFilters: string;
+  saveFiltersAs: string;
+  deleteSavedFilter: string;
   link: string;
   image: string;
   apply: string;
@@ -233,6 +241,14 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     imported: 'imported',
     failedRows: 'failed',
     mediaLibrary: 'Media library',
+    folder: 'Folder',
+    allFolders: 'All folders',
+    focalPointNeedsImage: 'Save an image first.',
+    clearFocalPoint: 'Clear focal point',
+    savedFilters: 'Saved filters',
+    saveFilters: 'Save these filters',
+    saveFiltersAs: 'Name for these filters',
+    deleteSavedFilter: 'Delete these saved filters',
     link: 'Link',
     image: 'Image',
     apply: 'Apply',
@@ -397,6 +413,14 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     imported: 'importados',
     failedRows: 'com erro',
     mediaLibrary: 'Biblioteca de mídia',
+    folder: 'Pasta',
+    allFolders: 'Todas as pastas',
+    focalPointNeedsImage: 'Salve uma imagem primeiro.',
+    clearFocalPoint: 'Limpar ponto focal',
+    savedFilters: 'Filtros salvos',
+    saveFilters: 'Salvar estes filtros',
+    saveFiltersAs: 'Nome para estes filtros',
+    deleteSavedFilter: 'Excluir estes filtros salvos',
     link: 'Link',
     image: 'Imagem',
     apply: 'Aplicar',

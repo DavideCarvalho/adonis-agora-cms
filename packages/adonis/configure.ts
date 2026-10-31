@@ -7,7 +7,9 @@ import { stubsRoot } from './stubs/main.js';
  * 1. registers the CMS provider in `adonisrc.ts`;
  * 2. registers the `cms:*` commands;
  * 3. publishes `config/cms.ts` and `app/services/cms.ts` (the typed service handle);
- * 4. publishes a Lucid migration that creates the schema (delete it if you use the managed mode).
+ *
+ * The schema needs no migration: in development the provider applies it at boot, and `cms:sync` or
+ * `cms:generate` take over for production.
  *
  * Requires `@adonisjs/lucid` (`node ace add @adonisjs/lucid`) to be installed and configured.
  */
@@ -22,5 +24,4 @@ export async function configure(command: Configure) {
   const stubs = stubsRoot();
   await codemods.makeUsingStub(stubs, 'config/cms.stub', {});
   await codemods.makeUsingStub(stubs, 'services/cms.stub', {});
-  await codemods.makeUsingStub(stubs, 'database/migrations/create_cms_tables.stub', {});
 }

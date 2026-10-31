@@ -6,6 +6,7 @@ export default defineConfig({
     () => import('@adonisjs/lucid/commands'),
     () => import('@adonis-agora/cms/commands'),
     () => import('@adonisjs/queue/commands'),
+    ...(process.env.CMS_JOBS === 'durable' ? [() => import('@adonis-agora/durable/commands')] : []),
   ],
   providers: [
     () => import('@adonisjs/core/providers/app_provider'),
@@ -24,6 +25,12 @@ export default defineConfig({
     () => import('@adonis-agora/cms-admin/cms_admin_provider'),
   ],
   preloads: [() => import('./start/kernel.js'), () => import('./start/routes.js')],
+  hooks: {
+    init:
+      process.env.CMS_JOBS === 'durable'
+        ? [() => import('@adonis-agora/durable/hooks/workflows')]
+        : [],
+  },
   directories: {
     controllers: 'app/controllers',
     migrations: 'database/migrations',

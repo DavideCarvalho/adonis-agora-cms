@@ -33,7 +33,7 @@ export async function syncCmsSchema(
 
   if (plan.destructive && !options.allowDestructive) {
     throw new CmsSchemaError(
-      'refusing to apply a destructive schema plan without allowDestructive',
+      'this schema change would delete data: review it with `node ace cms:diff`, apply it with `node ace cms:sync --force`',
       { plan },
     );
   }

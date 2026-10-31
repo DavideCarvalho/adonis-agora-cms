@@ -43,19 +43,13 @@ export type Labels = {
   plural: string;
 };
 
-export type AdminPosition = 'main' | 'sidebar';
-
 export type FieldAdmin = {
-  position?: AdminPosition;
   description?: string;
   /** Component id registered in the admin `FieldRegistry`. */
   component?: string;
   placeholder?: string;
-  /** Shown only when the predicate holds for the current form value. */
-  condition?: (data: Record<string, unknown>) => boolean;
   /**
-   * The same idea as data, so it reaches the panel (a function cannot cross the wire): the field
-   * shows only while the sibling `field` equals `equals` (or one of them, for an array).
+   * Data, so it reaches the panel (a function cannot cross the wire): the field shows only while the sibling `field` equals `equals` (or one of them, for an array).
    */
   visibleWhen?: { field: string; equals: unknown };
   /** Hide from the list view. */
@@ -77,18 +71,6 @@ export type FieldValidator = (args: {
   data: Record<string, unknown>;
   locale?: LocaleCode;
 }) => string | undefined | Promise<string | undefined>;
-
-export type FieldHook = (args: {
-  value: unknown;
-  data: Record<string, unknown>;
-  locale?: LocaleCode;
-}) => unknown | Promise<unknown>;
-
-export type FieldHooks = {
-  beforeValidate?: readonly FieldHook[];
-  beforeChange?: readonly FieldHook[];
-  afterRead?: readonly FieldHook[];
-};
 
 /** Plain-data column metadata for a custom field type (serializable on purpose). */
 export type CustomColumn = {
@@ -126,7 +108,6 @@ export type FieldCommon = {
   admin?: FieldAdmin;
   access?: FieldAccess;
   validate?: FieldValidator;
-  hooks?: FieldHooks;
   /** Set by `defineField` on custom types; the compiler reads it to emit the column. */
   __column?: CustomColumn;
 };
@@ -154,8 +135,6 @@ export type EmailField = FieldCommon & {
 
 export type PasswordField = FieldCommon & {
   type: 'password';
-  /** Hook name used to hash the value; defaults to the configured auth adapter. */
-  hashWith?: string;
 };
 
 export type NumberFormat = 'int' | 'float' | 'decimal';
@@ -175,7 +154,6 @@ export type CheckboxField = FieldCommon & {
 
 export type DateField = FieldCommon & {
   type: 'date';
-  withTime?: boolean;
 };
 
 export type SelectField<Options extends readonly SelectOption[] = readonly SelectOption[]> =
@@ -197,7 +175,6 @@ export type JsonField = FieldCommon & {
 
 export type CodeField = FieldCommon & {
   type: 'code';
-  language?: string;
 };
 
 export type SlugField = FieldCommon & {
@@ -392,9 +369,11 @@ export type CollectionAdmin = {
   group?: string;
   description?: string;
   icon?: string;
-  livePreview?: {
-    url?: string;
-  };
+  /**
+   * Shows the preview on this collection's documents; `visualEditor` implies it. A `url` replaces
+   * `admin.livePreview.url`, whose secret still signs the token.
+   */
+  livePreview?: boolean | { url?: string };
 };
 
 export type CollectionConfigInput = {
@@ -534,6 +513,11 @@ export type RestConfig = {
   enabled?: boolean;
   /** Base path for the generated routes. Defaults to `/api/cms`. */
   prefix?: string;
+  /**
+   * In production, an anonymous write to a collection with no `access` rule is refused. Set this to
+   * allow it anyway. Development and test always allow it, so a new app works before it has a login.
+   */
+  publicWrites?: boolean;
 };
 
 export type CmsWriteListener = (event: CmsEvent, cms: unknown) => unknown;
