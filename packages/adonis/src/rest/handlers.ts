@@ -130,9 +130,14 @@ export async function handleCollectionUpdate(
     const slug = requireParam(request.params.slug, 'slug');
     const id = requireParam(request.params.id, 'id');
     const autosave = request.query.autosave === 'true';
+    const asDraft = request.query.draft === 'true';
     const doc = await cms
       .collection(slug)
-      .update(id, (request.body ?? {}) as never, autosave ? { autosave: true } : undefined);
+      .update(
+        id,
+        (request.body ?? {}) as never,
+        autosave || asDraft ? { autosave, asDraft } : undefined,
+      );
     return { status: 200, body: doc };
   });
 }
@@ -282,6 +287,17 @@ export async function handleCollectionRestoreVersion(
     const version = Number(requireParam(request.params.version, 'version'));
     const doc = await cms.collection(slug).restoreVersion(id, version);
     return { status: 200, body: doc };
+  });
+}
+
+export async function handleCollectionDiscardDraft(
+  cms: Cms<CmsConfig>,
+  request: RestRequest,
+): Promise<RestResponse> {
+  return run(async () => {
+    const slug = requireParam(request.params.slug, 'slug');
+    const id = requireParam(request.params.id, 'id');
+    return { status: 200, body: await cms.collection(slug).discardDraft(id) };
   });
 }
 

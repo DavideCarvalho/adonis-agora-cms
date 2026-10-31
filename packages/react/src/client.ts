@@ -69,9 +69,9 @@ export class AdminClient {
     slug: string,
     id: string,
     data: AdminDocument,
-    options: { autosave?: boolean } = {},
+    options: { autosave?: boolean; draft?: boolean } = {},
   ): Promise<AdminDocument> {
-    const suffix = options.autosave ? '?autosave=true' : '';
+    const suffix = options.autosave ? '?autosave=true' : options.draft ? '?draft=true' : '';
     return this.request<AdminDocument>('PATCH', `/collections/${slug}/${id}${suffix}`, data);
   }
 
@@ -94,6 +94,10 @@ export class AdminClient {
 
   async versions(slug: string, id: string): Promise<{ docs: VersionRecord[]; totalDocs: number }> {
     return this.request('GET', `/collections/${slug}/${id}/versions`);
+  }
+
+  async discardDraft(slug: string, id: string): Promise<AdminDocument> {
+    return this.request<AdminDocument>('POST', `/collections/${slug}/${id}/discard-draft`);
   }
 
   async version(slug: string, id: string, version: number): Promise<VersionRecord> {

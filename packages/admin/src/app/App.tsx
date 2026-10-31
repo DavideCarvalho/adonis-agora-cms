@@ -694,7 +694,7 @@ function EditView({
       ),
     [autosave.mutateAsync],
   );
-  const update = useUpdateDocument(collection.slug, id ?? '');
+  const update = useUpdateDocument(collection.slug, id ?? '', { draft: canReadDrafts });
   const publish = usePublishDocument(collection.slug, id ?? '');
   const remove = useDeleteDocument(collection.slug);
   const preview = usePreviewToken(collection.slug, id);
@@ -743,6 +743,7 @@ function EditView({
     );
 
   const published = document.data?._status === 'published';
+  const hasDraft = document.data?._hasDraft === true;
 
   return (
     <EditForm
@@ -758,6 +759,30 @@ function EditView({
       autosaveInterval={interval}
       lockedBy={lockedBy}
       canUnpublish={canReadDrafts}
+      draftOverPublished={canReadDrafts}
+      onDiscardDraft={
+        id
+          ? () => {
+              void confirm({
+                title: t.discardDraft,
+                body: t.discardDraftBody,
+                action: t.discard,
+                danger: true,
+              }).then((answer) => {
+                if (!answer) return;
+                client
+                  .discardDraft(collection.slug, id)
+                  .then(() => {
+                    toast(t.discardDraft);
+                    void queryClient.invalidateQueries({
+                      queryKey: [...cmsKeys.all, 'doc', collection.slug, id],
+                    });
+                  })
+                  .catch(report);
+              });
+            }
+          : undefined
+      }
       schedule={scheduled.data?.schedule}
       onSchedule={
         id && canReadDrafts
@@ -783,8 +808,9 @@ function EditView({
           ? async (values, dirty) => {
               if (dirty && !(await save(values, true))) return false;
               try {
-                await publish.mutateAsync(published ? 'unpublish' : 'publish');
-                toast(published ? t.unpublished : t.published);
+                const action = published && !hasDraft && !dirty ? 'unpublish' : 'publish';
+                await publish.mutateAsync(action);
+                toast(action === 'unpublish' ? t.unpublished : t.published);
                 return true;
               } catch (error) {
                 report(error);

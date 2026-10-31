@@ -132,3 +132,13 @@ The table is new: run `node ace cms:sync` when deploying.
 
 `GET .../versions/:version?snapshot=true` returns the stored document. A snapshot can hold draft
 content, so it requires the same user a draft read does.
+
+## Drafts on a published document
+
+`update(id, data, { asDraft: true })` (REST: `PATCH ...?draft=true`) and every autosave keep the edit as
+a pending version: the row stays as it is, so public reads and webhooks see no change. Reading with
+`draft: true` returns the pending edit on top, with `_hasDraft: true`; `publish` applies it and
+`discardDraft` throws it away. A plain `update` still writes straight to what is live.
+
+Filters and sorting run on the live row, so a list with `draft: true` matches live values. A pending
+edit holds relation ids and the locale map, so it is not populated or flattened by `depth` and `locale`.

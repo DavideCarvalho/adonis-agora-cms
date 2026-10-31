@@ -8,7 +8,7 @@ import {
   CmsValidationError,
 } from '../errors.js';
 import type { TableSpec } from '../schema/types.js';
-import { recordVersion } from '../versions/store.js';
+import { latestDraftSnapshot, recordVersion } from '../versions/store.js';
 import { constraintToSql, decideAccess, existsSql, resolveEntry } from './access.js';
 import {
   buildWriteRows,
@@ -57,6 +57,8 @@ export type OperationOptions = {
   status?: 'draft' | 'published';
   /** Create as a draft (versioned collections). */
   draft?: boolean;
+  /** On a published document: keep the edit as a pending version, leaving what is live untouched. */
+  asDraft?: boolean;
   /** Autosave versions do not fire `afterChange`. */
   autosave?: boolean;
   /** Replace the document instead of merging (used by version restore). */
@@ -190,6 +192,8 @@ export async function findDocuments(
     locale,
   });
 
+  if (versions.drafts && includeDrafts) await overlayPendingDrafts(ctx, slug, docs);
+
   const totalPages = Math.max(1, Math.ceil(totalDocs / limit));
 
   return {
@@ -233,6 +237,7 @@ export async function findDocumentByID(
   if (versions.drafts && !includeDrafts && !options.overrideAccess && doc._status !== 'published') {
     return null;
   }
+  if (versions.drafts && includeDrafts) await overlayPendingDrafts(ctx, slug, [doc]);
 
   if (access.constraint) {
     const constraints = constraintToSql(access.constraint, ctx.spec, ctx.engine, table.name);
@@ -278,9 +283,29 @@ export async function updateDocument(
     previousData: previous,
   });
 
-  const merged = options.replace === true ? payload : mergeDocument(previous, payload);
+  // An autosave is a draft by nature: it must never change what a published document shows.
+  const keepLive =
+    previous._status === 'published' &&
+    versionsFor(ctx.config, slug).drafts &&
+    options.status === undefined &&
+    (options.asDraft === true || options.autosave === true);
+  const pending = keepLive ? await latestDraftSnapshot(ctx, slug, id) : null;
+  const base = pending ? { ...previous, ...pending } : previous;
+
+  const merged = options.replace === true ? payload : mergeDocument(base, payload);
   const validated = validate(ctx, slug, merged);
   await assertUnique(ctx, table, validated, id);
+
+  if (keepLive) {
+    await recordVersion(ctx, slug, id, {
+      status: 'draft',
+      snapshot: validated,
+      autosave: options.autosave === true,
+      locale: options.locale ?? null,
+    });
+    const overlaid = { ...previous, ...validated, id, _status: 'published', _hasDraft: true };
+    return overlaid;
+  }
 
   const status =
     options.status ??
@@ -1167,6 +1192,24 @@ async function stripFieldsByAccess(
     const decision = await decideAccess(field.access.read, accessArgs(ctx));
     if (!decision.allowed) delete doc[field.name];
   }
+}
+
+/** Whoever asks for drafts sees a published document with its pending edit on top. */
+async function overlayPendingDrafts(
+  ctx: RepoContext,
+  slug: string,
+  docs: Record<string, unknown>[],
+): Promise<void> {
+  await Promise.all(
+    docs.map(async (doc) => {
+      if (doc._status !== 'published') return;
+      const pending = await latestDraftSnapshot(ctx, slug, String(doc.id));
+      if (!pending) return;
+      const { id, createdAt, updatedAt } = doc;
+      for (const key of Object.keys(pending)) doc[key] = pending[key];
+      Object.assign(doc, { id, createdAt, updatedAt, _status: 'published', _hasDraft: true });
+    }),
+  );
 }
 
 /* -------------------------------------------------------------------- hooks */

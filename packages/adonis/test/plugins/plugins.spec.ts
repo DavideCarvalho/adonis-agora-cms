@@ -68,6 +68,42 @@ describe('search', () => {
   });
 });
 
+describe('drafts on a published document', () => {
+  test('stay out of what is live until publishing, and can be discarded', async () => {
+    const cms = await setup();
+    const notes = cms.collection('notes');
+    const note = await notes.create({ title: 'Live' });
+
+    const pending = await notes.update(note.id, { title: 'Edited' }, { asDraft: true });
+    expect(pending).toMatchObject({ title: 'Edited', _hasDraft: true });
+    expect((await notes.findByID(note.id)).title).toBe('Live');
+    expect(await notes.findByID(note.id, { draft: true })).toMatchObject({
+      title: 'Edited',
+      _status: 'published',
+      _hasDraft: true,
+    });
+    const listed = await notes.find({ draft: true });
+    expect(listed.docs[0]).toMatchObject({ title: 'Edited', _hasDraft: true });
+
+    await notes.discardDraft(note.id);
+    expect(await notes.findByID(note.id, { draft: true })).toMatchObject({ title: 'Live' });
+    expect((await notes.findByID(note.id, { draft: true }))._hasDraft).toBeUndefined();
+
+    await notes.update(note.id, { title: 'Final' }, { asDraft: true });
+    await notes.publish(note.id);
+    expect((await notes.findByID(note.id)).title).toBe('Final');
+    expect((await notes.findByID(note.id, { draft: true }))._hasDraft).toBeUndefined();
+  });
+
+  test('an autosave never changes what is live', async () => {
+    const cms = await setup();
+    const notes = cms.collection('notes');
+    const note = await notes.create({ title: 'Live' });
+    await notes.update(note.id, { title: 'Typing' }, { autosave: true });
+    expect((await notes.findByID(note.id)).title).toBe('Live');
+  });
+});
+
 describe('plugins', () => {
   test('seo adds a group; redirects works with a reserved word as a field name', async () => {
     const cms = await setup();

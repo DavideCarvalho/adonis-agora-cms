@@ -21,6 +21,7 @@ import type { Engine, SchemaSpec } from '../schema/types.js';
 import type { CmsCreateInput, CmsDocument, CmsUpdateInput } from '../types/document.js';
 import {
   type DocumentLock,
+  discardDraft,
   lockDocument,
   publishDocument,
   readVersion,
@@ -87,6 +88,7 @@ export type CmsCollectionApi<C, S extends string> = {
     options?: { locale?: string | null; limit?: number; page?: number },
   ): Promise<{ docs: VersionRecord[]; totalDocs: number }>;
   version(id: string, version: number): Promise<VersionRecord | null>;
+  discardDraft(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   schedule(
     id: string,
     schedule: DocumentSchedule,
@@ -240,6 +242,10 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
 
           async versions(id, options) {
             return readVersions(ctx, slug, id, options);
+          },
+
+          async discardDraft(id, operation) {
+            return (await discardDraft(ctx, slug, id, operation)) as CmsDocument<C, S>;
           },
 
           async version(id, version) {

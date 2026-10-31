@@ -4,6 +4,7 @@ import {
   handleAdminSchema,
   handleCollectionCreate,
   handleCollectionDelete,
+  handleCollectionDiscardDraft,
   handleCollectionFind,
   handleCollectionFindOne,
   handleCollectionLock,
@@ -159,6 +160,10 @@ export function registerCmsRoutes(
   router.get(`${prefix}/collections/:slug/:id/preview-token`, dispatch(handlePreviewToken));
   router.post(`${prefix}/collections/:slug/:id/lock`, dispatch(handleCollectionLock));
   router.delete(`${prefix}/collections/:slug/:id/lock`, dispatch(handleCollectionUnlock));
+  router.post(
+    `${prefix}/collections/:slug/:id/discard-draft`,
+    dispatch(handleCollectionDiscardDraft),
+  );
   router.get(`${prefix}/collections/:slug/:id/schedule`, dispatch(handleCollectionScheduled));
   router.post(`${prefix}/collections/:slug/:id/schedule`, dispatch(handleCollectionSchedule));
   router.delete(`${prefix}/collections/:slug/:id/schedule`, dispatch(handleCollectionUnschedule));

@@ -76,6 +76,8 @@ export type CmsUpload = {
 export type AdminDocument = Record<string, unknown> & {
   id?: string;
   _status?: 'draft' | 'published';
+  /** Published, with an edit that is not live yet. */
+  _hasDraft?: boolean;
 };
 
 export type ListResult = {

@@ -64,12 +64,12 @@ export function useCreateDocument(slug: string, options: { draft?: boolean } = {
   });
 }
 
-export function useUpdateDocument(slug: string, id: string) {
+export function useUpdateDocument(slug: string, id: string, options: { draft?: boolean } = {}) {
   const { client } = useCms();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: AdminDocument) => client.update(slug, id, data),
+    mutationFn: (data: AdminDocument) => client.update(slug, id, data, options),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...cmsKeys.all, 'doc', slug, id] });
       void queryClient.invalidateQueries({ queryKey: [...cmsKeys.all, 'list', slug] });
