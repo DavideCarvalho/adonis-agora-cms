@@ -126,9 +126,7 @@ function suite(engine: Engine, clientName: string, envVar: string) {
 
     describe('panel workflow', () => {
       // The config is built by a plugin, so the slugs are not literal types here.
-      // biome-ignore lint/suspicious/noExplicitAny: see above
       let cms: any;
-      // biome-ignore lint/suspicious/noExplicitAny: see above
       let notes: any;
 
       beforeAll(async () => {
