@@ -27,10 +27,9 @@ jobs:
       - run: pnpm lint
       # The admin bundles the built cms-react, so the workspace builds in dependency order first.
       - run: pnpm build
-      - run: pnpm --filter @adonis-agora/cms typecheck
-      - run: pnpm --filter @adonis-agora/cms test
-      - run: pnpm --filter @adonis-agora/cms-react typecheck
-      - run: pnpm --filter @adonis-agora/cms-react test
+      # The same commands as release.yml: what passes here must not fail a release.
+      - run: pnpm typecheck
+      - run: pnpm test
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec playwright test
 
