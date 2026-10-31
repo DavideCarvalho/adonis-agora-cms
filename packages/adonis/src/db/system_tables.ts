@@ -125,6 +125,23 @@ export function schedulesTable(spec: SystemTableContext): TableSpec {
   };
 }
 
+/** Passwords for `cmsAuth`, out of the users collection so no API can ever read one. */
+export function credentialsTable(spec: SystemTableContext): TableSpec {
+  return {
+    name: `${spec.tablePrefix}auth_credentials`,
+    kind: 'system',
+    slug: 'auth_credentials',
+    columns: [
+      column('id', 'increment'),
+      column('user_id', 'string', { length: 64, unique: true }),
+      column('password_hash', 'string', { length: 255 }),
+      column('version', 'integer'),
+      column('updated_at', 'timestamp'),
+    ],
+    indexes: [],
+  };
+}
+
 /** Application tokens — the principal a content client authenticates with. */
 export function apiTokensTable(spec: SystemTableContext): TableSpec {
   return {
@@ -146,7 +163,13 @@ export function apiTokensTable(spec: SystemTableContext): TableSpec {
 }
 
 export function systemTables(spec: SystemTableContext): TableSpec[] {
-  return [versionsTable(spec), locksTable(spec), schedulesTable(spec), apiTokensTable(spec)];
+  return [
+    versionsTable(spec),
+    locksTable(spec),
+    schedulesTable(spec),
+    credentialsTable(spec),
+    apiTokensTable(spec),
+  ];
 }
 
 /** Creates the CMS-owned tables that are outside the compiled spec (idempotent). */

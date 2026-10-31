@@ -40,6 +40,7 @@ import {
 import { CommandPalette } from './command-palette.js';
 import { parseCsv, toCsv } from './csv.js';
 import { href, parseHash, type Route } from './hash-route.js';
+import { LoginScreen } from './login.js';
 
 type Navigate = (route: Route, options?: { force?: boolean }) => void;
 type Toast = { id: number; message: string; tone: 'ok' | 'bad' };
@@ -156,6 +157,7 @@ function Panel() {
   if (!schema.data) return null;
 
   const data = schema.data;
+  if (data.admin.auth?.builtin && !data.user) return <LoginScreen title={data.admin.title} />;
   const global =
     route.view === 'global' ? data.globals.find((item) => item.slug === route.slug) : undefined;
   const collection =
@@ -199,6 +201,78 @@ function Panel() {
         )}
       </main>
     </div>
+  );
+}
+
+function SignOut() {
+  const t = useMessages();
+  const { client } = useCms();
+  const queryClient = useQueryClient();
+  return (
+    <Button
+      size="sm"
+      tone="ghost"
+      onClick={() => {
+        void client
+          .auth('logout')
+          .then(() => queryClient.clear())
+          .then(() => window.location.reload());
+      }}
+    >
+      {t.logout}
+    </Button>
+  );
+}
+
+/** A dialog, not a prompt: a browser prompt shows the password as it is typed. */
+function SetPassword({ userId }: { userId: string }) {
+  const t = useMessages();
+  const toast = useToast();
+  const { client } = useCms();
+  const dialog = useRef<HTMLDialogElement>(null);
+
+  return (
+    <>
+      <Button size="md" tone="ghost" onClick={() => dialog.current?.showModal()}>
+        {t.setPassword}
+      </Button>
+      <dialog ref={dialog} className="confirm" aria-label={t.setPassword}>
+        <h2 className="confirm__title">{t.setPassword}</h2>
+        <label className="label" htmlFor="cms-set-password">
+          {t.newPassword}
+        </label>
+        <input
+          id="cms-set-password"
+          className="input"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+        />
+        <div className="confirm__actions">
+          <Button size="md" onClick={() => dialog.current?.close()}>
+            {t.cancel}
+          </Button>
+          <Button
+            size="md"
+            tone="accent"
+            onClick={() => {
+              const input = dialog.current?.querySelector('input');
+              if (!input?.reportValidity() || !input.value) return;
+              client
+                .auth('password', { userId, password: input.value })
+                .then(() => {
+                  input.value = '';
+                  dialog.current?.close();
+                  toast(t.passwordChanged);
+                })
+                .catch((error: unknown) => toast(messageOf(error, t.requestFailed), 'bad'));
+            }}
+          >
+            {t.setPassword}
+          </Button>
+        </div>
+      </dialog>
+    </>
   );
 }
 
@@ -266,6 +340,7 @@ function Sidebar({
       </nav>
 
       <div className="sidebar__foot">
+        {schema.admin.auth?.builtin && schema.user ? <SignOut /> : null}
         <ThemeToggle />
       </div>
     </aside>
@@ -760,6 +835,9 @@ function EditView({
       lockedBy={lockedBy}
       canUnpublish={canReadDrafts}
       draftOverPublished={canReadDrafts}
+      headerActions={
+        id && schema.admin.auth?.collection === collection.slug ? <SetPassword userId={id} /> : null
+      }
       onDiscardDraft={
         id
           ? () => {

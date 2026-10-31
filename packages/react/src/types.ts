@@ -53,7 +53,12 @@ export type AdminPermission = {
 
 export type AdminSchema = {
   version: 1;
-  admin: { title: string; path: string; theme?: { accent?: string; logoUrl?: string } };
+  admin: {
+    title: string;
+    path: string;
+    theme?: { accent?: string; logoUrl?: string };
+    auth?: { builtin: boolean; collection: string };
+  };
   locales: readonly string[];
   defaultLocale: string;
   tenancy: { strategy: string; required: boolean };

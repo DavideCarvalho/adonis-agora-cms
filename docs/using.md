@@ -298,3 +298,23 @@ the server's zone:
 ```ts
 connection: { host, user, password, database, timezone: 'Z' }
 ```
+
+## The CMS's own login
+
+For an app with no login of its own:
+
+```ts
+export default withPlugins(
+  defineConfig({
+    integrations: { auth: cmsAuth({ secret: env.get('CMS_AUTH_SECRET') }) },
+    ...
+  }),
+  [usersPlugin()],
+)
+```
+
+The panel asks for the first user, who becomes the admin, and shows a login screen after that. Passwords
+sit in their own table, hashed with scrypt, so no API can read one. Changing a password ends every other
+session. Reset links need `mail`: `adonisMail(async () => (await import('@adonisjs/mail/services/main')).default)`.
+
+This only protects the panel. Set `access` on your collections so the API asks for a user too.

@@ -1,6 +1,8 @@
 import type { AccessArgs } from '@adonis-agora/cms';
 import {
   adonisAuth,
+  adonisMail,
+  cmsAuth,
   collection,
   defineConfig,
   driveUploads,
@@ -10,6 +12,7 @@ import {
   queueJobs,
   redirectsPlugin,
   seoPlugin,
+  usersPlugin,
   withPlugins,
 } from '@adonis-agora/cms';
 
@@ -28,6 +31,15 @@ export default withPlugins(
     // The official queue by default; `CMS_JOBS=durable` runs the same webhooks through Agora's.
     integrations: {
       ...(process.env.CMS_AUTH === 'adonis' ? { auth: adonisAuth({ guard: 'web' }) } : {}),
+      // `CMS_AUTH=builtin` is for an app with no login: the CMS owns the users and the screen.
+      ...(process.env.CMS_AUTH === 'builtin'
+        ? {
+            auth: cmsAuth({
+              secret: 'e2e-only-secret-not-for-production-0123',
+              mail: adonisMail(async () => (await import('@adonisjs/mail/services/main')).default),
+            }),
+          }
+        : {}),
       jobs:
         process.env.CMS_JOBS === 'durable'
           ? durableJobs(async () => {
@@ -211,5 +223,9 @@ export default withPlugins(
       }),
     ],
   }),
-  [seoPlugin({ collections: ['notes'] }), redirectsPlugin()],
+  [
+    seoPlugin({ collections: ['notes'] }),
+    redirectsPlugin(),
+    ...(process.env.CMS_AUTH === 'builtin' ? [usersPlugin()] : []),
+  ],
 );

@@ -20,6 +20,21 @@ export type CmsMessages = {
   current: string;
   noVersions: string;
   deleteConfirm: string;
+  login: string;
+  logout: string;
+  email: string;
+  password: string;
+  name: string;
+  firstUserTitle: string;
+  firstUserBody: string;
+  createAccount: string;
+  forgotPassword: string;
+  sendReset: string;
+  resetSent: string;
+  newPassword: string;
+  setPassword: string;
+  passwordChanged: string;
+  backToLogin: string;
   saveDraft: string;
   publishChanges: string;
   discardDraft: string;
@@ -154,6 +169,21 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     current: 'Current',
     noVersions: 'No versions yet.',
     deleteConfirm: 'Delete this document?',
+    login: 'Sign in',
+    logout: 'Sign out',
+    email: 'E-mail',
+    password: 'Password',
+    name: 'Name',
+    firstUserTitle: 'Create the first user',
+    firstUserBody: 'This account becomes the admin.',
+    createAccount: 'Create account',
+    forgotPassword: 'Forgot your password?',
+    sendReset: 'Send reset link',
+    resetSent: 'If this e-mail has an account, the link is on its way.',
+    newPassword: 'New password',
+    setPassword: 'Set password',
+    passwordChanged: 'Password changed',
+    backToLogin: 'Back to sign in',
     saveDraft: 'Save draft',
     publishChanges: 'Publish changes',
     discardDraft: 'Discard changes',
@@ -286,6 +316,21 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     current: 'Atual',
     noVersions: 'Nenhuma versão ainda.',
     deleteConfirm: 'Excluir este documento?',
+    login: 'Entrar',
+    logout: 'Sair',
+    email: 'E-mail',
+    password: 'Senha',
+    name: 'Nome',
+    firstUserTitle: 'Crie o primeiro usuário',
+    firstUserBody: 'Esta conta vira a administradora.',
+    createAccount: 'Criar conta',
+    forgotPassword: 'Esqueceu a senha?',
+    sendReset: 'Enviar link',
+    resetSent: 'Se este e-mail tiver conta, o link está a caminho.',
+    newPassword: 'Nova senha',
+    setPassword: 'Definir senha',
+    passwordChanged: 'Senha alterada',
+    backToLogin: 'Voltar para o login',
     saveDraft: 'Salvar rascunho',
     publishChanges: 'Publicar alterações',
     discardDraft: 'Descartar alterações',
