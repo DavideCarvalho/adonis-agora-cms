@@ -1,4 +1,5 @@
 ---
+
 '@adonis-agora/cms': minor
 '@adonis-agora/cms-react': minor
 ---
