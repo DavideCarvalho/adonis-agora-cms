@@ -28,7 +28,7 @@ const NO_CONTENT = 204;
 export async function handleAdminSchema(cms: Cms<CmsConfig>): Promise<RestResponse> {
   return run(async () => ({
     status: 200,
-    body: toAdminSchema(cms.config, { user: cms.user }),
+    body: await toAdminSchema(cms.config, { user: cms.user }),
   }));
 }
 

@@ -85,7 +85,7 @@ export async function createDocument(
 ): Promise<Record<string, unknown>> {
   const startedAt = Date.now();
   const table = documentTable(ctx.spec, slug);
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.create,
     accessArgs(ctx),
     options.overrideAccess,
@@ -147,7 +147,7 @@ export async function findDocuments(
   options: OperationOptions = {},
 ): Promise<FindResult> {
   const table = documentTable(ctx.spec, slug);
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.read,
     accessArgs(ctx),
     options.overrideAccess,
@@ -223,7 +223,7 @@ export async function findDocumentByID(
 
   if (!doc) return null;
 
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.read,
     accessArgs(ctx, { id, doc }),
     options.overrideAccess,
@@ -261,7 +261,7 @@ export async function updateDocument(
   const previous = await findDocumentByID(ctx, slug, id, { depth: 0, overrideAccess: true });
   if (!previous) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
 
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.update,
     accessArgs(ctx, { id, data, doc: previous }),
     options.overrideAccess,
@@ -329,7 +329,7 @@ export async function deleteDocument(
   const doc = await findDocumentByID(ctx, slug, id, { depth: 0, overrideAccess: true });
   if (!doc) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
 
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.delete,
     accessArgs(ctx, { id, doc }),
     options.overrideAccess,
@@ -412,7 +412,7 @@ export async function restoreDocument(
     throw new CmsNotFoundError(`"${slug}" does not use soft deletes`);
   }
 
-  const access = decideAccess(
+  const access = await decideAccess(
     collectionAccess(ctx, slug)?.update,
     accessArgs(ctx, { id }),
     options.overrideAccess,
@@ -509,7 +509,7 @@ async function decorateRows(
   }
 
   for (const doc of docs) {
-    stripFieldsByAccess(ctx, slug, doc);
+    await stripFieldsByAccess(ctx, slug, doc);
   }
 
   return docs;
@@ -1156,11 +1156,15 @@ function accessArgs(
   };
 }
 
-function stripFieldsByAccess(ctx: RepoContext, slug: string, doc: Record<string, unknown>): void {
+async function stripFieldsByAccess(
+  ctx: RepoContext,
+  slug: string,
+  doc: Record<string, unknown>,
+): Promise<void> {
   const fields = documentFields(ctx.config, slug);
   for (const field of fields) {
     if (!field.access?.read) continue;
-    const decision = decideAccess(field.access.read, accessArgs(ctx));
+    const decision = await decideAccess(field.access.read, accessArgs(ctx));
     if (!decision.allowed) delete doc[field.name];
   }
 }

@@ -212,17 +212,16 @@ call `findRedirect(cms, path)` from a middleware to apply them.
 The CMS depends on none of these libraries. Each port takes the Agora adapter, the official AdonisJS
 one, or your own object:
 
-| Port                     | Agora                                | Official AdonisJS               | Default          |
-| ------------------------ | ------------------------------------ | ------------------------------- | ---------------- |
-| `integrations.jobs`      | `durableJobs(() => engine)`          | `queueJobs({ deliverWebhook })` | in process       |
-| `integrations.auth`      | `authkitAdapter({ resolveUser })`    | `adonisAuth({ guard })`         | `ctx.auth.user`  |
-| `integrations.media`     | `mediaLibraryAdapter(library)`       | `driveMedia(disk)`              | the id as stored |
-| `uploads.handler`        | your `media.upload` call             | `driveUploads(disk)`            | none             |
-| `access` of a collection | `authzCollectionAccess(prefix, can)` | `bouncerAccess(ability)`        | open             |
-| `integrations.observer`  | `telescopeWatcher(record)`           | `loggerObserver(logger)`        | none             |
+| Port                     | Agora                                                                        | Official AdonisJS               | Default          |
+| ------------------------ | ---------------------------------------------------------------------------- | ------------------------------- | ---------------- |
+| `integrations.jobs`      | `durableJobs(() => engine)`                                                  | `queueJobs({ deliverWebhook })` | in process       |
+| `integrations.auth`      | `authkitAdapter({ resolveUser })`                                            | `adonisAuth({ guard })`         | `ctx.auth.user`  |
+| `integrations.media`     | `mediaLibraryAdapter(library)`                                               | `driveMedia(disk)`              | the id as stored |
+| `uploads.handler`        | your `media.upload` call                                                     | `driveUploads(disk)`            | none             |
+| `access` of a collection | `authzCollectionAccess(prefix, (user, ability) => authz.can(user, ability))` | `bouncerAccess(ability)`        | open             |
+| `integrations.observer`  | `telescopeWatcher(record)`                                                   | `loggerObserver(logger)`        | none             |
 
-`bouncerAccess` needs a synchronous ability, because access also decides what the panel shows; an
-`async` one throws instead of allowing.
+Access functions may be async. A rule that throws fails the operation instead of allowing it.
 
 ### Files with @adonisjs/drive
 

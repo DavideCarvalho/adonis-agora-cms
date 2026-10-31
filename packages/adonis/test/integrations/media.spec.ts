@@ -60,7 +60,7 @@ describe('media adapter', () => {
     expect(post.cover).toBe('m1');
   });
 
-  test('mediaLibraryAdapter falls back to find() when findMany is missing', async () => {
+  test('mediaLibraryAdapter resolves through find() and drops what is missing', async () => {
     const library = mediaLibraryAdapter({
       async find(id) {
         return id === 'a' ? { id, url: '/a' } : null;

@@ -76,23 +76,15 @@ type BouncerAbility = {
   original: (user: never, ...args: never[]) => unknown;
 };
 
-/**
- * `@adonisjs/bouncer`: one of your abilities as a CMS access function.
- *
- * CMS access runs synchronously (it also decides what the panel shows), so an `async` ability cannot
- * be used here and fails loudly instead of silently allowing: a Promise is truthy.
- */
+/** `@adonisjs/bouncer`: one of your abilities as a CMS access function, sync or async. */
 export function bouncerAccess(ability: BouncerAbility): AccessFn {
-  return ({ user, id, data, doc }) => {
+  return async ({ user, id, data, doc }) => {
     if (!user && !ability.allowGuest) return false;
-    const answer = (ability.original as (user: unknown, resource: unknown) => unknown)(user, {
+    const answer = await (ability.original as (user: unknown, resource: unknown) => unknown)(user, {
       id,
       ...doc,
       ...data,
     });
-    if (answer instanceof Promise) {
-      throw new CmsConfigError('access', 'bouncerAccess needs a synchronous ability');
-    }
     if (typeof answer === 'boolean') return answer;
     // Bouncer's `AuthorizationResponse.deny()` carries the verdict in `authorized`.
     return (answer as { authorized?: boolean } | null)?.authorized === true;

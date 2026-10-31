@@ -50,7 +50,7 @@ describe('defineField', () => {
 
     // The admin schema exposes the custom component id.
     const { toAdminSchema } = await import('../../src/admin/schema.js');
-    const schema = toAdminSchema(config, { user: { id: 'u1' } });
+    const schema = await toAdminSchema(config, { user: { id: 'u1' } });
     const accentField = schema.collections[0]?.fields.find((field) => field.name === 'accent');
     expect(accentField?.type).toBe('color');
     expect(accentField?.admin).toMatchObject({ component: 'color' });
