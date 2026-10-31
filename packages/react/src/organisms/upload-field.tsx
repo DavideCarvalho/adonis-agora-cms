@@ -1,10 +1,11 @@
 import { type ChangeEvent, type DragEvent, useRef, useState } from 'react';
 import { Button, Field } from '../atoms/index.js';
 import { CmsApiError } from '../client.js';
-import { useCms } from '../context.js';
+import { useCms, useMessages } from '../context.js';
 import type { FieldComponentProps } from '../registry.js';
 import { fieldTitle } from '../registry.js';
 import type { CmsUpload } from '../types.js';
+import { MediaLibrary } from './media-library.js';
 import { RelationPicker } from './relation-picker.js';
 
 function asAsset(value: unknown): Partial<CmsUpload> | null {
@@ -32,6 +33,7 @@ function fileLabel(asset: Partial<CmsUpload>): string {
  */
 export function UploadField({ field, value, onChange, error, id, disabled }: FieldComponentProps) {
   const { upload } = useCms();
+  const t = useMessages();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,6 +43,7 @@ export function UploadField({ field, value, onChange, error, id, disabled }: Fie
   // fresh upload shows its name and mime without a second round trip.
   const [justUploaded, setJustUploaded] = useState<CmsUpload | null>(null);
 
+  const library = typeof field.relationTo === 'string' ? field.relationTo : undefined;
   const raw = asAsset(value);
   const asset = raw && justUploaded && raw.id === justUploaded.id ? justUploaded : raw;
 
@@ -58,10 +61,10 @@ export function UploadField({ field, value, onChange, error, id, disabled }: Fie
     } catch (cause) {
       setFailure(
         cause instanceof CmsApiError && cause.status === 404
-          ? 'This app has no upload endpoint: set `cms.uploads.handler`.'
+          ? t.noUploadEndpoint
           : cause instanceof Error
             ? cause.message
-            : 'upload failed',
+            : t.uploadFailed,
       );
     } finally {
       setBusy(false);
@@ -89,7 +92,7 @@ export function UploadField({ field, value, onChange, error, id, disabled }: Fie
       required={field.required}
       htmlFor={id}
     >
-      {asset?.id && !browse ? (
+      {asset?.id ? (
         <div className="upload-card">
           <div className="upload-card__thumb">
             {asset.url ? (
@@ -110,12 +113,12 @@ export function UploadField({ field, value, onChange, error, id, disabled }: Fie
             <span>
               {[asset.mime, asset.width && asset.height ? `${asset.width}×${asset.height}` : null]
                 .filter(Boolean)
-                .join(' · ') || 'stored file'}
+                .join(' · ') || t.storedFile}
             </span>
           </div>
           <div className="upload-card__actions">
             <Button size="xs" onClick={() => inputRef.current?.click()} disabled={disabled || busy}>
-              {busy ? 'Uploading…' : 'Replace'}
+              {busy ? t.uploading : t.replace}
             </Button>
             <Button
               size="xs"
@@ -123,10 +126,10 @@ export function UploadField({ field, value, onChange, error, id, disabled }: Fie
               onClick={() => setBrowse(true)}
               disabled={disabled || busy}
             >
-              Pick existing
+              {t.pickExisting}
             </Button>
             <Button size="xs" tone="destructive" onClick={() => onChange(null)} disabled={disabled}>
-              Remove
+              {t.remove}
             </Button>
           </div>
         </div>
@@ -153,19 +156,30 @@ export function UploadField({ field, value, onChange, error, id, disabled }: Fie
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
           >
-            <strong>{busy ? 'Uploading…' : 'Drop a file here'}</strong>
-            <span>or click to browse</span>
+            <strong>{busy ? t.uploading : t.dropFile}</strong>
+            <span>{t.orBrowse}</span>
           </button>
-          {browse ? (
-            <Button size="xs" tone="ghost" onClick={() => setBrowse(false)}>
-              Back to dropzone
-            </Button>
-          ) : null}
-          {browse ? (
-            <RelationPicker field={field} value={value} onChange={onChange} id={id} />
+          {library ? (
+            <div className="field-actions">
+              <Button size="xs" tone="ghost" onClick={() => setBrowse(true)} disabled={disabled}>
+                {t.pickExisting}
+              </Button>
+            </div>
           ) : null}
         </>
       )}
+
+      {browse && library ? (
+        <MediaLibrary
+          collection={library}
+          onClose={() => setBrowse(false)}
+          onPick={(doc) => {
+            setJustUploaded(doc as CmsUpload);
+            onChange(doc.id);
+            setBrowse(false);
+          }}
+        />
+      ) : null}
 
       <input
         ref={inputRef}

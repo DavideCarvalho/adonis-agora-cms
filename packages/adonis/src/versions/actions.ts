@@ -62,6 +62,10 @@ export async function readVersions(
   return listVersions(ctx, slug, id, options);
 }
 
+export async function readVersion(ctx: RepoContext, slug: string, id: string, version: number) {
+  return getVersion(ctx, slug, id, version);
+}
+
 export async function readPublishedVersion(ctx: RepoContext, slug: string, id: string) {
   return latestPublished(ctx, slug, id);
 }

@@ -1,5 +1,6 @@
-import type { ChangeEvent, ComponentType } from 'react';
+import { type ChangeEvent, type ComponentType, useEffect, useRef, useState } from 'react';
 import { Checkbox, Field, Input, Select, Textarea } from './atoms/index.js';
+import { useMessages } from './context.js';
 import { RelationPicker } from './organisms/relation-picker.js';
 import { RichText } from './organisms/rich-text.js';
 import { UploadField } from './organisms/upload-field.js';
@@ -37,18 +38,47 @@ export function resolveFieldComponent(field: AdminField): ComponentType<FieldCom
   );
 }
 
-/**
- * Human label for a field: the config `label` when present, otherwise the field name. Without it
- * the form shows raw names like `acao` next to a uuid.
- */
+/** `meta_title` / `metaTitle` -> `Meta title`: raw column names never reach an editor. */
+export function humanize(name: string): string {
+  const words = name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Human label for a field: the config `label` when present, otherwise its name, humanized. */
 export function fieldTitle(field: AdminField): string {
-  return typeof field.label === 'string' && field.label.length > 0 ? field.label : field.name;
+  return typeof field.label === 'string' && field.label.length > 0
+    ? field.label
+    : humanize(field.name);
+}
+
+/** Tabs, rows and collapsibles are layout only: their fields sit at this level of the document. */
+export function flattenFields(fields: readonly AdminField[]): AdminField[] {
+  return fields.flatMap((field) => {
+    if (field.type === 'tabs')
+      return (field.tabs ?? []).flatMap((tab) => flattenFields(tab.fields));
+    if (field.type === 'row' || field.type === 'collapsible') {
+      return flattenFields(field.fields ?? []);
+    }
+    return [field];
+  });
+}
+
+/** Human label for a block definition. */
+export function blockTitle(block: { slug: string; labels?: unknown }): string {
+  const singular = (block.labels as { singular?: unknown } | undefined)?.singular;
+  return typeof singular === 'string' && singular.length > 0 ? singular : humanize(block.slug);
 }
 
 const asString = (value: unknown): string =>
   value === undefined || value === null ? '' : String(value);
 
-export function TextField({ field, value, onChange, error, id }: FieldComponentProps) {
+const INPUT_TYPES: Record<string, string> = { email: 'email', password: 'password' };
+
+export function TextField({ field, value, onChange, error, id, disabled }: FieldComponentProps) {
   return (
     <Field
       label={fieldTitle(field)}
@@ -59,15 +89,24 @@ export function TextField({ field, value, onChange, error, id }: FieldComponentP
     >
       <Input
         id={id}
+        type={INPUT_TYPES[field.type] ?? 'text'}
+        className={field.type === 'slug' ? 'mono' : undefined}
         value={asString(value)}
-        placeholder={field.admin?.description}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
     </Field>
   );
 }
 
-export function TextareaField({ field, value, onChange, error, id }: FieldComponentProps) {
+export function TextareaField({
+  field,
+  value,
+  onChange,
+  error,
+  id,
+  disabled,
+}: FieldComponentProps) {
   return (
     <Field
       label={fieldTitle(field)}
@@ -78,20 +117,30 @@ export function TextareaField({ field, value, onChange, error, id }: FieldCompon
     >
       <Textarea
         id={id}
+        className={field.type === 'code' ? 'mono' : undefined}
         value={asString(value)}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
     </Field>
   );
 }
 
-export function NumberField({ field, value, onChange, error, id }: FieldComponentProps) {
+export function NumberField({ field, value, onChange, error, id, disabled }: FieldComponentProps) {
   return (
-    <Field label={fieldTitle(field)} error={error} required={field.required} htmlFor={id}>
+    <Field
+      label={fieldTitle(field)}
+      description={field.admin?.description}
+      error={error}
+      required={field.required}
+      htmlFor={id}
+    >
       <Input
         id={id}
         type="number"
+        className="num"
         value={asString(value)}
+        disabled={disabled}
         onChange={(event: ChangeEvent<HTMLInputElement>) =>
           onChange(event.target.value === '' ? null : Number(event.target.value))
         }
@@ -100,34 +149,64 @@ export function NumberField({ field, value, onChange, error, id }: FieldComponen
   );
 }
 
-export function CheckboxField({ field, value, onChange, error, id }: FieldComponentProps) {
+export function CheckboxField({
+  field,
+  value,
+  onChange,
+  error,
+  id,
+  disabled,
+}: FieldComponentProps) {
   return (
-    <Field label={fieldTitle(field)} error={error} htmlFor={id}>
-      <Checkbox
+    <Field description={field.admin?.description} error={error} htmlFor={id}>
+      <label className="check check--field" htmlFor={id}>
+        <Checkbox
+          id={id}
+          checked={value === true}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        {fieldTitle(field)}
+      </label>
+    </Field>
+  );
+}
+
+export function DateField({ field, value, onChange, error, id, disabled }: FieldComponentProps) {
+  const date =
+    value instanceof Date ? value.toISOString().slice(0, 10) : asString(value).slice(0, 10);
+  return (
+    <Field
+      label={fieldTitle(field)}
+      description={field.admin?.description}
+      error={error}
+      required={field.required}
+      htmlFor={id}
+    >
+      <Input
         id={id}
-        checked={value === true}
-        onChange={(event) => onChange(event.target.checked)}
+        type="date"
+        value={date}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
       />
     </Field>
   );
 }
 
-export function DateField({ field, value, onChange, error, id }: FieldComponentProps) {
-  const date =
-    value instanceof Date ? value.toISOString().slice(0, 10) : asString(value).slice(0, 10);
+export function SelectField({ field, value, onChange, error, id, disabled }: FieldComponentProps) {
   return (
-    <Field label={fieldTitle(field)} error={error} required={field.required} htmlFor={id}>
-      <Input id={id} type="date" value={date} onChange={(event) => onChange(event.target.value)} />
-    </Field>
-  );
-}
-
-export function SelectField({ field, value, onChange, error, id }: FieldComponentProps) {
-  return (
-    <Field label={fieldTitle(field)} error={error} required={field.required} htmlFor={id}>
+    <Field
+      label={fieldTitle(field)}
+      description={field.admin?.description}
+      error={error}
+      required={field.required}
+      htmlFor={id}
+    >
       <Select
         id={id}
         value={asString(value)}
+        disabled={disabled}
         onChange={(event) => onChange((event as ChangeEvent<HTMLSelectElement>).target.value)}
       >
         <option value="">—</option>
@@ -141,20 +220,45 @@ export function SelectField({ field, value, onChange, error, id }: FieldComponen
   );
 }
 
-export function JsonField({ field, value, onChange, error, id }: FieldComponentProps) {
-  const text = typeof value === 'string' ? value : JSON.stringify(value ?? null, null, 2);
+/**
+ * Keeps its own text: half-typed JSON stays in the box instead of replacing the value with a string,
+ * and only a parseable text reaches the document.
+ */
+export function JsonField({ field, value, onChange, error, id, disabled }: FieldComponentProps) {
+  const t = useMessages();
+  const serialized = JSON.stringify(value ?? null, null, 2);
+  const [text, setText] = useState(serialized);
+  const [invalid, setInvalid] = useState(false);
+  const lastSent = useRef(serialized);
+
+  useEffect(() => {
+    if (serialized === lastSent.current) return;
+    lastSent.current = serialized;
+    setText(serialized);
+    setInvalid(false);
+  }, [serialized]);
 
   return (
-    <Field label={fieldTitle(field)} error={error} htmlFor={id}>
+    <Field
+      label={fieldTitle(field)}
+      error={error ?? (invalid ? t.invalidJson : undefined)}
+      htmlFor={id}
+    >
       <Textarea
         id={id}
-        className="font-mono text-xs"
+        className="mono textarea--code"
         value={text}
+        disabled={disabled}
+        spellCheck={false}
         onChange={(event) => {
+          setText(event.target.value);
           try {
-            onChange(JSON.parse(event.target.value));
+            const parsed: unknown = JSON.parse(event.target.value);
+            lastSent.current = JSON.stringify(parsed ?? null, null, 2);
+            setInvalid(false);
+            onChange(parsed);
           } catch {
-            onChange(event.target.value);
+            setInvalid(true);
           }
         }}
       />
@@ -166,7 +270,7 @@ registerField('text', TextField);
 registerField('slug', TextField);
 registerField('email', TextField);
 registerField('password', TextField);
-registerField('code', TextField);
+registerField('code', TextareaField);
 registerField('textarea', TextareaField);
 registerField('richText', RichText);
 registerField('number', NumberField);

@@ -60,3 +60,19 @@ The output is JSON-safe by construction: defaults, labels and options survive; f
 The React SPA (`@adonis-agora/cms-react` + `@adonis-agora/cms-admin`) consumes this endpoint.
 The bundle strategy is decided in the spec: prebuilt SPA by default, `cms:eject-admin` for an
 app-owned Vite build with Fast Refresh and custom field components.
+
+## Conditional fields
+
+`admin.condition` is a function, so it never reaches the browser. For the panel use data instead:
+`admin: { visibleWhen: { field: 'kind', equals: 'link' } }` shows a field while a sibling has that
+value. The value stays in the document while the field is hidden.
+
+## Drafts in the panel
+
+The API only hands drafts to a signed-in user. Without a user the panel creates published documents
+and does not offer Unpublish, because it could never read the draft back. With a user, new documents
+start as drafts. A published document has one row: saving it changes what is live.
+
+## White label
+
+`admin: { theme: { accent: '#0ea5e9', logoUrl: '/logo.svg' } }`.

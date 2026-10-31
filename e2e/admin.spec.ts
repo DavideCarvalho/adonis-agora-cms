@@ -40,16 +40,16 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
   // this row instead of matching the first Edit/Delete button on the page.
   const helloRow = page.getByRole('row').filter({ hasText: title });
   await expect(helloRow).toBeVisible();
-  await expect(page.getByText(/published/i).first()).toBeVisible();
+  await expect(helloRow.locator('.badge')).toHaveText(/published/i);
 
   await helloRow.getByRole('button', { name: 'Edit' }).click();
 
-  await expect(page.getByRole('textbox', { name: /^title \*/ })).toHaveValue(title);
+  await expect(page.getByRole('textbox', { name: /^title \*/i })).toHaveValue(title);
 
   // Localized field follows the locale switcher instead of rendering the raw map.
-  await expect(page.getByRole('textbox', { name: /^subtitle/ })).toHaveValue('Primeiro post');
+  await expect(page.getByRole('textbox', { name: /^subtitle/i })).toHaveValue('Primeiro post');
   await page.getByLabel('locale').selectOption('en');
-  await expect(page.getByRole('textbox', { name: /^subtitle/ })).toHaveValue('First post');
+  await expect(page.getByRole('textbox', { name: /^subtitle/i })).toHaveValue('First post');
 
   // Rich text renders a real editor, not a textarea.
   await expect(page.locator('.ProseMirror')).toBeVisible();
@@ -71,8 +71,8 @@ test('admin drives the CMS REST API end to end', async ({ page, request }) => {
   await page.getByRole('button', { name: 'back' }).click();
   await expect(helloRow).toBeVisible();
 
-  page.once('dialog', (dialog) => dialog.accept());
   await helloRow.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByRole('cell', { name: title })).toHaveCount(0);
 
   await page.getByLabel('Show deleted').check();

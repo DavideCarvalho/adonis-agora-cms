@@ -8,6 +8,8 @@ import { validateConfig } from '../src/config/validate.js';
 import { detectEngine, readSchemaState, syncCmsSchema } from '../src/db/sync.js';
 import type { CmsKnex } from '../src/db/types.js';
 import { CmsConfigError } from '../src/errors.js';
+import { createCmsEvents } from '../src/integrations/durable.js';
+import { listenQueuedWebhooks, listenWebhooks } from '../src/integrations/webhooks.js';
 import { createCms } from '../src/local_api/index.js';
 import type { CmsRouter, RouteContext } from '../src/rest/routes.js';
 import { registerCmsRoutes } from '../src/rest/routes.js';
@@ -59,6 +61,8 @@ export default class CmsProvider {
     container.singleton('cms.config', () => this.app.config.get('cms'));
   }
 
+  private scheduler: ReturnType<typeof setInterval> | undefined;
+
   async boot(): Promise<void> {
     const config = this.app.config.get('cms') as CmsConfig | undefined;
     if (!config) return;
@@ -75,7 +79,21 @@ export default class CmsProvider {
     const client = database.connection().getWriteClient() as CmsKnex;
     const engine = detectEngine(client);
     const spec = compileSchema(config, { engine });
-    const cms = createCms({ config, client, engine });
+    const events = createCmsEvents();
+    const integrations = config.integrations;
+    const cms = createCms({
+      config,
+      client,
+      engine,
+      events,
+      ...(typeof integrations?.media === 'object' ? { media: integrations.media } : {}),
+      ...(integrations?.observer ? { observer: integrations.observer } : {}),
+    });
+    if (config.webhooks?.length) {
+      if (integrations?.jobs) listenQueuedWebhooks(events, config.webhooks, integrations.jobs);
+      else listenWebhooks(events, config.webhooks);
+    }
+    this.startScheduler(config, cms);
 
     // Server-side entry point for app code (routes, jobs, server components):
     // `import cms from '@adonis-agora/cms/services/main'` returns this same instance, with hooks
@@ -195,6 +213,23 @@ export default class CmsProvider {
     });
   }
 
+  /** Only the web process polls: ace commands must be able to exit. */
+  private startScheduler(config: CmsConfig, cms: ReturnType<typeof createCms>): void {
+    if (config.schedulerInterval === false || this.app.getEnvironment() !== 'web') return;
+
+    const tick = () => {
+      cms.runDueSchedules().catch((error: unknown) => {
+        console.error('[cms] scheduler tick failed', error);
+      });
+    };
+    this.scheduler = setInterval(tick, config.schedulerInterval ?? 30_000);
+    this.scheduler.unref?.();
+  }
+
+  async shutdown(): Promise<void> {
+    if (this.scheduler) clearInterval(this.scheduler);
+  }
+
   private async registerRoutes(
     config: CmsConfig,
     cms: ReturnType<typeof createCms>,
@@ -210,7 +245,10 @@ export default class CmsProvider {
         return i18n?.locale;
       },
       resolveContext: async (context: RouteContext) => {
-        const user = (context as { auth?: { user?: unknown } }).auth?.user ?? null;
+        const auth = config.integrations?.auth;
+        const user = auth
+          ? await auth.resolveUser(context)
+          : ((context as { auth?: { user?: unknown } }).auth?.user ?? null);
         const hostname = context.request.hostname?.() ?? '';
 
         const tenant =

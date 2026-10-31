@@ -118,3 +118,17 @@ Paths point inside arrays, so a change inside a block is reported at its own pat
 
 Both are part of the compiled schema, so `cms:diff`, `cms:sync` and `cms:generate` cover them
 like any other table. With row tenancy they also carry `_tenant_id` and are scoped per tenant.
+
+## Scheduled publishing
+
+`POST /api/cms/collections/:slug/:id/schedule` with `{ at, action: 'publish' | 'unpublish' }` keeps one
+pending change per document (`GET` reads it, `DELETE` cancels it). Scheduling follows the collection's
+`update` access. The web process applies what is due every `schedulerInterval` ms (default 30s,
+`false` turns it off, and the app can call `cms.runDueSchedules()` from its own job instead).
+
+The table is new: run `node ace cms:sync` when deploying.
+
+## Comparing versions
+
+`GET .../versions/:version?snapshot=true` returns the stored document. A snapshot can hold draft
+content, so it requires the same user a draft read does.

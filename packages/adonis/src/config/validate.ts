@@ -82,7 +82,7 @@ export function validateConfig(config: CmsConfig): CmsConfigError[] {
         collectionSlugs,
         locales: localization.locales,
         customTypes: new Set(config.fieldTypes ?? []),
-        mediaEnabled: config.integrations?.media ?? false,
+        mediaEnabled: Boolean(config.integrations?.media),
       }),
     );
   }
@@ -251,7 +251,7 @@ function validateGlobal(
     collectionSlugs: new Set((config.collections ?? []).map((c) => c.slug)),
     locales,
     customTypes: new Set(config.fieldTypes ?? []),
-    mediaEnabled: config.integrations?.media ?? false,
+    mediaEnabled: Boolean(config.integrations?.media),
   };
 
   if (item.fields.length === 0) {

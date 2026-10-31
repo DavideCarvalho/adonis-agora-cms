@@ -215,6 +215,9 @@ describe('route wiring', () => {
       'GET /api/cms/collections/:slug/:id/preview-token',
       'POST /api/cms/collections/:slug/:id/lock',
       'DELETE /api/cms/collections/:slug/:id/lock',
+      'GET /api/cms/collections/:slug/:id/schedule',
+      'POST /api/cms/collections/:slug/:id/schedule',
+      'DELETE /api/cms/collections/:slug/:id/schedule',
       'GET /api/cms/globals/:slug',
       'PATCH /api/cms/globals/:slug',
     ]);

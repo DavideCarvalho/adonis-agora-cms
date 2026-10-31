@@ -74,9 +74,9 @@
       "default": "./dist/src/integrations/telescope.js"
     },
     "./durable": {
-      "types": "./dist/src/integrations/durable.d.ts",
-      "import": "./dist/src/integrations/durable.js",
-      "default": "./dist/src/integrations/durable.js"
+      "types": "./dist/src/integrations/durable_workflows.d.ts",
+      "import": "./dist/src/integrations/durable_workflows.js",
+      "default": "./dist/src/integrations/durable_workflows.js"
     },
     "./services/main": {
       "types": "./dist/services/main.d.ts",
@@ -99,16 +99,22 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
+    "@adonis-agora/durable": ">=0.38.0",
     "@adonisjs/core": "^7.3.0",
     "@adonisjs/lucid": "^22.4.0"
   },
   "peerDependenciesMeta": {
     "@adonisjs/lucid": {
       "optional": true
+    },
+    "@adonis-agora/durable": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@adonis-agora/durable": "0.38.2",
     "@adonisjs/assembler": "^8.5.0",
+    "@adonisjs/bouncer": "^4.0.1",
     "@adonisjs/core": "7.5.0",
     "@adonisjs/lucid": "^22.4.2",
     "@swc/core": "1.16.1",

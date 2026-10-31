@@ -12,6 +12,8 @@ export type AdminField = {
     description?: string;
     component?: string;
     isSortable?: boolean;
+    hiddenInList?: boolean;
+    visibleWhen?: { field: string; equals: unknown };
   };
   options?: readonly { label: string; value: string }[];
   relationTo?: string | readonly string[];
@@ -38,6 +40,7 @@ export type AdminCollection = {
   versioned: boolean;
   drafts: boolean;
   softDelete?: boolean;
+  autosave?: false | { interval: number };
   fields: AdminField[];
 };
 
@@ -50,7 +53,7 @@ export type AdminPermission = {
 
 export type AdminSchema = {
   version: 1;
-  admin: { title: string; path: string };
+  admin: { title: string; path: string; theme?: { accent?: string; logoUrl?: string } };
   locales: readonly string[];
   defaultLocale: string;
   tenancy: { strategy: string; required: boolean };
@@ -105,4 +108,7 @@ export type VersionRecord = {
   createdBy: string | null;
   createdAt: string;
   isLatest: boolean;
+  snapshot?: { doc?: AdminDocument };
 };
+
+export type DocumentSchedule = { action: 'publish' | 'unpublish'; at: string };

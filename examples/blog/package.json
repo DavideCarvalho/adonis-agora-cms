@@ -15,7 +15,10 @@
     "luxon": "^3.7.2",
     "reflect-metadata": "^0.2.2",
     "@adonis-agora/cms-admin": "workspace:*",
-    "@adonis-agora/cms-mcp": "workspace:*"
+    "@adonis-agora/cms-mcp": "workspace:*",
+    "@adonis-agora/durable": "0.38.2",
+    "@adonisjs/drive": "^4.0.0",
+    "@adonisjs/queue": "^0.7.0"
   },
   "devDependencies": {
     "@adonisjs/ace": "^14.1.1",
@@ -29,6 +32,7 @@
     "#start/*": "./start/*.js",
     "#config/*": "./config/*.js",
     "#controllers/*": "./app/controllers/*.js",
-    "#services/*": "./app/services/*.js"
+    "#services/*": "./app/services/*.js",
+    "#jobs/*": "./app/jobs/*.js"
   }
 }

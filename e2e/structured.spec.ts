@@ -40,16 +40,16 @@ test('array and blocks rows reorder by drag and the order is persisted', async (
   await expect(page.getByRole('button', { name: /^Reorder row \d$/ })).toHaveCount(3);
   await expect(page.getByRole('button', { name: /^Reorder block \d$/ })).toHaveCount(2);
 
-  const headings = page.getByRole('textbox', { name: /^heading$/ });
+  const headings = page.getByRole('textbox', { name: /^heading$/i });
   await expect(headings.nth(0)).toHaveValue('first');
   await expect(headings.nth(2)).toHaveValue('third');
 
   // Collapse hides the row body but keeps the row in place, with a summary in the header.
   await page.getByRole('button', { name: 'Collapse row 2' }).click();
-  await expect(page.getByRole('textbox', { name: /^heading$/ })).toHaveCount(2);
+  await expect(page.getByRole('textbox', { name: /^heading$/i })).toHaveCount(2);
   await expect(page.getByRole('button', { name: 'Expand row 2' })).toBeVisible();
   await page.getByRole('button', { name: 'Expand row 2' }).click();
-  await expect(page.getByRole('textbox', { name: /^heading$/ })).toHaveCount(3);
+  await expect(page.getByRole('textbox', { name: /^heading$/i })).toHaveCount(3);
 
   // Copy a row and paste it: a duplicate without the original id, appended at the end.
   await page.getByRole('button', { name: 'Copy' }).first().click();

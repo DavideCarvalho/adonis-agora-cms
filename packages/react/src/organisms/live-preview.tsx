@@ -1,3 +1,4 @@
+import { X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../atoms/index.js';
 import { useMessages } from '../context.js';
@@ -10,6 +11,8 @@ import {
   PREVIEW_INSERT_BLOCK_MESSAGE,
   PREVIEW_INSERT_HERE_MESSAGE,
   PREVIEW_MOVE_BLOCK_MESSAGE,
+  PREVIEW_SAVE_MESSAGE,
+  PREVIEW_SELECT_BLOCK_MESSAGE,
 } from '../preview.js';
 
 export type LivePreviewProps = {
@@ -27,8 +30,14 @@ export type LivePreviewProps = {
   onDeleteBlock?: ((field: string, index: number) => void) | undefined;
   /** Called when a block is dropped from the palette into the page. */
   onInsertBlock?: ((field: string, type: string, index: number) => void) | undefined;
-  /** Block slugs offered by the "+" menu inside the page. */
-  blockTypes?: readonly string[] | undefined;
+  /** Blocks offered by the "+" menu inside the page. */
+  blockTypes?: readonly { slug: string; label: string }[] | undefined;
+  /** The block outlined in the page (`layout[2]`). */
+  selectedPath?: string | null | undefined;
+  /** Ctrl/Cmd+S pressed inside the frame. */
+  onSave?: (() => void) | undefined;
+  /** CSS width of the frame, for the device switcher. */
+  frameWidth?: number | undefined;
   /** Right-click → Duplicar. */
   onDuplicateBlock?: ((field: string, index: number) => void) | undefined;
   /** `inline` drops the fixed panel chrome so the editor can place it in its own grid. */
@@ -53,12 +62,17 @@ export function LivePreview({
   onInsertBlock,
   blockTypes = [],
   onDuplicateBlock,
+  selectedPath,
+  onSave,
+  frameWidth,
   variant = 'panel',
 }: LivePreviewProps) {
   const t = useMessages();
   const frame = useRef<HTMLIFrameElement>(null);
   const body = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const latest = useRef(data);
+  latest.current = data;
   const [menu, setMenu] = useState<
     | { kind: 'insert'; field: string; index: number; x: number; y: number }
     | { kind: 'block'; field: string; index: number; x: number; y: number }
@@ -72,6 +86,17 @@ export function LivePreview({
     const origin = new URL(url, window.location.origin).origin;
     target.postMessage({ type: 'cms:preview', data }, origin);
   }, [data, open, url]);
+
+  const postSelection = useCallback(() => {
+    const target = frame.current?.contentWindow;
+    if (!target) return;
+    const origin = new URL(url, window.location.origin).origin;
+    target.postMessage({ type: PREVIEW_SELECT_BLOCK_MESSAGE, path: selectedPath ?? null }, origin);
+  }, [selectedPath, url]);
+
+  useEffect(() => {
+    if (open) postSelection();
+  }, [open, postSelection]);
 
   // Dismissal: pointer outside, Escape, or any interaction reported by the page itself (clicks
   // inside the iframe never bubble here, so the bridge is the only source for those).
@@ -97,6 +122,16 @@ export function LivePreview({
     };
   }, [menu]);
 
+  // The side panel closes on Escape; the inline canvas has nothing to close.
+  useEffect(() => {
+    if (!open || variant === 'inline') return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, variant, onClose]);
+
   useEffect(() => {
     if (!open) return;
 
@@ -120,6 +155,11 @@ export function LivePreview({
         payload.type !== PREVIEW_BLOCK_MENU_MESSAGE
       ) {
         setMenu(null);
+      }
+
+      if (payload.type === PREVIEW_SAVE_MESSAGE) {
+        onSave?.();
+        return;
       }
 
       const field = typeof payload.field === 'string' ? payload.field : null;
@@ -164,7 +204,7 @@ export function LivePreview({
 
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [open, onFocusField, onEditBlock, onMoveBlock, onDeleteBlock, onInsertBlock]);
+  }, [open, onFocusField, onEditBlock, onMoveBlock, onDeleteBlock, onInsertBlock, onSave]);
 
   const injectBridge = useCallback(() => {
     const doc = frame.current?.contentDocument;
@@ -177,7 +217,14 @@ export function LivePreview({
     } catch {
       // Cross-origin preview: the site installs the bridge itself.
     }
-  }, []);
+    // A reload of the frame renders the saved document; bring the unsaved edits back.
+    const target = frame.current?.contentWindow;
+    if (target) {
+      const origin = new URL(url, window.location.origin).origin;
+      target.postMessage({ type: 'cms:preview', data: latest.current }, origin);
+    }
+    postSelection();
+  }, [postSelection, url]);
 
   // Captured at render time: the menu closes (state -> null) *before* an item's onClick runs, so
   // the handler must not read `menu` again.
@@ -194,8 +241,8 @@ export function LivePreview({
       {variant === 'panel' ? (
         <header className="panel__head">
           <h2>{t.preview}</h2>
-          <Button size="sm" tone="ghost" onClick={onClose}>
-            {t.close}
+          <Button size="sm" tone="ghost" onClick={onClose} aria-label={t.close} title={t.close}>
+            <X aria-hidden />
           </Button>
         </header>
       ) : null}
@@ -205,24 +252,27 @@ export function LivePreview({
             ref={menuRef}
             className="preview-menu"
             role="menu"
-            style={{ left: Math.max(8, target.x), top: Math.max(8, target.y) }}
+            style={{
+              left: Math.min(Math.max(8, target.x), window.innerWidth - 200),
+              top: Math.min(Math.max(8, target.y), window.innerHeight - 240),
+            }}
           >
             {target.kind === 'insert' ? (
               blockTypes.length === 0 ? (
-                <span className="preview-menu__empty">no blocks</span>
+                <span className="preview-menu__empty">—</span>
               ) : (
                 blockTypes.map((type) => (
                   <button
-                    key={type}
+                    key={type.slug}
                     type="button"
                     role="menuitem"
                     className="preview-menu__item"
                     onClick={() => {
-                      onInsertBlock?.(target.field, type, target.index);
+                      onInsertBlock?.(target.field, type.slug, target.index);
                       setMenu(null);
                     }}
                   >
-                    {type}
+                    {type.label}
                   </button>
                 ))
               )
@@ -237,7 +287,7 @@ export function LivePreview({
                     setMenu(null);
                   }}
                 >
-                  Editar
+                  {t.edit}
                 </button>
                 <button
                   type="button"
@@ -248,7 +298,7 @@ export function LivePreview({
                     setMenu(null);
                   }}
                 >
-                  Duplicar
+                  {t.duplicate}
                 </button>
                 <button
                   type="button"
@@ -259,7 +309,7 @@ export function LivePreview({
                     setMenu(null);
                   }}
                 >
-                  Mover ↑
+                  {t.moveUp}
                 </button>
                 <button
                   type="button"
@@ -270,7 +320,7 @@ export function LivePreview({
                     setMenu(null);
                   }}
                 >
-                  Mover ↓
+                  {t.moveDown}
                 </button>
                 <button
                   type="button"
@@ -281,13 +331,19 @@ export function LivePreview({
                     setMenu(null);
                   }}
                 >
-                  Excluir
+                  {t.delete}
                 </button>
               </>
             )}
           </div>
         ) : null}
-        <iframe ref={frame} src={url} title={t.preview} onLoad={injectBridge} />
+        <iframe
+          ref={frame}
+          src={url}
+          title={t.preview}
+          onLoad={injectBridge}
+          style={frameWidth ? { width: frameWidth, maxWidth: '100%' } : undefined}
+        />
       </div>
     </aside>
   );

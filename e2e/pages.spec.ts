@@ -104,8 +104,8 @@ test('live preview jumps from a block region to its field', async ({ page, reque
 
   // Selecting a block fills the inspector with its fields; the nested array renders real rows.
   await page.getByRole('button', { name: '#2 features' }).click();
-  await expect(page.getByRole('textbox', { name: /^title$/ }).nth(0)).toHaveValue('Nested one');
-  await expect(page.getByRole('textbox', { name: /^title$/ }).nth(1)).toHaveValue('Nested two');
+  await expect(page.getByRole('textbox', { name: /^title$/i }).nth(0)).toHaveValue('Nested one');
+  await expect(page.getByRole('textbox', { name: /^title$/i }).nth(1)).toHaveValue('Nested two');
 
   // A page with blocks opens in the visual editor: the page is already on screen, no Preview click.
   const frame = page.frameLocator('iframe');
@@ -113,7 +113,7 @@ test('live preview jumps from a block region to its field', async ({ page, reque
   await expect(heading).toBeVisible();
   await heading.click();
 
-  await expect(page.getByRole('textbox', { name: /^heading \*/ })).toBeFocused();
+  await expect(page.getByRole('textbox', { name: /^heading \*/i })).toBeFocused();
 });
 
 /**
@@ -160,8 +160,8 @@ test('preview toolbar deletes and reorders blocks', async ({ page, request }) =>
   await frameOverlay.locator('button[data-act="delete"]').click();
 
   await expect(pageBlocks).toHaveCount(2);
-  await expect(pageBlocks.nth(0)).toContainText('hero');
-  await expect(pageBlocks.nth(1)).toContainText('cta');
+  await expect(pageBlocks.nth(0)).toContainText(/hero/i);
+  await expect(pageBlocks.nth(1)).toContainText(/call to action/i);
 
   // Drag the first block below the last one.
   const hero = frame.locator('[data-cms-block="layout[0]"]');
@@ -178,8 +178,8 @@ test('preview toolbar deletes and reorders blocks', async ({ page, request }) =>
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
   await page.mouse.up();
 
-  await expect(pageBlocks.nth(0)).toContainText('cta');
-  await expect(pageBlocks.nth(1)).toContainText('hero');
+  await expect(pageBlocks.nth(0)).toContainText(/call to action/i);
+  await expect(pageBlocks.nth(1)).toContainText(/hero/i);
 
   await page.getByRole('button', { name: 'Save' }).click();
 
@@ -219,18 +219,24 @@ test('palette adds blocks by click and by drag', async ({ page, request }) => {
   await expect(pageBlocks).toHaveCount(1);
 
   // Click appends.
-  await page.locator('.palette__item').filter({ hasText: 'quote' }).first().click();
+  await page.locator('.palette__item--add').filter({ hasText: 'quote' }).first().click();
   await expect(pageBlocks).toHaveCount(2);
-  await expect(pageBlocks.nth(1)).toContainText('quote');
+  await expect(pageBlocks.nth(1)).toContainText(/quote/i);
 
   // Drag drops after the block under the cursor.
   const frame = page.frameLocator('iframe');
   const firstBlock = frame.locator('[data-cms-block="layout[0]"]');
   await firstBlock.waitFor();
-  await page.locator('.palette__item').filter({ hasText: 'text' }).first().dragTo(firstBlock);
+  const firstBox = await firstBlock.boundingBox();
+  if (!firstBox) throw new Error('block is not laid out');
+  await page
+    .locator('.palette__item--add')
+    .filter({ hasText: 'text' })
+    .first()
+    .dragTo(firstBlock, { targetPosition: { x: 20, y: firstBox.height - 2 } });
 
   await expect(pageBlocks).toHaveCount(3);
-  await expect(pageBlocks.nth(1)).toContainText('text');
+  await expect(pageBlocks.nth(1)).toContainText(/text/i);
 
   await page.getByRole('button', { name: 'Save' }).click();
 
@@ -288,6 +294,6 @@ test('preview block menu acts on the page and closes on outside click', async ({
   // Delete from the menu removes the row. (The page re-rendering from the posted data needs the
   // site to call `useLivePreviewData`, which the string renderer in this example does not.)
   await second.click({ button: 'right' });
-  await page.getByRole('menuitem', { name: 'Excluir' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
   await expect(page.locator('.palette__item--row')).toHaveCount(2);
 });

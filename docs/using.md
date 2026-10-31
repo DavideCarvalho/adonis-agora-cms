@@ -186,3 +186,106 @@ import {
 
 Everything is exported: client, TanStack Query hooks, field registry, atoms, organisms and
 templates.
+
+## Webhooks
+
+`webhooks: [{ url, secret, collections, operations }]` POSTs every committed write as JSON, signed
+with `x-cms-signature: sha256=<hmac of the body>`. Delivery has a 5s timeout and two retries, then it
+logs and gives up. If an event must not be lost, listen on the event bus with a durable queue instead.
+
+## Plugins
+
+A plugin is a function from config to config:
+
+```ts
+export default withPlugins(defineConfig({ ... }), [
+  seoPlugin({ collections: ['pages'] }),
+  redirectsPlugin(),
+])
+```
+
+`seoPlugin` adds a `seo` group to those collections. `redirectsPlugin` adds a `redirects` collection;
+call `findRedirect(cms, path)` from a middleware to apply them.
+
+## Integrations
+
+The CMS depends on none of these libraries. Each port takes the Agora adapter, the official AdonisJS
+one, or your own object:
+
+| Port                     | Agora                                | Official AdonisJS               | Default          |
+| ------------------------ | ------------------------------------ | ------------------------------- | ---------------- |
+| `integrations.jobs`      | `durableJobs(() => engine)`          | `queueJobs({ deliverWebhook })` | in process       |
+| `integrations.auth`      | `authkitAdapter({ resolveUser })`    | `adonisAuth({ guard })`         | `ctx.auth.user`  |
+| `integrations.media`     | `mediaLibraryAdapter(library)`       | `driveMedia(disk)`              | the id as stored |
+| `uploads.handler`        | your `media.upload` call             | `driveUploads(disk)`            | none             |
+| `access` of a collection | `authzCollectionAccess(prefix, can)` | `bouncerAccess(ability)`        | open             |
+| `integrations.observer`  | `telescopeWatcher(record)`           | `loggerObserver(logger)`        | none             |
+
+`bouncerAccess` needs a synchronous ability, because access also decides what the panel shows; an
+`async` one throws instead of allowing.
+
+### Files with @adonisjs/drive
+
+The config file loads before the app boots, so import the service inside the function. A top-level
+`import drive from '@adonisjs/drive/services/main'` here would not be ready yet.
+
+```ts
+// config/cms.ts
+const disk = async () => (await import('@adonisjs/drive/services/main')).default.use()
+
+uploads: { handler: driveUploads(disk) },
+integrations: { media: driveMedia(disk) },
+```
+
+Keys are generated and must fit 64 characters, so keep `prefix` short.
+
+### Jobs with @adonisjs/queue
+
+```ts
+// app/jobs/deliver_cms_webhook.ts
+import { Job } from '@adonisjs/queue';
+import { type DeliverWebhookInput, runWebhookDelivery } from '@adonis-agora/cms';
+
+export default class DeliverCmsWebhook extends Job<DeliverWebhookInput> {
+  static options = { maxRetries: 8 };
+  async execute() {
+    await runWebhookDelivery(this.payload);
+  }
+}
+```
+
+```ts
+// config/cms.ts
+integrations: {
+  jobs: queueJobs({
+    deliverWebhook: async (input) => {
+      const { default: job } = await import('#jobs/deliver_cms_webhook')
+      return job.dispatch(input)
+    },
+  }),
+},
+```
+
+### Jobs with @adonis-agora/durable
+
+```ts
+// app/workflows/cms.ts
+export { CmsDeliverWebhook, CmsRunDueSchedules } from '@adonis-agora/cms/durable';
+```
+
+```ts
+// config/cms.ts
+integrations: {
+  jobs: durableJobs(async () => (await import('@adonis-agora/durable/services/main')).default),
+},
+schedulerInterval: false, // `CmsRunDueSchedules` ticks from `durable:work` instead
+```
+
+### What holds for any queue
+
+- The payload holds the hook's position in `webhooks`, never its secret.
+- If the job cannot be enqueued, the webhook is delivered in process, so the event is not lost.
+- Scheduled changes need something calling `cms.runDueSchedules()`: the built-in timer
+  (`schedulerInterval`), `CmsRunDueSchedules`, or your own cron. With none of them, nothing publishes.
+- For anything else that reacts to a write, use `cms.events.on(listener)`, or
+  `durableBridge({ dispatch }).listen(cms.events)` to turn each write into a job.

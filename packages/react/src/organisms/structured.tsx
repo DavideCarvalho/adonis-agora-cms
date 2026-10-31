@@ -13,9 +13,20 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  GripVertical,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Button, Field, Select } from '../atoms/index.js';
-import { fieldTitle, resolveFieldComponent } from '../registry.js';
+import { useMessages } from '../context.js';
+import { blockTitle, fieldTitle, resolveFieldComponent } from '../registry.js';
 import type { AdminField } from '../types.js';
 
 type Row = Record<string, unknown>;
@@ -76,6 +87,47 @@ function summaryOf(row: Row, fields: AdminField[]): string {
   return '—';
 }
 
+/** `admin.visibleWhen`: siblings decide. The value stays in the document while hidden. */
+export function isFieldVisible(field: AdminField, siblings: Row): boolean {
+  const rule = field.admin?.visibleWhen;
+  if (!rule) return true;
+  const current = siblings[rule.field];
+  return Array.isArray(rule.equals) ? rule.equals.includes(current) : current === rule.equals;
+}
+
+/** Tabs only reorganize the form: every tab's fields live at the same level of the document. */
+export function FieldTabs({
+  field,
+  renderField,
+}: {
+  field: AdminField;
+  renderField: (nested: AdminField) => ReactNode;
+}) {
+  const tabs = field.tabs ?? [];
+  const [active, setActive] = useState(0);
+  const panel = tabs[active];
+
+  return (
+    <div className="tabs">
+      <div className="tabs__list" role="tablist">
+        {tabs.map((tab, index) => (
+          <button
+            key={tab.label}
+            type="button"
+            role="tab"
+            aria-selected={index === active}
+            className={`tabs__tab${index === active ? ' tabs__tab--active' : ''}`}
+            onClick={() => setActive(index)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      {panel ? <div className="tabs__panel">{panel.fields.map(renderField)}</div> : null}
+    </div>
+  );
+}
+
 export function ScalarInput({
   field,
   value,
@@ -114,15 +166,61 @@ export function StructuredRowFields({
   return (
     <div className="row-fields">
       {fields.map((field) => {
+        if (!isFieldVisible(field, row)) return null;
+
+        // Structural fields keep the same row: only the layout changes, not the document's shape.
+        if (field.type === 'tabs') {
+          return (
+            <div key={field.name} className="row-fields__wide">
+              <FieldTabs
+                field={field}
+                renderField={(nested) => (
+                  <StructuredRowFields
+                    key={nested.name}
+                    fields={[nested]}
+                    row={row}
+                    prefix={prefix}
+                    onChange={onChange}
+                  />
+                )}
+              />
+            </div>
+          );
+        }
+        if (field.type === 'row' || field.type === 'collapsible') {
+          const nested = (
+            <StructuredRowFields
+              fields={field.fields ?? []}
+              row={row}
+              prefix={prefix}
+              onChange={onChange}
+            />
+          );
+          return (
+            <div key={field.name} className="row-fields__wide">
+              {field.type === 'row' ? (
+                nested
+              ) : (
+                <details className="group collapsible" open>
+                  <summary>{fieldTitle(field)}</summary>
+                  {nested}
+                </details>
+              )}
+            </div>
+          );
+        }
+
         const value = row[field.name];
         const update = (next: unknown) => onChange({ ...row, [field.name]: next });
 
         // Nested containers keep their real builder: a block with an array of items renders rows,
         // not `[object Object]` from the scalar fallback.
+        const nestedPath = `${prefix}.${field.name}`;
+
         if (field.type === 'array') {
           return (
             <div key={field.name} className="row-fields__wide">
-              <ArrayBuilder field={field} value={value} onChange={update} />
+              <ArrayBuilder field={field} value={value} onChange={update} path={nestedPath} />
             </div>
           );
         }
@@ -130,8 +228,22 @@ export function StructuredRowFields({
         if (field.type === 'blocks') {
           return (
             <div key={field.name} className="row-fields__wide">
-              <BlocksBuilder field={field} value={value} onChange={update} />
+              <BlocksBuilder field={field} value={value} onChange={update} path={nestedPath} />
             </div>
+          );
+        }
+
+        if (field.type === 'group' && field.fields) {
+          return (
+            <fieldset key={field.name} className="group row-fields__wide">
+              <legend>{fieldTitle(field)}</legend>
+              <StructuredRowFields
+                fields={field.fields}
+                row={(value ?? {}) as Row}
+                prefix={nestedPath}
+                onChange={update}
+              />
+            </fieldset>
           );
         }
 
@@ -217,7 +329,7 @@ function SortableRow({
             onMoveBy(event.key === 'ArrowUp' ? -1 : 1);
           }}
         >
-          ⠿
+          <GripVertical aria-hidden />
         </button>,
       )}
     </div>
@@ -326,6 +438,7 @@ function RowHead({
   onCopy: () => void;
   children?: ReactNode;
 }) {
+  const t = useMessages();
   return (
     <div className="row-head">
       {handle}
@@ -336,13 +449,19 @@ function RowHead({
         aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${label}`}
         onClick={onToggle}
       >
-        {collapsed ? '▸' : '▾'}
+        {collapsed ? <ChevronRight aria-hidden /> : <ChevronDown aria-hidden />}
       </button>
       <span className="row-head__index">#{index + 1}</span>
       {collapsed ? <span className="row-head__summary">{summary}</span> : null}
       <span className="row-head__spacer" />
-      <Button size="xs" tone="ghost" onClick={onCopy} title={`Copy ${label}`}>
-        Copy
+      <Button
+        size="xs"
+        tone="ghost"
+        onClick={onCopy}
+        aria-label={t.copy}
+        title={`${t.copy}: ${label}`}
+      >
+        <Copy aria-hidden />
       </Button>
       {children}
     </div>
@@ -354,11 +473,16 @@ export function ArrayBuilder({
   field,
   value,
   onChange,
+  path,
 }: {
   field: AdminField;
   value: unknown;
   onChange: (next: unknown[]) => void;
+  /** Where this field sits in the document, so nested inputs get ids the preview can focus. */
+  path?: string | undefined;
 }) {
+  const t = useMessages();
+  const base = path ?? field.name;
   const rows = Array.isArray(value) ? (value as Row[]) : [];
   const nested = field.fields ?? [];
   const canSort = field.admin?.isSortable !== false;
@@ -379,7 +503,7 @@ export function ArrayBuilder({
   };
 
   return (
-    <Field label={fieldTitle(field)} description={field.admin?.description}>
+    <Field label={fieldTitle(field)} description={field.admin?.description} htmlFor={base}>
       <Rows ids={ids} sensors={sensors} sortable={sortable} onDragEnd={onDragEnd}>
         {rows.map((row, index) => {
           const id = ids[index] ?? `row-${index}`;
@@ -405,16 +529,35 @@ export function ArrayBuilder({
                   >
                     {canSort ? null : (
                       <>
-                        <Button size="xs" tone="ghost" onClick={() => move(index, -1)}>
-                          ↑
+                        <Button
+                          size="xs"
+                          tone="ghost"
+                          aria-label={t.moveUp}
+                          title={t.moveUp}
+                          onClick={() => move(index, -1)}
+                        >
+                          <ArrowUp aria-hidden />
                         </Button>
-                        <Button size="xs" tone="ghost" onClick={() => move(index, 1)}>
-                          ↓
+                        <Button
+                          size="xs"
+                          tone="ghost"
+                          aria-label={t.moveDown}
+                          title={t.moveDown}
+                          onClick={() => move(index, 1)}
+                        >
+                          <ArrowDown aria-hidden />
                         </Button>
                       </>
                     )}
-                    <Button size="xs" tone="destructive" onClick={() => remove(index)}>
-                      Remove
+                    <Button
+                      size="xs"
+                      tone="ghost"
+                      className="btn--danger-hover"
+                      aria-label={t.remove}
+                      title={t.remove}
+                      onClick={() => remove(index)}
+                    >
+                      <Trash2 aria-hidden />
                     </Button>
                   </RowHead>
                   {isCollapsed ? null : (
@@ -422,7 +565,7 @@ export function ArrayBuilder({
                       <StructuredRowFields
                         fields={nested}
                         row={row}
-                        prefix={`${field.name}[${index}]`}
+                        prefix={`${base}[${index}]`}
                         onChange={(next) => update(index, next)}
                       />
                     </div>
@@ -436,16 +579,16 @@ export function ArrayBuilder({
 
       <div className="field-actions">
         <Button size="sm" onClick={() => add({})} disabled={atLimit}>
-          Add row
+          <Plus aria-hidden />
+          {t.addRow}
         </Button>
         <Button
           size="sm"
           tone="ghost"
           onClick={paste}
           disabled={atLimit || clipboard?.kind !== 'array'}
-          title="Paste the copied row"
         >
-          Paste row
+          {t.pasteRow}
         </Button>
       </div>
     </Field>
@@ -457,11 +600,16 @@ export function BlocksBuilder({
   field,
   value,
   onChange,
+  path,
 }: {
   field: AdminField;
   value: unknown;
   onChange: (next: unknown[]) => void;
+  /** Where this field sits in the document, so nested inputs get ids the preview can focus. */
+  path?: string | undefined;
 }) {
+  const t = useMessages();
+  const base = path ?? field.name;
   const rows = Array.isArray(value) ? (value as Row[]) : [];
   const blocks = field.blocks ?? [];
   const canSort = field.admin?.isSortable !== false;
@@ -484,7 +632,7 @@ export function BlocksBuilder({
   };
 
   return (
-    <Field label={fieldTitle(field)} description={field.admin?.description}>
+    <Field label={fieldTitle(field)} description={field.admin?.description} htmlFor={base}>
       <Rows ids={ids} sensors={sensors} sortable={sortable} onDragEnd={onDragEnd}>
         {rows.map((row, index) => {
           const id = ids[index] ?? `row-${index}`;
@@ -505,7 +653,11 @@ export function BlocksBuilder({
                     index={index}
                     handle={handle}
                     collapsed={isCollapsed}
-                    summary={type ? `${type} — ${summaryOf(row, definition?.fields ?? [])}` : '—'}
+                    summary={
+                      definition
+                        ? `${blockTitle(definition)} — ${summaryOf(row, definition.fields)}`
+                        : '—'
+                    }
                     onToggle={() => toggle(id)}
                     label={`block ${index + 1}`}
                     onCopy={() => copy(row)}
@@ -523,12 +675,19 @@ export function BlocksBuilder({
                       <option value="">— block —</option>
                       {blocks.map((block) => (
                         <option key={block.slug} value={block.slug}>
-                          {block.slug}
+                          {blockTitle(block)}
                         </option>
                       ))}
                     </Select>
-                    <Button size="xs" tone="destructive" onClick={() => remove(index)}>
-                      Remove
+                    <Button
+                      size="xs"
+                      tone="ghost"
+                      className="btn--danger-hover"
+                      aria-label={t.remove}
+                      title={t.remove}
+                      onClick={() => remove(index)}
+                    >
+                      <Trash2 aria-hidden />
                     </Button>
                   </RowHead>
                   {isCollapsed ? null : (
@@ -537,11 +696,11 @@ export function BlocksBuilder({
                         <StructuredRowFields
                           fields={definition.fields}
                           row={row}
-                          prefix={`${field.name}[${index}]`}
+                          prefix={`${base}[${index}]`}
                           onChange={(next) => update(index, next)}
                         />
                       ) : (
-                        <p className="row-body__empty">Pick a block type to edit its fields.</p>
+                        <p className="row-body__empty">{t.pickBlockType}</p>
                       )}
                     </div>
                   )}
@@ -560,17 +719,12 @@ export function BlocksBuilder({
             onClick={() => add({ type: block.slug })}
             disabled={atLimit}
           >
-            + {block.slug}
+            <Plus aria-hidden />
+            {blockTitle(block)}
           </Button>
         ))}
-        <Button
-          size="sm"
-          tone="ghost"
-          onClick={paste}
-          disabled={atLimit || !pasteable}
-          title="Paste the copied block"
-        >
-          Paste block
+        <Button size="sm" tone="ghost" onClick={paste} disabled={atLimit || !pasteable}>
+          {t.pasteBlock}
         </Button>
       </div>
     </Field>
