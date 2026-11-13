@@ -8,13 +8,14 @@ import { resolveDbConfig, resolveTenancy } from '../src/config/types.js';
 import { validateConfig } from '../src/config/validate.js';
 import { detectEngine, readSchemaState, syncCmsSchema } from '../src/db/sync.js';
 import type { CmsKnex } from '../src/db/types.js';
+import { registerCmsDevTools } from '../src/dev_tools/tools.js';
 import { CmsConfigError, CmsSchemaError } from '../src/errors.js';
 import { createCmsEvents } from '../src/integrations/durable.js';
 import type { BuiltIntegrations } from '../src/integrations/factories.js';
 import { buildAdapters } from '../src/integrations/factories.js';
 import { listenQueuedWebhooks, listenWebhooks } from '../src/integrations/webhooks.js';
 import { createCms } from '../src/local_api/index.js';
-import type { CmsRouter, RouteContext } from '../src/rest/routes.js';
+import type { CmsRouter, RegisterCmsRoutesOptions, RouteContext } from '../src/rest/routes.js';
 import { registerCmsRoutes } from '../src/rest/routes.js';
 import { compileSchema } from '../src/schema/compile.js';
 
@@ -127,6 +128,7 @@ export default class CmsProvider {
 
     if (config.rest?.enabled !== false) {
       await this.registerRoutes(config, cms);
+      await this.registerDevTools(config, cms);
       const auth = config.integrations?.auth as BuiltinAuth | undefined;
       if (auth?.builtin) {
         registerAuthRoutes(
@@ -284,15 +286,16 @@ export default class CmsProvider {
     if (this.scheduler) clearInterval(this.scheduler);
   }
 
-  private async registerRoutes(
+  /**
+   * The request options the REST routes run with: who the principal is, which tenant and locale.
+   * The dev tools on `/mcp/agora` get the same ones, so both surfaces answer alike.
+   */
+  private requestOptions(
     config: CmsConfig,
     cms: ReturnType<typeof createCms>,
-  ): Promise<void> {
-    const router = (await this.app.container.make('router')) as CmsRouter;
+  ): Omit<RegisterCmsRoutesOptions, 'prefix'> {
     const tenancy = resolveTenancy(config);
-
-    registerCmsRoutes(router, cms, {
-      prefix: config.rest?.prefix ?? '/api/cms',
+    return {
       requireUserForWrites: this.app.inProduction && config.rest?.publicWrites !== true,
       resolveToken: (token) => resolveApiToken(cms.repoContext(), token),
       resolveLocale: (context) => {
@@ -313,6 +316,43 @@ export default class CmsProvider {
 
         return { user, tenant };
       },
+    };
+  }
+
+  private async registerRoutes(
+    config: CmsConfig,
+    cms: ReturnType<typeof createCms>,
+  ): Promise<void> {
+    const router = (await this.app.container.make('router')) as CmsRouter;
+    registerCmsRoutes(router, cms, {
+      prefix: config.rest?.prefix ?? '/api/cms',
+      ...this.requestOptions(config, cms),
     });
+  }
+
+  /**
+   * Registers the `cms_*` tools into the agora MCP hub (`/mcp/agora`) when the app has
+   * `@adonis-agora/agent/mcp_provider`. The CMS has no console gate of its own, so the hub's
+   * `devTools.authorize` gates the lib, and each call runs as the request's CMS principal.
+   */
+  private async registerDevTools(
+    config: CmsConfig,
+    cms: ReturnType<typeof createCms>,
+  ): Promise<void> {
+    const outcome = await registerCmsDevTools(
+      this.app.container as unknown as {
+        hasBinding(binding: string): boolean;
+        make(binding: string): Promise<unknown>;
+      },
+      { cms, request: this.requestOptions(config, cms) },
+    );
+    if (outcome === 'unsupported' || outcome === 'failed') {
+      const logger = (await this.app.container.make('logger')) as { warn(message: string): void };
+      logger.warn(
+        outcome === 'unsupported'
+          ? 'cms: the agora MCP hub is too old for the CMS tools (needs endpoint-authorize); upgrade @adonis-agora/agent'
+          : 'cms: registering the CMS tools into the agora MCP hub failed',
+      );
+    }
   }
 }

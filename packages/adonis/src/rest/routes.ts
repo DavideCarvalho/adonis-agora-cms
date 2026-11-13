@@ -98,47 +98,13 @@ export function registerCmsRoutes(
     const ctx = context as RouteContext;
     // Adonis has it on the request; `ctx.method` is always undefined there.
     const method = (ctx.request.method?.() ?? ctx.method ?? 'GET').toUpperCase();
-    const authorization = ctx.request.headers?.().authorization ?? '';
-    const bearer = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
-    const principal = bearer && options.resolveToken ? await options.resolveToken(bearer) : null;
-
-    // Internal dashboards may target another tenant, but only with an explicit ability.
-    // For every other token the tenant stays bound to the token.
-    const requestedTenant = ctx.request.headers?.()['x-cms-tenant'] ?? null;
-    if (principal && requestedTenant && !principal.abilities.includes('tenant:switch')) {
-      const denied = ctx.response.status(403);
-      denied.json({
-        error: { code: 'CMS_FORBIDDEN', message: 'token cannot switch tenant' },
-      });
-      return;
-    }
-
-    if (principal && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
-      if (!principal.abilities.includes('write')) {
-        const writer = ctx.response.status(403);
-        writer.json({ error: { code: 'CMS_FORBIDDEN', message: 'token is read-only' } });
-        return;
-      }
-    }
-
-    const scoped = principal
-      ? cms.forTenant(requestedTenant ?? principal.tenant)
-      : await scope(cms, ctx, options);
-
-    if (
-      options.requireUserForWrites &&
-      !principal &&
-      ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method) &&
-      !scoped.user &&
-      !hasAccessRule(cms.config, ctx.params?.slug, operationOf(method, ctx))
-    ) {
-      ctx.response.status(401).json({
-        error: {
-          code: 'CMS_UNAUTHORIZED',
-          message:
-            'sign in to write. Set `integrations.auth`, an `access` rule on this collection, or `rest.publicWrites`',
-        },
-      });
+    const scoped = await scopeCmsRequest(cms, ctx, options, {
+      write: ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method),
+      slug: ctx.params?.slug,
+      operation: operationOf(method, ctx),
+    });
+    if (!scoped.ok) {
+      ctx.response.status(scoped.status).json(scoped.body);
       return;
     }
 
@@ -148,7 +114,7 @@ export function registerCmsRoutes(
       request.query = { ...request.query, locale: negotiated };
     }
 
-    const response = await handler(scoped, request);
+    const response = await handler(scoped.cms, request);
 
     const writer = ctx.response.status(response.status);
     if (response.status === 204) {
@@ -193,7 +159,72 @@ export function registerCmsRoutes(
   router.patch(`${prefix}/globals/:slug`, dispatch(handleGlobalUpdate));
 }
 
-type WriteOperation = 'create' | 'update' | 'delete';
+/** The write a request performs, for the "anonymous write" guard. */
+export type WriteOperation = 'create' | 'update' | 'delete';
+
+/** What {@link scopeCmsRequest} answers: the CMS instance for this request, or the refusal. */
+export type ScopedCmsRequest =
+  | { ok: true; cms: Cms<CmsConfig> }
+  | { ok: false; status: 401 | 403; body: { error: { code: string; message: string } } };
+
+/**
+ * The CMS instance a request acts as, the way the REST routes pick it: an `Authorization: Bearer`
+ * CMS API token binds its tenant (and refuses writes without the `write` ability); otherwise the
+ * principal and tenant come from `resolveContext`. In production an anonymous write with no
+ * `access` rule for it is refused. The dev tools on `/mcp/agora` reuse it, so both surfaces apply
+ * the same rules.
+ */
+export async function scopeCmsRequest(
+  cms: Cms<CmsConfig>,
+  ctx: RouteContext,
+  options: RegisterCmsRoutesOptions,
+  request: { write: boolean; slug?: string | undefined; operation: WriteOperation },
+): Promise<ScopedCmsRequest> {
+  const authorization = ctx.request.headers?.().authorization ?? '';
+  const bearer = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
+  const principal = bearer && options.resolveToken ? await options.resolveToken(bearer) : null;
+
+  // Internal dashboards may target another tenant, but only with an explicit ability.
+  // For every other token the tenant stays bound to the token.
+  const requestedTenant = ctx.request.headers?.()['x-cms-tenant'] ?? null;
+  if (principal && requestedTenant && !principal.abilities.includes('tenant:switch')) {
+    return forbidden('token cannot switch tenant');
+  }
+
+  if (principal && request.write && !principal.abilities.includes('write')) {
+    return forbidden('token is read-only');
+  }
+
+  const scoped = principal
+    ? cms.forTenant(requestedTenant ?? principal.tenant)
+    : await scope(cms, ctx, options);
+
+  if (
+    options.requireUserForWrites &&
+    !principal &&
+    request.write &&
+    !scoped.user &&
+    !hasAccessRule(cms.config, request.slug, request.operation)
+  ) {
+    return {
+      ok: false,
+      status: 401,
+      body: {
+        error: {
+          code: 'CMS_UNAUTHORIZED',
+          message:
+            'sign in to write. Set `integrations.auth`, an `access` rule on this collection, or `rest.publicWrites`',
+        },
+      },
+    };
+  }
+
+  return { ok: true, cms: scoped };
+}
+
+function forbidden(message: string): ScopedCmsRequest {
+  return { ok: false, status: 403, body: { error: { code: 'CMS_FORBIDDEN', message } } };
+}
 
 /** A POST to the collection creates and a DELETE of a document deletes. Publish, lock and the rest update. */
 function operationOf(method: string, ctx: RouteContext): WriteOperation {

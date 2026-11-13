@@ -27,6 +27,8 @@ export {
 export { assertValidConfig, validateConfig } from './config/validate.js';
 export { createCmsTables, diffSchema, dropCmsTables, syncCmsSchema } from './db/index.js';
 export type * from './db/types.js';
+export type { CmsDevToolsOptions } from './dev_tools/tools.js';
+export { cmsDevTools, registerCmsDevTools } from './dev_tools/tools.js';
 export { CmsConfigError, CmsError, CmsSchemaError, CmsValidationError } from './errors.js';
 export type { CmsAuthAdapter } from './integrations/authkit.js';
 export { requiresRole, requiresUser } from './integrations/authkit.js';
@@ -72,7 +74,12 @@ export type { RestRequest, RestResponse } from './rest/handlers.js';
 export { parseListQuery } from './rest/list.js';
 export { parseReadOptions } from './rest/parse.js';
 export type { CmsRouter, RegisterCmsRoutesOptions, RouteContext } from './rest/routes.js';
-export { registerCmsRoutes } from './rest/routes.js';
+export {
+  registerCmsRoutes,
+  type ScopedCmsRequest,
+  scopeCmsRequest,
+  type WriteOperation,
+} from './rest/routes.js';
 export { compileSchema, hasLocalizedDescendant, indexName } from './schema/compile.js';
 export { canonicalJson, hashSchema } from './schema/hash.js';
 export { buildQueryPlan } from './schema/query_plan.js';
