@@ -1,5 +1,12 @@
 # @adonis-agora/cms-mcp
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`8b9c7cd`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/8b9c7cd960838ebf64bc3b1a35d3144dffbeef0a)]:
+  - @adonis-agora/cms@0.3.0
+
 ## 0.1.1
 
 ### Patch Changes
