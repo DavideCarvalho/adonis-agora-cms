@@ -42,6 +42,7 @@ production, an anonymous write to a collection with no `access` rule gets a 401.
 | [REST](./docs/rest.md)                    | The HTTP API                                             |
 | [Versions and drafts](./docs/versions.md) | Drafts, history and scheduled publishing                 |
 | [Going to production](./docs/deploy.md)   | The login, the schema and what to do on each deploy      |
+| [CLI](./docs/cli.md)                      | Reading and writing content with `node ace`              |
 
 ## The idea
 
