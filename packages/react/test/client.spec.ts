@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import { AdminClient, CmsApiError } from '../src/client.js';
 
-function recorder(body: unknown = { docs: [], totalDocs: 0 }, status = 200) {
+function recorder(
+  body: unknown = {
+    data: [],
+    meta: { total: 0, perPage: 20, currentPage: 1, lastPage: 1, firstPage: 1 },
+  },
+  status = 200,
+) {
   const calls: { url: string; init: RequestInit }[] = [];
   const fetchImpl = (async (url: string, init: RequestInit) => {
     calls.push({ url, init });
@@ -11,21 +17,35 @@ function recorder(body: unknown = { docs: [], totalDocs: 0 }, status = 200) {
 }
 
 describe('AdminClient', () => {
-  test('serializes where conditions into the filter wire format', async () => {
+  test('serializes the list query into the filter wire format', async () => {
     const { calls, fetchImpl } = recorder();
     const client = new AdminClient({ fetch: fetchImpl });
 
     await client.list('posts', {
-      where: { status: { equals: 'published' }, title: 'x' },
+      filter: { status: { equals: 'published' }, title: 'x', kind: ['a', 'b'] },
       sort: '-createdAt',
-      limit: 10,
+      page: 2,
+      size: 10,
     });
 
     const url = calls[0]?.url ?? '';
     expect(url).toContain('/collections/posts?');
-    expect(decodeURIComponent(url)).toContain('where[status][equals]=published');
-    expect(decodeURIComponent(url)).toContain('where[title][equals]=x');
-    expect(decodeURIComponent(url)).toContain('sort=-createdAt');
+    const decoded = decodeURIComponent(url);
+    expect(decoded).toContain('filter[status][equals]=published');
+    expect(decoded).toContain('filter[title]=x');
+    expect(decoded).toContain('filter[kind][]=a&filter[kind][]=b');
+    expect(decoded).toContain('sort=-createdAt');
+    expect(decoded).toContain('page=2&size=10');
+  });
+
+  test('pages the version history', async () => {
+    const { calls, fetchImpl } = recorder();
+    const client = new AdminClient({ fetch: fetchImpl });
+
+    const page = await client.versions('posts', '1', { page: 3, size: 5 });
+
+    expect(calls[0]?.url).toBe('/api/cms/collections/posts/1/versions?page=3&size=5');
+    expect(page.meta.total).toBe(0);
   });
 
   test('maps API errors to CmsApiError with fields', async () => {

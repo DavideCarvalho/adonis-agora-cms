@@ -129,7 +129,7 @@ export function VersionsPanel({
         {versions.isLoading ? <p className="skeleton">{t.loading}</p> : null}
         {versions.error ? <p className="error">{t.versionsFailed}</p> : null}
 
-        {(versions.data?.docs ?? []).map((version) => (
+        {(versions.data?.data ?? []).map((version) => (
           <div key={version.id} className="version">
             <div className="version__row">
               <span className="version__meta">v{version.version}</span>
@@ -181,7 +181,7 @@ export function VersionsPanel({
           </div>
         ))}
 
-        {versions.data && versions.data.docs.length === 0 ? (
+        {versions.data && versions.data.data.length === 0 ? (
           <p className="skeleton">{t.noVersions}</p>
         ) : null}
       </div>

@@ -1,10 +1,12 @@
+import { offsetPage } from '@adonis-agora/filter';
 import { toAdminSchema } from '../admin/schema.js';
 import type { CmsConfig } from '../config/types.js';
 import { CmsNotFoundError, CmsValidationError } from '../errors.js';
 import type { Cms } from '../local_api/index.js';
 import { previewUrl, signPreviewToken } from '../preview/token.js';
 import { toRestError } from './errors.js';
-import { parseFindQuery } from './parse.js';
+import { parseListQuery, parseVersionsQuery } from './list.js';
+import { parseReadOptions } from './parse.js';
 
 export type RestRequest = {
   params: Record<string, string | undefined>;
@@ -87,8 +89,16 @@ export async function handleCollectionFind(
 ): Promise<RestResponse> {
   return run(async () => {
     const slug = requireParam(request.params.slug, 'slug');
-    const result = await cms.collection(slug).find(parseFindQuery(request.query));
-    return { status: 200, body: result };
+    const query = parseListQuery(cms.spec, cms.config, slug, request.query);
+    const result = await cms.collection(slug).find(query);
+    return {
+      status: 200,
+      body: offsetPage(result.docs, {
+        total: result.totalDocs,
+        page: result.page,
+        size: result.limit,
+      }),
+    };
   });
 }
 
@@ -99,7 +109,7 @@ export async function handleCollectionFindOne(
   return run(async () => {
     const slug = requireParam(request.params.slug, 'slug');
     const id = requireParam(request.params.id, 'id');
-    const doc = await cms.collection(slug).findByID(id, parseFindQuery(request.query));
+    const doc = await cms.collection(slug).findByID(id, parseReadOptions(request.query));
     if (!doc) {
       return {
         status: 404,
@@ -175,7 +185,7 @@ export async function handleGlobalGet(
 ): Promise<RestResponse> {
   return run(async () => {
     const slug = requireParam(request.params.slug, 'slug');
-    const doc = await cms.global(slug).get(parseFindQuery(request.query));
+    const doc = await cms.global(slug).get(parseReadOptions(request.query));
     if (!doc) {
       return {
         status: 404,
@@ -241,14 +251,16 @@ export async function handleCollectionVersions(
   return run(async () => {
     const slug = requireParam(request.params.slug, 'slug');
     const id = requireParam(request.params.id, 'id');
-    const query = request.query;
-    const options: { locale?: string | null; limit?: number; page?: number } = {};
-    if (typeof query.locale === 'string') options.locale = query.locale;
-    if (typeof query.limit === 'string') options.limit = Number(query.limit);
-    if (typeof query.page === 'string') options.page = Number(query.page);
-
+    const options = parseVersionsQuery(request.query);
     const result = await cms.collection(slug).versions(id, options);
-    return { status: 200, body: result };
+    return {
+      status: 200,
+      body: offsetPage(result.docs, {
+        total: result.totalDocs,
+        page: options.page,
+        size: options.limit,
+      }),
+    };
   });
 }
 

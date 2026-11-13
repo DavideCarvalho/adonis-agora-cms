@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import { ContentClientError, createContentClient, toSearch } from '../src/index.js';
 
-function recorder(body: unknown = { docs: [], totalDocs: 0 }, status = 200) {
+function recorder(
+  body: unknown = {
+    data: [],
+    meta: { total: 0, perPage: 20, currentPage: 1, lastPage: 1, firstPage: 1 },
+  },
+  status = 200,
+) {
   const calls: { url: string; headers: Record<string, string> }[] = [];
   const fetchImpl = (async (url: string, init: RequestInit) => {
     calls.push({ url, headers: (init.headers ?? {}) as Record<string, string> });
@@ -20,16 +26,20 @@ describe('cms-client', () => {
     });
 
     await cms.collection('posts').find({
-      where: { status: { equals: 'published' } },
+      filter: { status: 'published', views: { gte: 10 }, tags: ['a', 'b'] },
       sort: '-publishedAt',
-      limit: 10,
+      page: 2,
+      size: 10,
       locale: 'pt-BR',
     });
 
     const call = calls[0];
     expect(call?.headers.authorization).toBe('Bearer cms_x');
     const url = decodeURIComponent(call?.url ?? '');
-    expect(url).toContain('where[status][equals]=published');
+    expect(url).toContain('filter[status]=published');
+    expect(url).toContain('filter[views][gte]=10');
+    expect(url).toContain('filter[tags][]=a&filter[tags][]=b');
+    expect(url).toContain('page=2&size=10');
     expect(url).toContain('sort=-publishedAt');
     expect(url).toContain('locale=pt-BR');
   });
@@ -50,7 +60,7 @@ describe('cms-client', () => {
   });
 
   test('toSearch ignores undefined and stringifies scalars', () => {
-    expect(toSearch({ limit: 5, page: undefined, depth: 1 })).toBe('?limit=5&depth=1');
+    expect(toSearch({ size: 5, page: undefined, depth: 1 })).toBe('?size=5&depth=1');
   });
 
   test('error class is exported', () => {

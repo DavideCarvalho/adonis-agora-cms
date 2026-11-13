@@ -22,9 +22,9 @@ test('signed in, a new document starts as a draft and stays reachable', async ({
 
   // The public API does not see it.
   const anonymous = await request.get('/api/cms/collections/notes', {
-    params: { 'where[title][equals]': title },
+    params: { 'filter[title]': title },
   });
-  expect(((await anonymous.json()) as { totalDocs: number }).totalDocs).toBe(0);
+  expect(((await anonymous.json()) as { meta: { total: number } }).meta.total).toBe(0);
 
   await page.getByRole('button', { name: 'Publish' }).click();
   await expect(page.getByRole('button', { name: 'Unpublish' })).toBeVisible();
@@ -177,9 +177,9 @@ test('a scheduled publish goes live on its own', async ({ page, context, request
     .poll(
       async () => {
         const response = await request.get('/api/cms/collections/notes', {
-          params: { 'where[title][equals]': title },
+          params: { 'filter[title]': title },
         });
-        return ((await response.json()) as { totalDocs: number }).totalDocs;
+        return ((await response.json()) as { meta: { total: number } }).meta.total;
       },
       { timeout: Number(process.env.E2E_SCHEDULE_TIMEOUT ?? 8000) },
     )
@@ -219,9 +219,9 @@ test('csv imports into the collection, plugins add fields and collections', asyn
   });
   await expect(page.getByText('1 imported')).toBeVisible();
   const found = await request.get('/api/cms/collections/notes', {
-    params: { 'where[kind][equals]': 'link', limit: '200' },
+    params: { 'filter[kind]': 'link', size: '200' },
   });
-  const docs = ((await found.json()) as { docs: { title: string }[] }).docs;
+  const docs = ((await found.json()) as { data: { title: string }[] }).data;
   expect(docs.some((doc) => doc.title === title)).toBe(true);
 
   await page.goto('/admin');
@@ -420,12 +420,12 @@ test('plugins: search stays in step, forms check answers, pages nest', async ({ 
   const search = () =>
     request
       .get('/api/cms/collections/search', {
-        params: { 'where[text][iContains]': `findable ${stamp}` },
+        params: { 'filter[text][iContains]': `findable ${stamp}` },
       })
-      .then((r) => r.json()) as Promise<{ totalDocs: number }>;
-  await expect.poll(async () => (await search()).totalDocs).toBe(1);
+      .then((r) => r.json()) as Promise<{ meta: { total: number } }>;
+  await expect.poll(async () => (await search()).meta.total).toBe(1);
   await request.delete(`/api/cms/collections/notes/${note.id}?force=true`);
-  await expect.poll(async () => (await search()).totalDocs).toBe(0);
+  await expect.poll(async () => (await search()).meta.total).toBe(0);
 
   const form = (await (
     await request.post('/api/cms/collections/forms', {
@@ -446,7 +446,7 @@ test('plugins: search stays in step, forms check answers, pages nest', async ({ 
   expect(((await ok.json()) as { answers: unknown }).answers).toEqual({ email: 'a@b.co' });
   // Anyone can answer; only a user can read the answers.
   const read = await request.get('/api/cms/collections/form_submissions');
-  expect(((await read.json()) as { totalDocs: number }).totalDocs).toBe(0);
+  expect(((await read.json()) as { meta: { total: number } }).meta.total).toBe(0);
 
   const parent = (await (
     await request.post('/api/cms/collections/pages', {

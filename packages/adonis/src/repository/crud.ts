@@ -988,17 +988,7 @@ export function buildWhere(
 
   if (query.where) {
     for (const [field, value] of Object.entries(query.where)) {
-      if (field === 'and' || field === 'or') {
-        parts.push(combineGroup(ctx, table, field, value));
-        continue;
-      }
-      // The workflow column is not a config field, but the panel filters its list by it.
-      if (field === '_status') {
-        const status = isOperatorObject(value) ? (value as { equals?: unknown }).equals : value;
-        parts.push({ sql: `${ident('_status', ctx.engine)} = ?`, bindings: [String(status)] });
-        continue;
-      }
-      parts.push(fieldCondition(ctx, table, field, value));
+      parts.push(whereCondition(ctx, table, field, value));
     }
   }
 
@@ -1013,6 +1003,22 @@ export function buildWhere(
   };
 }
 
+/** One `where` entry: an `and`/`or` group, the workflow status, or a field condition. */
+function whereCondition(
+  ctx: RepoContext,
+  table: TableSpec,
+  field: string,
+  value: unknown,
+): { sql: string; bindings: unknown[] } {
+  if (field === 'and' || field === 'or') return combineGroup(ctx, table, field, value);
+  // The workflow column is not a config field, but the panel filters its list by it.
+  if (field === '_status') {
+    const status = isOperatorObject(value) ? (value as { equals?: unknown }).equals : value;
+    return { sql: `${ident('_status', ctx.engine)} = ?`, bindings: [String(status)] };
+  }
+  return fieldCondition(ctx, table, field, value);
+}
+
 function combineGroup(
   ctx: RepoContext,
   table: TableSpec,
@@ -1024,7 +1030,7 @@ function combineGroup(
   const parts = value.map((item) => {
     const object = item as Record<string, unknown>;
     const conditions = Object.entries(object).map(([key, nested]) =>
-      fieldCondition(ctx, table, key, nested),
+      whereCondition(ctx, table, key, nested),
     );
     return {
       sql: conditions.map((part) => `(${part.sql})`).join(' and '),

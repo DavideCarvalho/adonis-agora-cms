@@ -57,7 +57,7 @@ describe('REST versions', () => {
       params: { slug: 'posts', id },
     });
     expect(list.status).toBe(200);
-    const docs = (list.body as { docs: { version: number }[] }).docs;
+    const docs = (list.body as { data: { version: number }[] }).data;
     expect(docs.length).toBeGreaterThanOrEqual(2);
 
     const single = await handleCollectionVersion(cms, {
@@ -108,5 +108,30 @@ describe('REST versions', () => {
       params: { slug: 'posts', id },
     });
     expect(conflict.status).toBe(409);
+  });
+  test('version history pages newest first in the offset envelope', async () => {
+    const cms = await setup();
+    const post = await cms.collection('posts').create({ title: 'v1' }, { draft: true });
+    await cms.collection('posts').update(post.id, { title: 'v2' });
+    await cms.collection('posts').update(post.id, { title: 'v3' });
+
+    const page = await handleCollectionVersions(cms, {
+      ...base,
+      params: { slug: 'posts', id: post.id },
+      query: { page: '2', size: '2', sort: '-version' },
+    });
+
+    expect(page.status).toBe(200);
+    const body = page.body as { data: { version: number }[]; meta: Record<string, number> };
+    expect(body.data.map((item) => item.version)).toEqual([1]);
+    expect(body.meta).toEqual({ total: 3, perPage: 2, currentPage: 2, lastPage: 2, firstPage: 1 });
+
+    const ascending = await handleCollectionVersions(cms, {
+      ...base,
+      params: { slug: 'posts', id: post.id },
+      query: { sort: 'version' },
+    });
+    expect(ascending.status).toBe(400);
+    expect(ascending.body).toMatchObject({ error: { code: 'CMS_INVALID_QUERY' } });
   });
 });

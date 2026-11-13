@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test';
 
 test('admin drives the CMS REST API end to end', async ({ page, request }) => {
   const authors = await request.get('/api/cms/collections/authors');
-  const authorsBody = (await authors.json()) as { docs: { id: string; name: string }[] };
+  const authorsBody = (await authors.json()) as { data: { id: string; name: string }[] };
 
-  let authorId = authorsBody.docs[0]?.id;
+  let authorId = authorsBody.data[0]?.id;
   if (!authorId) {
     const created = await request.post('/api/cms/collections/authors', {
       data: { name: 'Davi Carvalho' },

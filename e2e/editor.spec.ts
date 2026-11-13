@@ -2,11 +2,11 @@ import { expect, test } from '@playwright/test';
 
 async function createPost(request: import('@playwright/test').APIRequestContext, prefix: string) {
   const authors = (await (await request.get('/api/cms/collections/authors')).json()) as {
-    docs: { id: string }[];
+    data: { id: string }[];
   };
   const title = `${prefix} ${Date.now().toString(36)}`;
   const created = await request.post('/api/cms/collections/posts', {
-    data: { title, author: authors.docs[0]?.id, status: 'published' },
+    data: { title, author: authors.data[0]?.id, status: 'published' },
   });
   expect(created.status()).toBe(201);
   return { id: ((await created.json()) as { id: string }).id, title };

@@ -11,17 +11,17 @@ describe.skipIf(!url)('cms-client against a running server', () => {
   test('lists published documents over HTTP', async () => {
     const cms = createContentClient({ baseUrl: url as string });
 
-    const list = await cms.collection('posts').find({ where: { status: { equals: 'published' } } });
+    const list = await cms.collection('posts').find({ filter: { status: 'published' } });
 
-    expect(list.totalDocs).toBeGreaterThanOrEqual(0);
-    expect(Array.isArray(list.docs)).toBe(true);
-    expect(list.docs.every((doc) => typeof doc.id === 'string')).toBe(true);
+    expect(list.meta.total).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(list.data)).toBe(true);
+    expect(list.data.every((doc) => typeof doc.id === 'string')).toBe(true);
   });
 
   test('findByID returns the same document as the list', async () => {
     const cms = createContentClient({ baseUrl: url as string });
-    const list = await cms.collection('posts').find({ limit: 1 });
-    const first = list.docs[0];
+    const list = await cms.collection('posts').find({ size: 1 });
+    const first = list.data[0];
     if (!first) return;
 
     const one = await cms.collection('posts').findByID(first.id);

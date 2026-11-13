@@ -107,6 +107,9 @@ Paths point inside arrays, so a change inside a block is reported at its own pat
 | `POST`   | `/api/cms/collections/:slug/:id/lock`                      |
 | `DELETE` | `/api/cms/collections/:slug/:id/lock`                      |
 
+The history list takes `page`, `size` (default `20`, at most `100`) and `filter[locale]`, and
+answers `{ data, meta }` — see [REST](./rest.md#version-history).
+
 `?draft=true` on a read requires an authenticated request.
 
 ## Storage

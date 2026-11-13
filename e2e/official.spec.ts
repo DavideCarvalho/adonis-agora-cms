@@ -30,9 +30,9 @@ test('@adonisjs/auth: a session is the CMS user, and anonymous is not', async ({
 
   // Drafts stay out of reach without the session.
   const anonymous = await request.get('/api/cms/collections/notes', {
-    params: { 'where[title][equals]': title },
+    params: { 'filter[title]': title },
   });
-  expect((await anonymous.json()).totalDocs).toBe(0);
+  expect((await anonymous.json()).meta.total).toBe(0);
 });
 
 test('@adonisjs/drive: a private S3 upload comes back through a signed URL', async ({

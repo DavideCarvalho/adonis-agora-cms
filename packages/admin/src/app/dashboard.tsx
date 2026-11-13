@@ -22,7 +22,7 @@ function CollectionRow({
     queryKey: ['cms', 'dashboard-count', collection.slug],
     queryFn: () =>
       client.list(collection.slug, {
-        limit: 1,
+        size: 1,
         depth: 0,
         ...(collection.drafts && schema.user ? { draft: true } : {}),
       }),
@@ -35,7 +35,7 @@ function CollectionRow({
       onClick={() => onNavigate({ view: 'list', slug: collection.slug })}
     >
       <span>{collection.labels?.plural ?? collection.slug}</span>
-      <span className="num">{count.data?.totalDocs ?? '…'}</span>
+      <span className="num">{count.data?.meta.total ?? '…'}</span>
     </button>
   );
 }
@@ -55,12 +55,12 @@ function Recent({
       const pages = await Promise.allSettled(
         schema.collections.map(async (collection) => {
           const page = await client.list(collection.slug, {
-            limit: 5,
+            size: 5,
             depth: 0,
             sort: '-updatedAt',
             ...(collection.drafts && schema.user ? { draft: true } : {}),
           });
-          return page.docs.map((doc) => ({ doc, collection }));
+          return page.data.map((doc) => ({ doc, collection }));
         }),
       );
       return pages

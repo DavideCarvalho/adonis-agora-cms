@@ -1,3 +1,5 @@
+import type { OffsetPage } from '@adonis-agora/filter-client';
+
 export type AdminField = {
   type: string;
   name: string;
@@ -89,21 +91,19 @@ export type AdminDocument = Record<string, unknown> & {
   _hasDraft?: boolean;
 };
 
-export type ListResult = {
-  docs: AdminDocument[];
-  totalDocs: number;
-  limit: number;
-  page: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPrevPage: boolean;
-};
+/** `{ data, meta: { total, perPage, currentPage, lastPage, firstPage } }`. */
+export type ListResult = OffsetPage<AdminDocument>;
 
 export type ListQuery = {
-  where?: Record<string, unknown>;
+  /**
+   * Sent as `filter[field]=…`: a value means equals, an array means any of them, and an object maps
+   * operators to operands (`{ title: { iContains: 'cms' } }`).
+   */
+  filter?: Record<string, unknown>;
   sort?: string;
-  limit?: number;
+  /** 1-based. */
   page?: number;
+  size?: number;
   depth?: number;
   locale?: string;
   draft?: boolean;

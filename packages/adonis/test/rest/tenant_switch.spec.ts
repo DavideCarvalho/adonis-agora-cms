@@ -102,7 +102,7 @@ describe('x-cms-tenant', () => {
 
     expect(attempt.captured.status).toBe(200);
     expect(
-      (attempt.captured.body as { docs: { title: string }[] }).docs.map((doc) => doc.title),
+      (attempt.captured.body as { data: { title: string }[] }).data.map((doc) => doc.title),
     ).toEqual(['Globex']);
   });
 });

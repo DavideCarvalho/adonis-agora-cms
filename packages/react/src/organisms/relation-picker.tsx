@@ -51,9 +51,9 @@ export function RelationPicker({
     placeholderData: (previous) => previous,
     queryFn: () =>
       client.list(target, {
-        limit: 100,
+        size: 100,
         depth: 0,
-        ...(search && titleField ? { where: { [titleField]: { iContains: search } } } : {}),
+        ...(search && titleField ? { filter: { [titleField]: { iContains: search } } } : {}),
       }),
   });
 
@@ -65,11 +65,11 @@ export function RelationPicker({
 
   // The list stops at 100: a current value beyond it must still show, or saving would look like it
   // cleared the field. The box only appears when the list was actually cut (or is being searched).
-  const docs = query.data?.docs ?? [];
+  const docs = query.data?.data ?? [];
   const populated =
     value && typeof value === 'object' && !Array.isArray(value) ? (value as AdminDocument) : null;
   const missing = selected && !docs.some((doc) => doc.id === selected);
-  const searchable = Boolean(titleField) && (Boolean(term) || (query.data?.totalDocs ?? 0) > 100);
+  const searchable = Boolean(titleField) && (Boolean(term) || (query.data?.meta.total ?? 0) > 100);
 
   if (field.hasMany) {
     const picked = new Set(
