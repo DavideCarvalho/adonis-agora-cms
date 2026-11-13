@@ -86,15 +86,10 @@ export abstract class CmsContentCommand extends BaseCommand {
   @flags.boolean({ description: 'Print JSON' })
   declare json?: boolean;
 
-  /** A refusal is one error line and exit code 1; programming errors keep their stack. */
+  /** A refusal is one error line and exit code 1; every other failure keeps its stack. */
   override async completed() {
     const error = this.error as unknown;
-    if (
-      error instanceof Error &&
-      !(error instanceof TypeError) &&
-      !(error instanceof ReferenceError) &&
-      !(error instanceof SyntaxError)
-    ) {
+    if (error instanceof CmsCliRefusal) {
       this.logger.error(error.message);
       this.exitCode = 1;
       return true;
