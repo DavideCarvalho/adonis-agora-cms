@@ -1,80 +1,80 @@
-# MCP — the CMS for AI clients
+# MCP: the CMS for AI clients
 
-`@adonis-agora/cms-mcp` exposes the content surface over the
-[Model Context Protocol](https://modelcontextprotocol.io): an agent can read the schema, list,
-create, update, publish and restore documents. Every call goes through the Local API, so access
-functions, hooks, versions and tenancy behave exactly as they do for a human editor.
+With `@adonis-agora/agent/mcp_provider` in `adonisrc.ts`, the CMS adds its tools to the agora MCP
+endpoint, `/mcp/agora`. There is nothing to configure on the CMS side.
 
-## Install and run
-
-```bash
-pnpm add @adonis-agora/cms-mcp
-node ace cms:mcp        # stdio server, app booted
+```sh
+claude mcp add --transport http agora http://localhost:3333/mcp/agora
 ```
 
-`cms:mcp` resolves the package from the app and starts a stdio server; the process stays alive
-until the client disconnects.
+Cursor, Claude Desktop and any other MCP client take the same URL.
 
-## Point a client at it
+## Who gets in
 
-`.mcp.json` (Claude Code, Cursor, anything that speaks MCP):
+The CMS has no console of its own, so `devTools.authorize` in `config/mcp.ts` decides who reaches its
+tools. Left out, they are open outside production and refused in production.
 
-```json
-{
-  "mcpServers": {
-    "cms": {
-      "command": "node",
-      "args": ["ace.js", "cms:mcp"],
-      "cwd": "/path/to/app"
-    }
-  }
-}
+```ts
+// config/mcp.ts
+import env from '#start/env';
+import { authorizeByToken } from '@adonis-agora/agent';
+import { defineMcpConfig } from '@adonis-agora/agent/mcp';
+
+export default defineMcpConfig({
+  name: 'Acme',
+  version: '1.0.0',
+  devTools: {
+    authorize: authorizeByToken({ token: env.get('CONSOLE_TOKEN') }),
+  },
+});
 ```
+
+```sh
+claude mcp add --transport http agora http://localhost:3333/mcp/agora \
+  --header "Authorization: Bearer $CONSOLE_TOKEN"
+```
+
+Once in, every tool acts as that request's CMS principal, like a call to `/api/cms`: the signed-in
+user (`integrations.auth`, or `ctx.auth.user`) and the tenant. Collection `access` rules, hooks,
+validation, drafts, locales and versions apply. In production, a write with no signed-in user is
+refused unless the collection has an `access` rule for it.
 
 ## Tools
 
-| Tool                                   | Does                                  | Read-only |
-| -------------------------------------- | ------------------------------------- | --------- |
-| `cms_schema`                           | collections, fields, locales, tenancy | yes       |
-| `cms_list`                             | filter / sort / paginate              | yes       |
-| `cms_get`                              | one document by id or `where`         | yes       |
-| `cms_create`                           | create (draft-aware)                  | no        |
-| `cms_update`                           | update fields                         | no        |
-| `cms_delete`                           | delete (soft delete aware)            | no        |
-| `cms_publish` / `cms_unpublish`        | draft ⇄ published                     | no        |
-| `cms_versions` / `cms_restore_version` | history and restore                   | no        |
-| `cms_global_get` / `cms_global_update` | globals                               | get only  |
+Reads are listed by default. List tools take `limit` (default 20, at most 100) and `page`, and return
+`{ items, next, total }`; pass `next` back as `page`.
 
-## Bounding what the agent can do
+| Tool                     | Kind   | Does                                                       |
+| ------------------------ | ------ | ---------------------------------------------------------- |
+| `cms_list_collections`   | read   | collections and globals, locales, tenancy                  |
+| `cms_get_collection`     | read   | fields of a collection or global, filterable/sortable keys |
+| `cms_list_documents`     | read   | filter, sort and page documents (`draft`, `locale`)        |
+| `cms_get_document`       | read   | one document by id (`draft`, `locale`, `depth`)            |
+| `cms_list_versions`      | read   | version history, newest first                              |
+| `cms_get_version`        | read   | one version, `snapshot: true` for its content              |
+| `cms_get_global`         | read   | a global                                                   |
+| `cms_create_document`    | action | create, `draft: true` to keep it unpublished               |
+| `cms_update_document`    | action | update fields, `draft: true` to leave the live version     |
+| `cms_publish_document`   | action | publish the latest draft                                   |
+| `cms_unpublish_document` | action | take a document offline                                    |
+| `cms_delete_document`    | action | delete (destructive), `force: true` skips the trash        |
+| `cms_restore_version`    | action | restore a version                                          |
+| `cms_update_global`      | action | update a global                                            |
 
-Two levers, both explicit:
+`filter` and `data` are JSON objects passed as strings. A localized field takes a locale map in
+`data` (`{"title":{"en":"Hi","pt-BR":"Oi"}}`); `locale` picks the language of what comes back.
 
-```ts
-// read-only: write tools refuse with `this MCP session is read-only`
-createCmsMcpServer({ cms, allowWrite: false });
-
-// act as a specific editor/tenant: access functions see that user
-createCmsMcpServer({ cms: cms.as(user).forTenant(tenant) });
+```json
+{ "collection": "posts", "filter": "{\"title\":{\"contains\":\"launch\"}}", "sort": "-createdAt" }
 ```
 
-Nothing here bypasses access. If a collection's `access.update` says no, the tool says no.
-
-## Programmatic use
+Actions are hidden until the app allows them:
 
 ```ts
-import { createCmsMcpServer, createCmsTools, startCmsMcpStdio } from '@adonis-agora/cms-mcp';
-
-await startCmsMcpStdio({ cms });
-
-// or plug the tool list into an existing MCP server / agent runtime
-for (const tool of createCmsTools({ cms, allowWrite: false })) {
-  registry.register(tool);
+// config/mcp.ts
+devTools: {
+  actions: ['cms'],
 }
 ```
 
-## Auth
-
-The CMS instance carries the identity. If the app runs AuthKit, resolve the principal first and
-create the instance with `cms.as(principal)` (and `forTenant(principal.tenant)` when the schema has
-row tenancy). That keeps the MCP surface governed by the same authz as the rest of the app — no
-separate token scheme to drift.
+To leave the CMS out of `/mcp/agora`, use `devTools: { exclude: ['cms'] }`.

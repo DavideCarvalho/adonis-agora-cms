@@ -138,8 +138,8 @@ admin/labels/visibility because the DDL is shared. Read the spec, §23.
 New here? [`docs/using.md`](./docs/using.md) walks through install → config → sync → read → preview
 with copy-paste snippets.
 
-An AI client can use the same content surface over MCP: `node ace cms:mcp` and
-[`docs/mcp.md`](./docs/mcp.md).
+An AI client can use the same content surface over MCP, through the agora hub at `/mcp/agora`:
+see [`docs/mcp.md`](./docs/mcp.md).
 
 
 ```ts

@@ -10,7 +10,6 @@
   "dependencies": {
     "@adonis-agora/cms": "workspace:*",
     "@adonis-agora/cms-admin": "workspace:*",
-    "@adonis-agora/cms-mcp": "workspace:*",
     "@adonis-agora/durable": "0.38.2",
     "@adonisjs/auth": "^10.1.0",
     "@adonisjs/core": "7.5.0",
