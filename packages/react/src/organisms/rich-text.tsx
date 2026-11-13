@@ -75,7 +75,7 @@ function DocumentLinkPicker({ onPick }: { onPick: (href: string) => void }) {
   const docs = useQuery({
     queryKey: ['cms', 'rich-link', target?.slug],
     enabled: Boolean(target),
-    queryFn: () => client.list(target?.slug as string, { limit: 50, depth: 0 }),
+    queryFn: () => client.list(target?.slug as string, { size: 50, depth: 0 }),
   });
 
   return (
@@ -101,7 +101,7 @@ function DocumentLinkPicker({ onPick }: { onPick: (href: string) => void }) {
         }}
       >
         <option value="">{t.linkToDocument}…</option>
-        {(docs.data?.docs ?? []).map((doc) => (
+        {(docs.data?.data ?? []).map((doc) => (
           <option key={String(doc.id)} value={String(doc.id)}>
             {String((title && doc[title]) ?? doc.id)}
           </option>

@@ -71,11 +71,11 @@ describe('soft delete over REST', () => {
 
     const live = ctxFor({ slug: 'posts' });
     await route('GET', '/api/cms/collections/:slug').handler(live.ctx);
-    expect((live.captured.body as { totalDocs: number }).totalDocs).toBe(0);
+    expect((live.captured.body as { meta: { total: number } }).meta.total).toBe(0);
 
     const trashed = ctxFor({ slug: 'posts' }, { deleted: 'true' });
     await route('GET', '/api/cms/collections/:slug').handler(trashed.ctx);
-    expect((trashed.captured.body as { totalDocs: number }).totalDocs).toBe(1);
+    expect((trashed.captured.body as { meta: { total: number } }).meta.total).toBe(1);
 
     const restored = ctxFor({ slug: 'posts', id: post.id });
     await route('POST', '/api/cms/collections/:slug/:id/restore').handler(restored.ctx);
@@ -84,7 +84,7 @@ describe('soft delete over REST', () => {
 
     const after = ctxFor({ slug: 'posts' });
     await route('GET', '/api/cms/collections/:slug').handler(after.ctx);
-    expect((after.captured.body as { totalDocs: number }).totalDocs).toBe(1);
+    expect((after.captured.body as { meta: { total: number } }).meta.total).toBe(1);
   });
 
   test('DELETE ?force=true removes the row for real', async () => {

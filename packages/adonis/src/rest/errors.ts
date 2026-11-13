@@ -1,3 +1,4 @@
+import { InvalidColumnFilterError } from '@adonis-agora/filter';
 import {
   CmsConflictError,
   CmsError,
@@ -24,6 +25,11 @@ export function toRestError(error: unknown): { status: number; body: RestErrorBo
         error: { code: error.code, message: 'Validation failed', fields: error.fields },
       },
     };
+  }
+
+  // An unknown filter field, operator or sort field: the request is wrong, not the server.
+  if (error instanceof InvalidColumnFilterError) {
+    return { status: 400, body: { error: { code: 'CMS_INVALID_QUERY', message: error.message } } };
   }
 
   if (error instanceof CmsNotFoundError) {

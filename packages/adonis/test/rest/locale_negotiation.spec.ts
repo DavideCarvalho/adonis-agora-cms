@@ -67,7 +67,7 @@ describe('content locale negotiation', () => {
     const call = ctxFor({ slug: 'posts' });
     await route?.handler(call.ctx);
 
-    const docs = (call.captured.body as { docs: { title: string }[] }).docs;
+    const docs = (call.captured.body as { data: { title: string }[] }).data;
     expect(docs[0]?.title).toBe('Hi');
   });
 
@@ -80,7 +80,7 @@ describe('content locale negotiation', () => {
     const call = ctxFor({ slug: 'posts' }, { locale: 'pt-BR' });
     await route?.handler(call.ctx);
 
-    const docs = (call.captured.body as { docs: { title: string }[] }).docs;
+    const docs = (call.captured.body as { data: { title: string }[] }).data;
     expect(docs[0]?.title).toBe('Oi');
   });
 
@@ -93,7 +93,7 @@ describe('content locale negotiation', () => {
     const call = ctxFor({ slug: 'posts' });
     await route?.handler(call.ctx);
 
-    const docs = (call.captured.body as { docs: { title: unknown }[] }).docs;
+    const docs = (call.captured.body as { data: { title: unknown }[] }).data;
     expect(docs[0]?.title).toEqual({ 'pt-BR': 'Oi', en: 'Hi' });
   });
 });

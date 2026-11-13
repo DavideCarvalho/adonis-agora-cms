@@ -114,6 +114,7 @@
   "devDependencies": {
     "@adonis-agora/authz": "0.20.1",
     "@adonis-agora/durable": "0.38.2",
+    "@adonis-agora/filter-client": "^1.0.0-rc.1",
     "@adonis-agora/media": "0.28.1",
     "@adonis-agora/telescope": "0.27.0",
     "@adonisjs/assembler": "^8.5.0",
@@ -144,5 +145,8 @@
     "headless-cms",
     "schema",
     "agora"
-  ]
+  ],
+  "dependencies": {
+    "@adonis-agora/filter": "^1.0.0-rc.5"
+  }
 }

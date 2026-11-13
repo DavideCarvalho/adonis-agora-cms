@@ -29,5 +29,8 @@
   },
   "engines": {
     "node": ">=20.6.0"
+  },
+  "dependencies": {
+    "@adonis-agora/filter-client": "^1.0.0-rc.1"
   }
 }

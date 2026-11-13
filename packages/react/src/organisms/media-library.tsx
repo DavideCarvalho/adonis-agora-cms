@@ -47,9 +47,9 @@ export function MediaLibrary({
     placeholderData: (previous) => previous,
     queryFn: () =>
       client.list(collection, {
-        limit: 60,
+        size: 60,
         depth: 0,
-        where: {
+        filter: {
           ...(search && titleField ? { [titleField]: { iContains: search } } : {}),
           ...(folder ? { folder: { equals: folder } } : {}),
         },
@@ -59,12 +59,12 @@ export function MediaLibrary({
     queryKey: ['cms', 'media-library', collection, 'folders'],
     enabled: hasFolders,
     queryFn: async () => {
-      const { docs: all } = await client.list(collection, { limit: 500, depth: 0 });
+      const { data: all } = await client.list(collection, { size: 200, depth: 0 });
       const names = all.map((doc) => doc.folder).filter((name) => typeof name === 'string' && name);
       return [...new Set(names as string[])].sort();
     },
   });
-  const docs = query.data?.docs ?? [];
+  const docs = query.data?.data ?? [];
 
   return (
     <dialog

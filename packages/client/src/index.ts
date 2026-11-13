@@ -1,8 +1,16 @@
+import { flatObjectToQueryString, type OffsetPage } from '@adonis-agora/filter-client';
+
 export type ContentQuery = {
-  where?: Record<string, unknown>;
+  /**
+   * Sent as `filter[field]=…`: a value means equals, an array means any of them, and an object maps
+   * operators to operands (`{ views: { gte: 10 } }`).
+   */
+  filter?: Record<string, unknown>;
+  /** `-publishedAt,title`. */
   sort?: string;
-  limit?: number;
+  /** 1-based. */
   page?: number;
+  size?: number;
   depth?: number;
   locale?: string;
   select?: string;
@@ -10,15 +18,8 @@ export type ContentQuery = {
 
 export type ContentDocument = Record<string, unknown> & { id: string };
 
-export type ContentList<T> = {
-  docs: T[];
-  totalDocs: number;
-  limit: number;
-  page: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPrevPage: boolean;
-};
+/** `{ data, meta: { total, perPage, currentPage, lastPage, firstPage } }`. */
+export type ContentList<T> = OffsetPage<T>;
 
 export type ContentClientOptions = {
   baseUrl: string;
@@ -92,25 +93,23 @@ export function createContentClient<Collections extends string = string>(
 }
 
 export function toSearch(query: ContentQuery): string {
+  const parts: string[] = [];
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined) continue;
-    if (key === 'where') {
-      for (const [field, condition] of Object.entries(value as Record<string, unknown>)) {
-        if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
-          for (const [operator, operand] of Object.entries(condition as Record<string, unknown>)) {
-            params.set(`where[${field}][${operator}]`, String(operand));
-          }
-          continue;
-        }
-        params.set(`where[${field}][equals]`, String(condition));
-      }
+    if (key === 'filter') {
+      const filter = Object.entries(value as Record<string, unknown>).map(
+        ([field, condition]) => [`filter[${field}]`, condition] as const,
+      );
+      const encoded = flatObjectToQueryString(Object.fromEntries(filter));
+      if (encoded) parts.push(encoded);
       continue;
     }
     params.set(key, String(value));
   }
 
-  const search = params.toString();
-  return search ? `?${search}` : '';
+  const rest = params.toString();
+  if (rest) parts.push(rest);
+  return parts.length > 0 ? `?${parts.join('&')}` : '';
 }

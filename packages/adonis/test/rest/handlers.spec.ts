@@ -41,22 +41,148 @@ describe('REST handlers', () => {
     expect(response.body).toMatchObject({ title: 'Hello World', slug: 'hello-world' });
   });
 
-  test('list returns the paginated envelope', async () => {
+  test('list returns the offset envelope', async () => {
     const cms = await setup();
-    await cms.collection('posts').create({ title: 'One' });
-    await cms.collection('posts').create({ title: 'Two' });
+    for (const title of ['One', 'Two', 'Three']) await cms.collection('posts').create({ title });
 
     const response = await handleCollectionFind(cms, {
       ...base,
       params: { slug: 'posts' },
-      query: { limit: '1', page: '1', sort: '-title' },
+      query: { size: '2', page: '2', sort: '-title' },
     });
 
     expect(response.status).toBe(200);
-    const body = response.body as { docs: unknown[]; totalDocs: number; totalPages: number };
-    expect(body.docs).toHaveLength(1);
-    expect(body.totalDocs).toBe(2);
-    expect(body.totalPages).toBe(2);
+    const body = response.body as { data: { title: string }[]; meta: Record<string, number> };
+    expect(body.data.map((doc) => doc.title)).toEqual(['One']);
+    expect(body.meta).toEqual({ total: 3, perPage: 2, currentPage: 2, lastPage: 2, firstPage: 1 });
+  });
+
+  test('list defaults to page 1 of 20 and caps the size at 200', async () => {
+    const cms = await setup();
+    await cms.collection('posts').create({ title: 'Only' });
+
+    const first = await handleCollectionFind(cms, { ...base, params: { slug: 'posts' } });
+    expect((first.body as { meta: unknown }).meta).toMatchObject({ perPage: 20, currentPage: 1 });
+
+    const capped = await handleCollectionFind(cms, {
+      ...base,
+      params: { slug: 'posts' },
+      query: { size: '5000' },
+    });
+    expect((capped.body as { meta: unknown }).meta).toMatchObject({ perPage: 200 });
+  });
+
+  test('filter[...] dispatches every wire shape to the field', async () => {
+    const cms = await setup();
+    await cms.collection('posts').create({ title: 'Início', status: 'published' });
+    await cms.collection('posts').create({ title: 'Second', status: 'draft' });
+    await cms.collection('posts').create({ title: 'Third', status: 'draft' });
+
+    const titles = async (query: Record<string, unknown>) => {
+      const response = await handleCollectionFind(cms, {
+        ...base,
+        params: { slug: 'posts' },
+        query: { sort: 'title', ...query },
+      });
+      expect(response.status).toBe(200);
+      return (response.body as { data: { title: string }[] }).data.map((doc) => doc.title);
+    };
+
+    expect(await titles({ filter: { status: 'published' } })).toEqual(['Início']);
+    expect(await titles({ filter: { title: { iContains: 'inicio' } } })).toEqual(['Início']);
+    expect(await titles({ filter: { title: { notEquals: 'Second' } } })).toEqual([
+      'Início',
+      'Third',
+    ]);
+    expect(await titles({ filter: { title: ['Second', 'Third'] } })).toEqual(['Second', 'Third']);
+    expect(await titles({ filter: { title: 'Second,Third' } })).toEqual(['Second', 'Third']);
+    expect(await titles({ filter: { title: { in: 'Início,Third' } } })).toEqual([
+      'Início',
+      'Third',
+    ]);
+    expect(await titles({ filter: { status: 'draft', title: { startsWith: 'T' } } })).toEqual([
+      'Third',
+    ]);
+  });
+
+  test('OR groups from filter-client reach the repository', async () => {
+    const cms = await setup();
+    await cms.collection('posts').create({ title: 'Alpha', status: 'published' });
+    await cms.collection('posts').create({ title: 'Beta', status: 'draft' });
+    await cms.collection('posts').create({ title: 'Gamma', status: 'draft' });
+
+    // `filterQuery().or(q => q.equals('title', 'Alpha').equals('title', 'Gamma'))`, decoded.
+    const response = await handleCollectionFind(cms, {
+      ...base,
+      params: { slug: 'posts' },
+      query: {
+        sort: 'title',
+        where: [
+          {
+            field: '',
+            operator: 'equals',
+            OR: [
+              { field: 'title', operator: 'equals', value: 'Alpha' },
+              { field: 'title', operator: 'equals', value: 'Gamma' },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect((response.body as { data: { title: string }[] }).data.map((d) => d.title)).toEqual([
+      'Alpha',
+      'Gamma',
+    ]);
+  });
+
+  test('filters nested paths and the workflow status', async () => {
+    const cms = await setup();
+    await cms.collection('posts').create({ title: 'Tagged', tags: [{ label: 'news' }] });
+    await cms.collection('posts').create({ title: 'Plain' });
+
+    const tagged = await handleCollectionFind(cms, {
+      ...base,
+      params: { slug: 'posts' },
+      query: { filter: { 'tags.label': 'news' } },
+    });
+    expect((tagged.body as { data: { title: string }[] }).data.map((d) => d.title)).toEqual([
+      'Tagged',
+    ]);
+
+    const status = await handleCollectionFind(cms, {
+      ...base,
+      params: { slug: 'posts' },
+      query: { filter: { _status: 'published' } },
+    });
+    expect(status.status).toBe(200);
+  });
+
+  test.each([
+    ['an unknown filter field', { filter: { nope: 'x' } }, 'Unknown filter field: "nope"'],
+    ['an unsupported operator', { filter: { title: { isEmpty: '' } } }, 'isEmpty'],
+    ['a bogus operator', { filter: { title: { bogus: 'x' } } }, 'bogus'],
+    ['an unknown sort field', { sort: '-nope' }, 'Unknown sort field: "nope"'],
+    ['sorting by a nested path', { sort: 'tags.label' }, 'Unknown sort field'],
+    ['the old where[field] form', { where: { title: { equals: 'x' } } }, 'filter[field]'],
+  ])('answers 400 for %s', async (_label, query, message) => {
+    const cms = await setup();
+    const response = await handleCollectionFind(cms, {
+      ...base,
+      params: { slug: 'posts' },
+      query,
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ error: { code: 'CMS_INVALID_QUERY' } });
+    expect((response.body as { error: { message: string } }).error.message).toContain(message);
+  });
+
+  test('an unknown collection is a 404', async () => {
+    const cms = await setup();
+    const response = await handleCollectionFind(cms, { ...base, params: { slug: 'nope' } });
+    expect(response.status).toBe(404);
   });
 
   test('find one returns 404 when the document does not exist', async () => {
@@ -250,14 +376,14 @@ describe('route wiring', () => {
     const find = routes.find((route) => route.path === '/api/cms/collections/:slug');
     const acme = fakeContext({ slug: 'posts' });
     await find?.handler(acme.ctx);
-    expect((acme.captured.body as { docs: { title: string }[] }).docs.map((d) => d.title)).toEqual([
+    expect((acme.captured.body as { data: { title: string }[] }).data.map((d) => d.title)).toEqual([
       'Acme',
     ]);
 
     const globex = fakeContext({ slug: 'posts' }, {}, 'globex.example.com');
     await find?.handler(globex.ctx);
     expect(
-      (globex.captured.body as { docs: { title: string }[] }).docs.map((d) => d.title),
+      (globex.captured.body as { data: { title: string }[] }).data.map((d) => d.title),
     ).toEqual(['Globex']);
   });
 });

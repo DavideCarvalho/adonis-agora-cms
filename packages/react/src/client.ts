@@ -1,3 +1,4 @@
+import { flatObjectToQueryString, type OffsetPage } from '@adonis-agora/filter-client';
 import type {
   AdminDocument,
   AdminSchema,
@@ -92,8 +93,13 @@ export class AdminClient {
     return this.request<AdminDocument>('POST', `/collections/${slug}/${id}/unpublish`);
   }
 
-  async versions(slug: string, id: string): Promise<{ docs: VersionRecord[]; totalDocs: number }> {
-    return this.request('GET', `/collections/${slug}/${id}/versions`);
+  /** Newest first. */
+  async versions(
+    slug: string,
+    id: string,
+    query: { page?: number; size?: number } = {},
+  ): Promise<OffsetPage<VersionRecord>> {
+    return this.request('GET', `/collections/${slug}/${id}/versions${toSearchParams(query)}`);
   }
 
   async discardDraft(slug: string, id: string): Promise<AdminDocument> {
@@ -213,26 +219,23 @@ export class AdminClient {
 }
 
 function toSearchParams(query: ListQuery): string {
+  const parts: string[] = [];
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined) continue;
-    if (key === 'where') {
-      for (const [field, condition] of Object.entries(value as Record<string, unknown>)) {
-        if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
-          for (const [operator, operand] of Object.entries(condition as Record<string, unknown>)) {
-            params.set(`where[${field}][${operator}]`, String(operand));
-          }
-          continue;
-        }
-        params.set(`where[${field}][equals]`, String(condition));
-      }
+    if (key === 'filter') {
+      const filter = Object.entries(value as Record<string, unknown>).map(
+        ([field, condition]) => [`filter[${field}]`, condition] as const,
+      );
+      const encoded = flatObjectToQueryString(Object.fromEntries(filter));
+      if (encoded) parts.push(encoded);
       continue;
     }
-
     params.set(key, String(value));
   }
 
-  const search = params.toString();
-  return search ? `?${search}` : '';
+  const rest = params.toString();
+  if (rest) parts.push(rest);
+  return parts.length > 0 ? `?${parts.join('&')}` : '';
 }

@@ -95,7 +95,7 @@ describe('app tokens over REST', () => {
     expect(resolvedToken).toBe(readToken);
     expect(read.captured.status).toBe(200);
     expect(
-      (read.captured.body as { docs: { title: string }[] }).docs.map((doc) => doc.title),
+      (read.captured.body as { data: { title: string }[] }).data.map((doc) => doc.title),
     ).toEqual(['Acme post']);
 
     const write = ctxFor('POST', { slug: 'posts' }, readToken, { title: 'nope' });

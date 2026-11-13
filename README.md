@@ -110,7 +110,7 @@ DDL) and `manual` (you call the exported functions). Read
 ## Storage model
 
 Arrays, blocks, groups and `hasMany` are **relational**, not JSON — that is what makes
-`where[layout.type]=hero` and per-field access possible:
+`filter[layout.type]=hero` and per-field access possible:
 
 ```
 cms_posts

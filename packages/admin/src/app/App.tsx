@@ -482,12 +482,12 @@ function ListView({
     setPage(1);
   };
 
-  const where = useMemo(() => {
+  const filter = useMemo(() => {
     const clause: Record<string, unknown> = {};
     for (const [name, range] of Object.entries(dateRanges)) {
       const condition: Record<string, string> = {};
-      if (range.from) condition.greater_than_equal = range.from;
-      if (range.to) condition.less_than_equal = range.to;
+      if (range.from) condition.gte = range.from;
+      if (range.to) condition.lte = range.to;
       if (Object.keys(condition).length > 0) clause[name] = condition;
     }
     if (term && searchField) clause[searchField] = { iContains: term };
@@ -501,14 +501,14 @@ function ListView({
   const query = useMemo(
     () => ({
       page,
-      limit: 20,
+      size: 20,
       depth: 0,
       ...(canReadDrafts ? { draft: true } : {}),
       ...(sort ? { sort } : {}),
       ...(showDeleted ? { deleted: true } : {}),
-      ...(Object.keys(where).length > 0 ? { where } : {}),
+      ...(Object.keys(filter).length > 0 ? { filter } : {}),
     }),
-    [page, showDeleted, sort, where, canReadDrafts],
+    [page, showDeleted, sort, filter, canReadDrafts],
   );
   const documents = useDocuments(collection.slug, query);
   const { client } = useCms();
@@ -535,9 +535,9 @@ function ListView({
     try {
       const rows: AdminDocument[] = [];
       for (let next: number | null = 1; next !== null; ) {
-        const result = await client.list(collection.slug, { ...query, page: next, limit: 200 });
-        rows.push(...result.docs);
-        next = result.hasNextPage ? next + 1 : null;
+        const result = await client.list(collection.slug, { ...query, page: next, size: 200 });
+        rows.push(...result.data);
+        next = result.meta.currentPage < result.meta.lastPage ? next + 1 : null;
       }
       const url = URL.createObjectURL(
         new Blob([`\uFEFF${toCsv(['id', ...csvColumns], rows)}`], { type: 'text/csv' }),
@@ -579,8 +579,8 @@ function ListView({
     <>
       <DataTable
         collection={collection}
-        docs={documents.data?.docs ?? []}
-        total={documents.data?.totalDocs}
+        docs={documents.data?.data ?? []}
+        total={documents.data?.meta.total}
         permission={schema.permissions[collection.slug]}
         busy={remove.isPending || restore.isPending}
         loading={documents.isLoading}
@@ -778,21 +778,23 @@ function ListView({
         />
       ) : null}
 
-      {(documents.data?.totalPages ?? 1) > 1 ? (
+      {(documents.data?.meta.lastPage ?? 1) > 1 ? (
         <div className="pager">
           <Button
             size="sm"
-            disabled={!documents.data?.hasPrevPage}
+            disabled={(documents.data?.meta.currentPage ?? 1) <= 1}
             onClick={() => setPage((value) => Math.max(1, value - 1))}
           >
             {t.previous}
           </Button>
           <span className="num">
-            {documents.data?.page ?? 1} / {documents.data?.totalPages ?? 1}
+            {documents.data?.meta.currentPage ?? 1} / {documents.data?.meta.lastPage ?? 1}
           </span>
           <Button
             size="sm"
-            disabled={!documents.data?.hasNextPage}
+            disabled={
+              (documents.data?.meta.currentPage ?? 1) >= (documents.data?.meta.lastPage ?? 1)
+            }
             onClick={() => setPage((value) => value + 1)}
           >
             {t.next}
@@ -947,7 +949,7 @@ function RelationFilter({
   const options = useQuery({
     queryKey: ['cms', 'relation', target, ''],
     staleTime: 30_000,
-    queryFn: () => client.list(target, { limit: 100, depth: 0 }),
+    queryFn: () => client.list(target, { size: 100, depth: 0 }),
   });
 
   return (
@@ -960,7 +962,7 @@ function RelationFilter({
       <option value="">
         {fieldTitle(field)}: {t.all.toLowerCase()}
       </option>
-      {(options.data?.docs ?? []).map((doc) => (
+      {(options.data?.data ?? []).map((doc) => (
         <option key={String(doc.id)} value={String(doc.id)}>
           {String((title && doc[title]) ?? doc.id)}
         </option>

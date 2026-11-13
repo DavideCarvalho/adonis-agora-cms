@@ -84,8 +84,8 @@ const landing = {
   ],
 };
 
-const existing = await fetch(`${base}/api/cms/collections/pages?where[slug][equals]=landing`);
-const found = (await existing.json()).docs?.[0];
+const existing = await fetch(`${base}/api/cms/collections/pages?filter[slug]=landing`);
+const found = (await existing.json()).data?.[0];
 
 const response = await fetch(
   found ? `${base}/api/cms/collections/pages/${found.id}` : `${base}/api/cms/collections/pages`,

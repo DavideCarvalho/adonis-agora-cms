@@ -24,56 +24,91 @@ export default defineConfig({
 | `GET`    | `/api/cms/globals/:slug`         |
 | `PATCH`  | `/api/cms/globals/:slug`         |
 
-List responses use the payload-style envelope:
+Lists return the `@adonis-agora/filter` offset envelope:
 
 ```json
 {
-  "docs": [],
-  "totalDocs": 42,
-  "limit": 10,
-  "page": 2,
-  "totalPages": 5,
-  "hasNextPage": true,
-  "hasPrevPage": true
+  "data": [],
+  "meta": { "total": 42, "perPage": 10, "currentPage": 2, "lastPage": 5, "firstPage": 1 }
 }
 ```
 
 `POST` returns `201`, `DELETE` returns `204` with no body, everything else returns `200`.
 
-## Query string
+## Listing
 
-The wire format is the same one `@adonis-agora/filter` and `filter-client` produce, so the admin
-builds these strings with the client package and the API parses them here.
+The query string is the `@adonis-agora/filter` wire format, so `@adonis-agora/filter-client`
+builds it:
 
 ```
-?where[status][equals]=published
-?where[title][contains]=adonis
-?where[views][gte]=10&where[views][lt]=100
-?where[status][in]=draft,published
-?where[or][0][title][like]=cms&where[or][1][title][like]=adonis
-?where[layout.type][equals]=hero
+?filter[status]=published
+?filter[status]=draft,published
+?filter[status][]=draft&filter[status][]=published
+?filter[title][iContains]=adonis
+?filter[views][gte]=10&filter[views][lt]=100
+?filter[publishedAt][between][]=2026-01-01&filter[publishedAt][between][]=2026-12-31
+?filter[layout.type]=hero
+?filter[_status]=draft
 ?sort=-publishedAt,title
-?limit=10&page=2
+?page=2&size=10
 ?depth=0
 ?locale=pt-BR
-?draft=false
+?draft=true
+?deleted=true
 ?select=title,slug
 ```
 
-| Operator                                  | Aliases accepted         |
-| ----------------------------------------- | ------------------------ |
-| `equals` / `not_equals`                   | `notEquals`              |
-| `greater_than` / `greater_than_equal`     | `gt`, `gte`              |
-| `less_than` / `less_than_equal`           | `lt`, `lte`              |
-| `contains` / `not_contains` / `icontains` | `iContains`              |
-| `starts_with` / `ends_with`               | `startsWith`, `endsWith` |
-| `in` / `not_in`                           | `notIn`, `isAnyOf`       |
-| `like` / `not_like`                       | `notLike`                |
-| `is_null` / `is_not_null`                 | `isNull`, `isNotNull`    |
+```ts
+import { filterQuery } from '@adonis-agora/filter-client';
 
-Fields inside arrays and blocks use their logical path (`layout.type`, `tags.label`) and compile
-to `exists (...)` subqueries. Prototype-pollution keys (`__proto__`, `constructor`, …) are
-dropped before parsing.
+const qs = filterQuery()
+  .where('status', 'published')
+  .or((q) => q.where('title', 'iContains', 'cms').where('slug', 'startsWith', 'adonis'))
+  .sortDesc('publishedAt')
+  .page(2, 10)
+  .toQueryString();
+
+await fetch(`/api/cms/collections/posts?${qs}`);
+```
+
+| Param     | Meaning                                                                                                 |
+| --------- | ------------------------------------------------------------------------------------------------------- |
+| `filter`  | Any field of the collection, by its logical path, plus `id`, `createdAt`, `updatedAt` and `_status`     |
+| `sort`    | The collection's own scalar fields plus `id`, `createdAt`, `updatedAt`, `_status`; default `-createdAt` |
+| `page`    | 1-based, default `1`                                                                                    |
+| `size`    | Default `20`, at most `200`                                                                             |
+| `depth`   | How deep relations are populated                                                                        |
+| `locale`  | Content locale; without it, localized fields come back as a locale map                                  |
+| `draft`   | `true` includes drafts (signed-in users only)                                                           |
+| `deleted` | `true` includes soft-deleted documents                                                                  |
+| `select`  | Comma-separated fields to return                                                                        |
+
+Operators: `equals`, `notEquals`, `gt`, `gte`, `lt`, `lte`, `between`, `contains`, `notContains`,
+`iContains` (case- and accent-insensitive), `startsWith`, `endsWith`, `in`, `isAnyOf`, `notIn`,
+`isNull`, `isNotNull`, plus the `=`, `!=`, `<`, `<=`, `>`, `>=` shorthands. `_status` takes
+`equals` only.
+
+Fields inside arrays and blocks use their logical path (`layout.type`, `tags.label`). Password
+fields can be neither filtered nor sorted.
+
+An unknown filter field, an operator the field does not support, or a sort field outside the list
+above answers `400`:
+
+```json
+{ "error": { "code": "CMS_INVALID_QUERY", "message": "Unknown filter field: \"nope\"." } }
+```
+
+### Version history
+
+`GET /api/cms/collections/:slug/:id/versions` pages the same way, newest first:
+
+```
+?page=2&size=10
+?filter[locale]=en
+?sort=-version
+```
+
+`size` defaults to `20`, at most `100`. `-version` is the only order.
 
 ## Errors
 
@@ -89,6 +124,7 @@ dropped before parsing.
 
 | Code                                           | Status |
 | ---------------------------------------------- | ------ |
+| `CMS_INVALID_QUERY`                            | 400    |
 | `CMS_VALIDATION`                               | 422    |
 | `CMS_NOT_FOUND`                                | 404    |
 | `CMS_FORBIDDEN`                                | 403    |
@@ -127,8 +163,8 @@ import { handleCollectionFind } from '@adonis-agora/cms/rest';
 
 const response = await handleCollectionFind(cms, {
   params: { slug: 'posts' },
-  query: { limit: '10' },
+  query: { filter: { status: 'published' }, size: '10' },
   body: undefined,
 });
-// { status: 200, body: { docs, totalDocs, … } }
+// { status: 200, body: { data, meta: { total, perPage, currentPage, lastPage, firstPage } } }
 ```

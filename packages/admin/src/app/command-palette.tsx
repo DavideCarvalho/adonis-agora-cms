@@ -65,9 +65,9 @@ export function CommandPalette({
       const pages = await Promise.allSettled(
         searchable.map(({ collection, title }) =>
           client.list(collection.slug, {
-            limit: 5,
+            size: 5,
             depth: 0,
-            where: { [title]: { iContains: search } },
+            filter: { [title]: { iContains: search } },
             ...(collection.drafts && schema.user ? { draft: true } : {}),
           }),
         ),
@@ -75,7 +75,7 @@ export function CommandPalette({
       return pages.flatMap((page, index) => {
         const entry = searchable[index];
         if (page.status !== 'fulfilled' || !entry) return [];
-        return page.value.docs.map((doc: AdminDocument) => ({
+        return page.value.data.map((doc: AdminDocument) => ({
           key: `${entry.collection.slug}/${String(doc.id)}`,
           label: String(doc[entry.title] ?? doc.id),
           hint: entry.collection.labels?.singular ?? entry.collection.slug,
