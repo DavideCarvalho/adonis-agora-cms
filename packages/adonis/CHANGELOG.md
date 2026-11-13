@@ -1,5 +1,11 @@
 # @adonis-agora/cms
 
+## 0.5.0
+
+### Minor Changes
+
+- [#20](https://github.com/DavideCarvalho/adonis-agora-cms/pull/20) [`be6c30a`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/be6c30a204e8dee88721085113de9426efe0da6b) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Content from the terminal: `node ace cms:collections:*`, `cms:documents:*` (list, show, create, update, delete, restore, publish, unpublish, discard-draft, schedule, scheduled, unschedule), `cms:versions:*` (list, show, restore) and `cms:globals:*` (show, update). Each runs the REST handler on the CMS instance `scopeCmsRequest` picks, so access rules, hooks, validation, drafts and tenancy match REST and the `/mcp/agora` tools. Writes need an actor: `--token` (or `CMS_API_TOKEN`), a CMS API token with the `write` ability, or `--as-system`, which runs with no principal (access rules still apply; only the production sign-in guard is lifted). An unknown token is refused. `--json` everywhere; destructive commands ask unless `--force`. See `docs/cli.md`.
+
 ## 0.4.0
 
 ### Minor Changes
