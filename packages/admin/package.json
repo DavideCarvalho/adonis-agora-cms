@@ -1,6 +1,6 @@
 {
   "name": "@adonis-agora/cms-admin",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Admin SPA for @adonis-agora/cms — schema-driven list and edit views, TanStack Query, atomic UI. Ships embedded in a thin AdonisJS provider. Part of the Agora ecosystem.",
   "license": "MIT",
   "type": "module",
