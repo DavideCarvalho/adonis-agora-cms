@@ -82,7 +82,7 @@ export function CmsShell({
     name: schema.admin.title,
     subtitle: t.content,
     mark: logoUrl ? <img src={logoUrl} alt="" className="size-4 object-contain" /> : <CmsMark />,
-    current: { title: schema.admin.title, package: '@adonis-agora/cms', icon: 'generic' },
+    current: { title: schema.admin.title, package: '@adonis-agora/cms', icon: 'cms' },
   };
 
   const view = route.view === 'custom' ? VIEW_REGISTRY.get(route.slug) : undefined;

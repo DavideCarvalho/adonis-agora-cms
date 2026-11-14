@@ -175,7 +175,7 @@ describe('createCmsConsole', () => {
     const registry = container.values.get(AGORA_CONSOLES_BINDING) as AgoraConsoleRegistry;
     expect(
       registry.entries.map((entry) => [entry.id, entry.icon, entry.path, entry.title]),
-    ).toEqual([['cms', 'generic', '/admin', 'Blog']]);
+    ).toEqual([['cms', 'cms', '/admin', 'Blog']]);
     registry.account = { signOut: '/account/logout' };
 
     expect(await console.shellFields(ctxFor({ csrfToken: 'tok' }).ctx)).toEqual({

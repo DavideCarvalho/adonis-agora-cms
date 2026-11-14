@@ -27,8 +27,7 @@ export interface AgoraConsoleRegistry {
 }
 
 /**
- * The icon a console shows in the switcher. An unknown value renders as `generic`. The shared list
- * has no `cms` key, so the CMS registers with `generic`.
+ * The icon a console shows in the switcher. An unknown value renders as `generic`.
  */
 export type AgoraConsoleIcon =
   | 'workflow'
@@ -38,6 +37,7 @@ export type AgoraConsoleIcon =
   | 'agent'
   | 'identity'
   | 'flags'
+  | 'cms'
   | 'generic';
 
 /** One hit of a console's global search. */
@@ -104,6 +104,7 @@ const ICONS = new Set<AgoraConsoleIcon>([
   'agent',
   'identity',
   'flags',
+  'cms',
   'generic',
 ]);
 /** How long another console's `authorize` (or `search`) may take before it is left out. */
