@@ -240,7 +240,7 @@ export function createCmsConsole(options: {
         id: CMS_CONSOLE_ID,
         title: config.admin?.title ?? 'CMS',
         package: '@adonis-agora/cms',
-        icon: 'generic',
+        icon: 'cms',
         path: adminPath,
         order: 70,
         authorize,
