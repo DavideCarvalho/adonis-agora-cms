@@ -1,0 +1,21 @@
+{
+  "title": "CMS",
+  "description": "A config-first CMS for AdonisJS: collections, globals, drafts, i18n and an admin panel.",
+  "icon": "Newspaper",
+  "root": true,
+  "pages": [
+    "index",
+    "using",
+    "fields",
+    "access",
+    "local-api",
+    "rest",
+    "versions",
+    "i18n",
+    "schema",
+    "admin",
+    "cli",
+    "mcp",
+    "deploy"
+  ]
+}

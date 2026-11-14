@@ -1,11 +1,15 @@
-# Going to production
+---
+title: Going to production
+description: The login, the schema and what to do on each deploy, with several instances or when removing a field.
+icon: Rocket
+---
 
 ## Before the first deploy
 
 1. **A login.** Pick one with `integrations.auth`: `auth.adonis({ guard: 'web' })`, `auth.authkit()`, or
    `auth.builtin({ secret })` with `usersPlugin()` for an app that has none. Without it the panel opens for
-   anyone and can read, and every write answers 401. See [the integrations](./using.md#integrations).
-2. **Access rules.** Reads are public until you set `read`. See [access control](./access.md).
+   anyone and can read, and every write answers 401. See [the integrations](/docs/using#integrations).
+2. **Access rules.** Reads are public until you set `read`. See [access control](/docs/access).
 3. **Files.** `uploads: { handler: uploads.drive() }` with a real disk. Local disks do not survive a redeploy
    on most hosts.
 
@@ -20,7 +24,7 @@ node ace cms:sync   # add --force only after reading what cms:diff says it would
 ```
 
 `cms:diff` works as a CI gate. To own the DDL through Lucid instead, set `db: { schema: 'migrations' }` and run
-`node ace cms:generate`, which writes a migration. See [the schema workflow](./schema.md).
+`node ace cms:generate`, which writes a migration. See [the schema workflow](/docs/schema).
 
 ## Several instances
 
@@ -32,4 +36,4 @@ use `CmsRunDueSchedules` with `@adonis-agora/durable`.
 
 In development the app keeps running and warns you, since applying it would delete data. Removing a field
 drops its column when you run `node ace cms:sync --force`. To keep the data under a new name, declare it in
-`db.renames` first. See [the schema workflow](./schema.md).
+`db.renames` first. See [the schema workflow](/docs/schema).

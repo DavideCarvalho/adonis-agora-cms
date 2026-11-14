@@ -1,4 +1,8 @@
-# REST
+---
+title: REST
+description: The HTTP API the provider mounts: routes, listing filters, errors, auth and tenancy per request.
+icon: Globe
+---
 
 The provider mounts the surface automatically. Nothing to declare in `start/routes.ts`.
 
@@ -150,7 +154,7 @@ In `row` tenancy the tenant comes from `tenancy.resolve` (default: leftmost subd
 `database` tenancy the instance resolves the connection per tenant. With no tenancy configured,
 the tenant stays `null` and nothing changes.
 
-Access and hooks run exactly as in the [Local API](./local-api.md) — the route is a translation
+Access and hooks run exactly as in the [Local API](/docs/local-api) — the route is a translation
 layer, not a second implementation.
 
 ## Using the handlers directly

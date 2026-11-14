@@ -1,4 +1,8 @@
-# Local API
+---
+title: Local API
+description: Read and write content from your own code, with access, hooks and tenancy applied.
+icon: Code
+---
 
 The server-side entry point. No HTTP: access, hooks and tenancy run exactly as they will over
 REST, so a script, a queue job or a server component gets the same rules.
@@ -27,6 +31,7 @@ const cms = createCms({
 });
 ```
 
+```ts
 const posts = cms.collection('posts');
 
 const post = await posts.create({ title: 'Hello', body: doc, tags: [{ label: 'adonis' }] });
@@ -40,7 +45,7 @@ depth: 1,
 
 await posts.update(post.id, { title: 'Hello again' });
 await posts.delete(post.id);
-````
+```
 
 Document types come from the config, so `post.title` is `string` and `post.status` is
 `'draft' | 'published'` without a cast.
@@ -50,7 +55,7 @@ Document types come from the config, so `post.title` is `string` and `post.statu
 ```ts
 cms.forTenant('acme'); // shares the schema and connection; scopes every query
 cms.as(user); // same, with a different request user
-````
+```
 
 Both are cheap: nothing is recompiled or reconnected.
 

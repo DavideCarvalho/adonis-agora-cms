@@ -1,4 +1,8 @@
-# Versions and drafts
+---
+title: Versions and drafts
+description: Drafts, version history, autosave, document locks, diffs and scheduled publishing.
+icon: History
+---
 
 Every save writes a version row. That is what makes drafts, publish, restore and the history
 panel possible — and it is why a document and its history are always written in the same
@@ -108,7 +112,7 @@ Paths point inside arrays, so a change inside a block is reported at its own pat
 | `DELETE` | `/api/cms/collections/:slug/:id/lock`                      |
 
 The history list takes `page`, `size` (default `20`, at most `100`) and `filter[locale]`, and
-answers `{ data, meta }` — see [REST](./rest.md#version-history).
+answers `{ data, meta }` — see [REST](/docs/rest#version-history).
 
 `?draft=true` on a read requires an authenticated request.
 
