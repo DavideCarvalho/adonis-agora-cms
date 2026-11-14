@@ -1,109 +1,37 @@
-@import "tailwindcss";
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   CMS-only styles: the editor organisms of @adonis-agora/cms-react (forms, structured fields, rich
+   text, uploads, versions, the list table, the visual editor). They keep their BEM class names
+   (cms-react is a public library) and are drawn here on the Agora kit tokens (`--agora-*`), so they
+   follow the console's accent and both themes. The shell itself (sidebar, topbar, ⌘K, footer) is
+   the kit's — nothing here styles it.
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
 
-/*
-  The atoms and organisms live in @adonis-agora/cms-react, which Tailwind's automatic source
-  detection skips because it sits behind a workspace symlink in node_modules. Without this the
-  utilities those components use (`grid`, `rounded-lg`, …) are never generated and the structured
-  field builders render unstyled.
-*/
-@source "../../../react/src";
-
-/*
-  Aviary tokens — the shared console design system (see the media and telescope dashboards).
-  Everything above the "per console" line is identical across every Agora console and must not be
-  tuned here. Only `--accent` differs: violet for the CMS.
-*/
+/* cms-react's checkbox atom still names the pre-kit variables in its Tailwind classes. */
 :root {
-  --bg: #09090b;
-  --panel: #0c0c0f;
-  --panel-2: #101017;
-  --line: #1c1c22;
-  --line-soft: #16161a;
-  --text: #e7e7ea;
-  --muted: #76767f;
-  --text-2: #a8a8b0;
-  --line-strong: #2a2a31;
-  --shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-
-  --good: #34d399;
-  --warn: #fbbf24;
-  --bad: #f87171;
-  --live: #60a5fa;
-
-  /* Per console. */
-  --accent: #c084fc;
-  --on-accent: #1a0a2b;
-
-  color-scheme: dark;
+  --line-strong: var(--agora-line-strong);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--agora-accent);
 }
 
-/* Console light theme, same token names (Telescope ships the same block). */
-.light {
-  --bg: #ffffff;
-  --panel: #fafafa;
-  --panel-2: #f4f4f5;
-  --line: #e4e4e7;
-  --line-soft: #efeff1;
-  --text: #18181b;
-  --muted: #71717a;
-  --text-2: #52525b;
-  --line-strong: #d4d4d8;
-  --shadow: 0 16px 40px rgba(24, 24, 27, 0.14);
-  --good: #047857;
-  --warn: #b45309;
-  --bad: #dc2626;
-  --live: #1d4ed8;
-  --accent: #7e22ce;
-  --on-accent: #ffffff;
-  color-scheme: light;
+/* A CMS view inside the kit's content column. */
+.page {
+  width: 100%;
+  max-width: 1160px;
+  padding: 20px 16px 64px;
 }
-
-* {
-  box-sizing: border-box;
+@media (min-width: 768px) {
+  .page {
+    padding: 24px 24px 64px;
+  }
 }
-html,
-body,
-#root {
+.page:has(.visual) {
   height: 100%;
 }
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
-
-::selection {
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
-}
-
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-  border-radius: 6px;
-}
-
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
-}
-
-h1,
-h2,
-h3 {
-  margin: 0;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-  text-wrap: balance;
-}
-
-a {
-  color: inherit;
-  text-underline-offset: 3px;
+/* The visual editor needs the width: on desktop the console sidebar steps aside while it is open. */
+[data-slot="sidebar-wrapper"]:has(.visual) > [data-slot="sidebar"] {
+  display: none;
 }
 
 /* Mono is for data the editor reads as data: slugs, counts, versions. Never for labels. */
@@ -112,97 +40,9 @@ a {
 .version__meta,
 .row-head__index,
 .palette__grip {
-  font-family: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
-
-/* ---------------------------------------------------------------- shell */
-
-.shell {
-  display: grid;
-  grid-template-columns: 224px minmax(0, 1fr);
-  min-height: 100vh;
-}
-/* The visual editor needs the width: the page being edited replaces the navigation. */
-.shell:has(.visual) {
-  grid-template-columns: minmax(0, 1fr);
-}
-.shell:has(.visual) .sidebar {
-  display: none;
-}
-
-.sidebar {
-  background: var(--panel);
-  border-right: 1px solid var(--line);
-  padding: 16px 10px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-}
-
-.brand {
-  padding: 0 10px;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.nav {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.nav__label {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-2);
-  padding: 0 10px 6px;
-}
-.nav__label--spaced {
-  margin-top: 18px;
-}
-
-.nav-item {
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--text-2);
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background 120ms ease,
-    color 120ms ease;
-}
-.nav-item:hover {
-  background: var(--panel-2);
-  color: var(--text);
-}
-.nav-item--active,
-.nav-item--active:hover {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--text);
-  font-weight: 500;
-}
-
-.sidebar__foot {
-  margin-top: auto;
-  display: flex;
-  justify-content: space-between;
-}
-
-.page {
-  min-width: 0;
-  padding: 28px 32px 64px;
-  max-width: 1160px;
-  width: 100%;
-}
-
 .page-enter {
   animation: lift 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
@@ -212,15 +52,6 @@ a {
     transform: translateY(4px);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 1ms !important;
-    transition-duration: 1ms !important;
-  }
-}
-
 .page-head {
   display: flex;
   align-items: flex-end;
@@ -230,24 +61,17 @@ a {
   margin-bottom: 20px;
 }
 .page-title {
-  font-size: 22px;
-  line-height: 1.25;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.3;
 }
 .page-sub {
   margin: 2px 0 0;
-  color: var(--text-2);
+  color: var(--agora-text-2);
   font-size: 13px;
 }
-
-.boot {
-  height: 3px;
-  margin: 28px 32px;
-  border-radius: 2px;
-  background: var(--panel-2);
-}
-
 /* ------------------------------------------------------------- controls */
-
 .btn {
   display: inline-flex;
   align-items: center;
@@ -255,12 +79,12 @@ a {
   gap: 6px;
   height: 32px;
   padding: 0 12px;
-  border-radius: 7px;
-  border: 1px solid var(--line-strong);
-  background: var(--panel-2);
-  color: var(--text);
+  border-radius: 6px;
+  border: 1px solid var(--agora-line);
+  background: var(--agora-panel-2);
+  color: var(--agora-muted);
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
   text-decoration: none;
@@ -271,8 +95,8 @@ a {
     color 120ms ease;
 }
 .btn svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   flex: none;
 }
 .btn:disabled {
@@ -284,64 +108,66 @@ a {
 }
 
 .btn--neutral:hover:not(:disabled) {
-  border-color: var(--muted);
+  border-color: var(--agora-line-strong);
+  background: var(--agora-panel-3);
+  color: var(--agora-text);
 }
 
 /* The one solid fill on any screen: the action the editor came for. */
 .btn--accent {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
+  background: var(--agora-accent);
+  border-color: transparent;
+  color: var(--agora-accent-contrast);
   font-weight: 600;
 }
 .btn--accent:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 86%, var(--text));
+  background: var(--agora-accent-hover);
 }
 
 .btn--destructive {
-  background: var(--bad);
-  border-color: var(--bad);
-  color: var(--bg);
+  background: color-mix(in oklab, var(--agora-bad) 14%, transparent);
+  border-color: color-mix(in oklab, var(--agora-bad) 30%, transparent);
+  color: var(--agora-bad);
   font-weight: 600;
 }
 .btn--destructive:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--bad) 86%, var(--text));
+  background: color-mix(in oklab, var(--agora-bad) 24%, transparent);
 }
 
 .btn--ghost,
 .btn--quiet {
   background: transparent;
   border-color: transparent;
-  color: var(--text-2);
+  color: var(--agora-muted);
 }
 .btn--ghost:hover:not(:disabled),
 .btn--quiet:hover:not(:disabled) {
-  background: var(--panel-2);
-  color: var(--text);
+  background: var(--agora-hover);
+  color: var(--agora-text);
 }
 .btn--danger-hover:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--bad) 14%, transparent);
-  color: var(--bad);
+  background: color-mix(in oklab, var(--agora-bad) 14%, transparent);
+  color: var(--agora-bad);
 }
 
 .btn--selected {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-color: transparent;
-  color: var(--text);
+  background: var(--agora-accent-soft);
+  border-color: var(--agora-accent-border);
+  color: var(--agora-text);
 }
 
 .btn--xs {
-  height: 26px;
+  height: 24px;
   padding: 0 7px;
-  font-size: 12px;
+  font-size: 11px;
 }
 .btn--sm {
-  height: 30px;
+  height: 28px;
   padding: 0 10px;
 }
 .btn--md {
-  height: 34px;
-  padding: 0 13px;
+  height: 32px;
+  padding: 0 12px;
 }
 
 .toolbar {
@@ -350,7 +176,6 @@ a {
   gap: 8px;
   flex-wrap: wrap;
 }
-
 .segmented {
   display: inline-flex;
   margin: 0;
@@ -359,17 +184,16 @@ a {
   gap: 2px;
   padding: 2px;
   border-radius: 8px;
-  background: var(--panel-2);
+  background: var(--agora-panel-2);
 }
 .segmented .btn {
   border-radius: 6px;
 }
-
 .check {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-2);
+  color: var(--agora-text-2);
   font-size: 13px;
   cursor: pointer;
 }
@@ -377,14 +201,13 @@ a {
 .table input[type="checkbox"] {
   width: 15px;
   height: 15px;
-  accent-color: var(--accent);
+  accent-color: var(--agora-accent);
 }
 .check--field {
   min-height: 36px;
-  color: var(--text);
+  color: var(--agora-text);
   font-size: 14px;
 }
-
 .search {
   position: relative;
   width: 240px;
@@ -395,14 +218,13 @@ a {
   top: 10px;
   width: 15px;
   height: 15px;
-  color: var(--muted);
+  color: var(--agora-muted);
   pointer-events: none;
 }
 .search .input {
   height: 34px;
   padding-left: 32px;
 }
-
 .bulk {
   display: flex;
   align-items: center;
@@ -410,20 +232,18 @@ a {
   margin-bottom: 10px;
   padding: 6px 8px 6px 14px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in oklab, var(--agora-accent) 12%, transparent);
   font-size: 13px;
 }
 .bulk > span {
   margin-right: auto;
 }
-
 /* ---------------------------------------------------------------- table */
-
 .table-wrap {
-  border: 1px solid var(--line);
+  border: 1px solid var(--agora-line);
   border-radius: 10px;
   overflow-x: auto;
-  background: var(--panel);
+  background: var(--agora-panel);
 }
 .table {
   width: 100%;
@@ -434,9 +254,9 @@ a {
   text-align: left;
   font-size: 12.5px;
   font-weight: 500;
-  color: var(--text-2);
+  color: var(--agora-text-2);
   padding: 9px 14px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--agora-line);
   white-space: nowrap;
 }
 .th-sort {
@@ -451,7 +271,7 @@ a {
   cursor: pointer;
 }
 .th-sort:hover {
-  color: var(--text);
+  color: var(--agora-text);
 }
 .th-sort svg {
   width: 13px;
@@ -460,8 +280,8 @@ a {
 .table td {
   height: 46px;
   padding: 6px 14px;
-  border-bottom: 1px solid var(--line-soft);
-  color: var(--text-2);
+  border-bottom: 1px solid var(--agora-line-soft);
+  color: var(--agora-text-2);
 }
 .table tbody tr:last-child td {
   border-bottom: 0;
@@ -470,7 +290,7 @@ a {
   cursor: pointer;
 }
 .table__row--link:hover td {
-  background: var(--panel-2);
+  background: var(--agora-panel-2);
 }
 .table th.table__pick,
 .table td.table__pick {
@@ -479,7 +299,7 @@ a {
 }
 .table__pick + td,
 .table td:first-child:not(.table__pick) {
-  color: var(--text);
+  color: var(--agora-text);
   font-weight: 500;
 }
 .table__date {
@@ -502,13 +322,12 @@ tr:hover .table__actions,
     opacity: 1;
   }
 }
-
 .bone {
   display: block;
   height: 12px;
   width: 60%;
   border-radius: 4px;
-  background: var(--panel-2);
+  background: var(--agora-panel-2);
   animation: pulse 1.2s ease-in-out infinite alternate;
 }
 @keyframes pulse {
@@ -516,7 +335,6 @@ tr:hover .table__actions,
     opacity: 0.5;
   }
 }
-
 .empty {
   display: flex;
   flex-direction: column;
@@ -524,14 +342,13 @@ tr:hover .table__actions,
   gap: 8px;
   padding: 56px 16px;
   text-align: center;
-  color: var(--text-2);
+  color: var(--agora-text-2);
 }
 .empty strong {
-  color: var(--text);
+  color: var(--agora-text);
   font-size: 15px;
   font-weight: 600;
 }
-
 .badge {
   display: inline-flex;
   align-items: center;
@@ -542,24 +359,24 @@ tr:hover .table__actions,
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
-  background: var(--panel-2);
-  color: var(--text-2);
+  background: var(--agora-panel-2);
+  color: var(--agora-text-2);
 }
 .badge--ok {
-  background: color-mix(in srgb, var(--good) 14%, transparent);
-  color: var(--good);
+  background: color-mix(in oklab, var(--agora-good) 14%, transparent);
+  color: var(--agora-good);
 }
 .badge--warn {
-  background: color-mix(in srgb, var(--warn) 14%, transparent);
-  color: var(--warn);
+  background: color-mix(in oklab, var(--agora-warn) 14%, transparent);
+  color: var(--agora-warn);
 }
 .badge--bad {
-  background: color-mix(in srgb, var(--bad) 14%, transparent);
-  color: var(--bad);
+  background: color-mix(in oklab, var(--agora-bad) 14%, transparent);
+  color: var(--agora-bad);
 }
 .badge--live {
-  background: color-mix(in srgb, var(--live) 14%, transparent);
-  color: var(--live);
+  background: color-mix(in oklab, var(--agora-live) 14%, transparent);
+  color: var(--agora-live);
 }
 .badge::before {
   content: "";
@@ -568,7 +385,6 @@ tr:hover .table__actions,
   border-radius: 50%;
   background: currentColor;
 }
-
 .pager {
   display: flex;
   align-items: center;
@@ -576,11 +392,9 @@ tr:hover .table__actions,
   gap: 12px;
   margin-top: 14px;
   font-size: 13px;
-  color: var(--text-2);
+  color: var(--agora-text-2);
 }
-
 /* ----------------------------------------------------------------- form */
-
 .form {
   display: flex;
   flex-direction: column;
@@ -595,10 +409,11 @@ tr:hover .table__actions,
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px 16px;
-  margin: -28px -32px 0;
-  padding: 12px 32px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
+  margin: -24px -24px 0;
+  padding: 12px 24px;
+  background: var(--agora-topbar);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--agora-line);
 }
 .form-head__left {
   display: flex;
@@ -623,7 +438,7 @@ tr:hover .table__actions,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-2);
+  color: var(--agora-text-2);
   font-size: 13px;
   white-space: nowrap;
 }
@@ -632,7 +447,7 @@ tr:hover .table__actions,
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--warn);
+  background: var(--agora-warn);
 }
 .form-body {
   display: grid;
@@ -640,21 +455,19 @@ tr:hover .table__actions,
   gap: 18px 20px;
   max-width: 860px;
 }
-
 .field--flash {
   animation: field-flash 1.4s ease-out;
 }
 @keyframes field-flash {
   0%,
   35% {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--agora-accent) 55%, transparent);
     border-radius: 8px;
   }
   100% {
     box-shadow: 0 0 0 3px transparent;
   }
 }
-
 .field {
   display: flex;
   flex-direction: column;
@@ -672,28 +485,26 @@ tr:hover .table__actions,
     grid-column: span 12;
   }
 }
-
 .label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text);
+  color: var(--agora-text);
 }
 .label span {
-  color: var(--bad);
+  color: var(--agora-bad);
 }
-
 .input,
 .select,
 .textarea {
   width: 100%;
   min-height: 36px;
-  background: var(--panel);
-  border: 1px solid var(--line-strong);
+  background: var(--agora-panel);
+  border: 1px solid var(--agora-line-strong);
   border-radius: 7px;
   padding: 7px 10px;
   font: inherit;
-  color: var(--text);
-  caret-color: var(--accent);
+  color: var(--agora-text);
+  caret-color: var(--agora-accent-ink);
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease;
@@ -705,25 +516,25 @@ tr:hover .table__actions,
 }
 .input::placeholder,
 .textarea::placeholder {
-  color: var(--muted);
+  color: var(--agora-muted);
 }
 .input:hover:not(:disabled),
 .select:hover:not(:disabled),
 .textarea:hover:not(:disabled) {
-  border-color: var(--muted);
+  border-color: var(--agora-muted);
 }
 .input:focus,
 .select:focus,
 .textarea:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--agora-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--agora-accent) 22%, transparent);
 }
 .input:disabled,
 .select:disabled,
 .textarea:disabled {
-  background: var(--panel-2);
-  color: var(--text-2);
+  background: var(--agora-panel-2);
+  color: var(--agora-text-2);
   cursor: not-allowed;
 }
 .select--inline {
@@ -734,7 +545,7 @@ tr:hover .table__actions,
 .field--invalid > .input,
 .field--invalid > .select,
 .field--invalid > .textarea {
-  border-color: var(--bad);
+  border-color: var(--agora-bad);
 }
 .textarea {
   min-height: 96px;
@@ -746,47 +557,45 @@ tr:hover .table__actions,
   font-size: 12.5px;
   tab-size: 2;
 }
-
 .hint,
 .error {
   margin: 0;
   font-size: 12.5px;
 }
 .hint {
-  color: var(--text-2);
+  color: var(--agora-text-2);
 }
 .error {
-  color: var(--bad);
+  color: var(--agora-bad);
 }
-
-.group {
+/* cms-react's fieldset/details groups; never Tailwind's `group` marker on the kit's own markup. */
+:is(fieldset, details).group {
   grid-column: span 12;
   margin: 0;
-  border: 1px solid var(--line);
+  border: 1px solid var(--agora-line);
   border-radius: 10px;
   padding: 14px;
 }
-.group legend {
+:is(fieldset, details).group legend {
   padding: 0 6px;
   font-size: 13px;
   font-weight: 600;
 }
-
 .rich-text {
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--agora-line-strong);
   border-radius: 7px;
-  background: var(--panel);
+  background: var(--agora-panel);
 }
 .rich-text:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--agora-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--agora-accent) 22%, transparent);
 }
 .rich-text__tools {
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
   padding: 4px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--agora-line);
 }
 .rich-text__body {
   min-height: 140px;
@@ -825,10 +634,9 @@ tr:hover .table__actions,
 .rich-text__body blockquote {
   margin: 0 0 0.7em;
   padding-left: 12px;
-  border-left: 1px solid var(--muted);
-  color: var(--text-2);
+  border-left: 1px solid var(--agora-muted);
+  color: var(--agora-text-2);
 }
-
 /* Array and blocks rows: a card per row, a drag handle in the header, fields beneath. */
 .field-rows {
   display: flex;
@@ -836,15 +644,15 @@ tr:hover .table__actions,
   gap: 8px;
 }
 .row-card {
-  border: 1px solid var(--line);
+  border: 1px solid var(--agora-line);
   border-radius: 9px;
-  background: var(--panel);
+  background: var(--agora-panel);
 }
 .row-card--dragging {
   position: relative;
   z-index: 5;
   opacity: 0.85;
-  box-shadow: var(--shadow);
+  box-shadow: var(--agora-shadow);
 }
 .row-head {
   display: flex;
@@ -861,7 +669,7 @@ tr:hover .table__actions,
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: var(--text-2);
+  color: var(--agora-text-2);
   cursor: pointer;
 }
 .row-toggle svg,
@@ -871,20 +679,20 @@ tr:hover .table__actions,
 }
 .row-toggle:hover,
 .drag-handle:hover {
-  color: var(--text);
-  background: var(--panel-2);
+  color: var(--agora-text);
+  background: var(--agora-panel-2);
 }
 .row-head__summary {
   overflow: hidden;
   margin-left: 4px;
-  color: var(--text-2);
+  color: var(--agora-text-2);
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .row-head__index {
   font-size: 12px;
-  color: var(--text-2);
+  color: var(--agora-text-2);
 }
 .row-head__spacer {
   flex: 1;
@@ -906,7 +714,7 @@ tr:hover .table__actions,
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: var(--muted);
+  color: var(--agora-muted);
   cursor: grab;
   touch-action: none;
 }
@@ -915,12 +723,12 @@ tr:hover .table__actions,
 }
 .row-body {
   padding: 8px 12px 14px;
-  border-top: 1px solid var(--line-soft);
+  border-top: 1px solid var(--agora-line-soft);
 }
 .row-body__empty {
   margin: 0;
   font-size: 13px;
-  color: var(--text-2);
+  color: var(--agora-text-2);
 }
 .row-fields {
   display: grid;
@@ -934,7 +742,6 @@ tr:hover .table__actions,
 .row-fields > .field:has(.textarea, .rich-text, .upload-drop, .upload-card) {
   grid-column: 1 / -1;
 }
-
 .upload-drop {
   width: 100%;
   font-family: inherit;
@@ -945,10 +752,10 @@ tr:hover .table__actions,
   gap: 2px;
   min-height: 96px;
   padding: 14px;
-  border: 1px dashed var(--line-strong);
+  border: 1px dashed var(--agora-line-strong);
   border-radius: 9px;
-  background: var(--panel);
-  color: var(--text-2);
+  background: var(--agora-panel);
+  color: var(--agora-text-2);
   font-size: 13px;
   text-align: center;
   cursor: pointer;
@@ -957,13 +764,13 @@ tr:hover .table__actions,
     background 120ms ease;
 }
 .upload-drop strong {
-  color: var(--text);
+  color: var(--agora-text);
   font-weight: 500;
 }
 .upload-drop:hover,
 .upload-drop--over {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  border-color: var(--agora-accent);
+  background: color-mix(in oklab, var(--agora-accent) 7%, var(--agora-panel));
 }
 .upload-drop--off {
   cursor: not-allowed;
@@ -975,9 +782,9 @@ tr:hover .table__actions,
   align-items: center;
   gap: 10px;
   padding: 8px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--agora-line-strong);
   border-radius: 9px;
-  background: var(--panel);
+  background: var(--agora-panel);
 }
 .upload-card__thumb {
   position: relative;
@@ -987,7 +794,7 @@ tr:hover .table__actions,
   height: 42px;
   overflow: hidden;
   border-radius: 5px;
-  background: var(--panel-2);
+  background: var(--agora-panel-2);
 }
 .upload-card__thumb img {
   width: 100%;
@@ -997,8 +804,8 @@ tr:hover .table__actions,
 .upload-card__ext {
   position: absolute;
   inset: auto 0 0 0;
-  background: color-mix(in srgb, var(--bg) 75%, transparent);
-  color: var(--text-2);
+  background: color-mix(in oklab, var(--agora-bg) 75%, transparent);
+  color: var(--agora-text-2);
   font-size: 9px;
   text-align: center;
 }
@@ -1016,26 +823,24 @@ tr:hover .table__actions,
   white-space: nowrap;
 }
 .upload-card__meta span {
-  color: var(--text-2);
+  color: var(--agora-text-2);
   font-size: 12px;
 }
 .upload-card__actions {
   display: flex;
   gap: 4px;
 }
-
 .field-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 4px;
 }
-
 .alert {
   border-radius: 9px;
   padding: 10px 14px;
-  background: color-mix(in srgb, var(--bad) 12%, transparent);
-  color: var(--text);
+  background: color-mix(in oklab, var(--agora-bad) 12%, transparent);
+  color: var(--agora-text);
   font-size: 13px;
 }
 .alert p {
@@ -1058,17 +863,15 @@ tr:hover .table__actions,
   text-underline-offset: 3px;
   cursor: pointer;
 }
-
 /* --------------------------------------------------------------- panels */
-
 .panel {
   position: fixed;
   inset: 0 0 0 auto;
   width: 380px;
   max-width: 100%;
-  background: var(--panel);
-  border-left: 1px solid var(--line);
-  box-shadow: var(--shadow);
+  background: var(--agora-panel);
+  border-left: 1px solid var(--agora-line);
+  box-shadow: var(--agora-shadow);
   display: flex;
   flex-direction: column;
   z-index: 30;
@@ -1088,7 +891,7 @@ tr:hover .table__actions,
   align-items: center;
   justify-content: space-between;
   padding: 10px 12px 10px 16px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--agora-line);
 }
 .panel__head h2 {
   font-size: 15px;
@@ -1110,9 +913,8 @@ tr:hover .table__actions,
   background: #fff;
   transition: width 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
-
 .version {
-  border: 1px solid var(--line);
+  border: 1px solid var(--agora-line);
   border-radius: 9px;
   padding: 10px 12px;
   display: flex;
@@ -1128,44 +930,20 @@ tr:hover .table__actions,
 }
 .version__meta {
   font-size: 12px;
-  color: var(--text-2);
+  color: var(--agora-text-2);
 }
 .skeleton {
-  color: var(--text-2);
+  color: var(--agora-text-2);
 }
-
-.signin {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-}
-.signin__card {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  width: 100%;
-  max-width: 380px;
-}
-.signin__card p {
-  margin: 0;
-  color: var(--text-2);
-}
-
-.signin__submit {
-  margin-top: 4px;
-}
-
 .confirm {
   width: min(420px, calc(100vw - 32px));
   margin: auto;
   padding: 20px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--agora-line);
   border-radius: 12px;
-  background: var(--panel);
-  color: var(--text);
-  box-shadow: var(--shadow);
+  background: var(--agora-panel);
+  color: var(--agora-text);
+  box-shadow: var(--agora-shadow);
 }
 .confirm::backdrop {
   background: rgba(0, 0, 0, 0.5);
@@ -1175,7 +953,7 @@ tr:hover .table__actions,
 }
 .confirm__body {
   margin: 6px 0 0;
-  color: var(--text-2);
+  color: var(--agora-text-2);
 }
 .confirm__actions {
   display: flex;
@@ -1183,38 +961,10 @@ tr:hover .table__actions,
   gap: 8px;
   margin-top: 18px;
 }
-
-.toasts {
-  position: fixed;
-  left: 50%;
-  bottom: 20px;
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-.toast {
-  padding: 8px 14px;
-  border-radius: 8px;
-  background: var(--text);
-  color: var(--bg);
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: var(--shadow);
-  animation: lift 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-.toast--bad {
-  background: var(--bad);
-}
-
 /* The edit header needs the room: only the fields themselves keep a reading width. */
 .page:has(.form) {
   max-width: none;
 }
-
 /* Visual editor: the page is the canvas, what is on it and its fields are the sidebars. */
 .page:has(.visual) {
   max-width: none;
@@ -1222,7 +972,7 @@ tr:hover .table__actions,
 }
 .form:has(.visual) {
   gap: 0;
-  height: 100vh;
+  height: 100%;
 }
 .form:has(.visual) .form-head {
   position: static;
@@ -1241,14 +991,14 @@ tr:hover .table__actions,
 .visual__palette,
 .visual__inspector {
   padding: 14px 12px;
-  background: var(--panel);
+  background: var(--agora-panel);
   overflow-y: auto;
 }
 .visual__palette {
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--agora-line);
 }
 .visual__inspector {
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--agora-line);
 }
 .visual__title {
   margin: 0 0 8px;
@@ -1260,7 +1010,7 @@ tr:hover .table__actions,
 }
 .visual__hint {
   margin: 0 0 10px;
-  color: var(--text-2);
+  color: var(--agora-text-2);
   font-size: 12.5px;
 }
 .block-outline {
@@ -1272,12 +1022,12 @@ tr:hover .table__actions,
   display: flex;
   align-items: center;
   border-radius: 6px;
-  background: var(--panel);
+  background: var(--agora-panel);
 }
 .block-outline-row--dragging {
   position: relative;
   z-index: 5;
-  box-shadow: var(--shadow);
+  box-shadow: var(--agora-shadow);
 }
 .palette {
   display: grid;
@@ -1293,18 +1043,18 @@ tr:hover .table__actions,
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--text);
+  color: var(--agora-text);
   font: inherit;
   font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
 .palette__item:hover {
-  background: var(--panel-2);
+  background: var(--agora-panel-2);
 }
 .palette__item--add {
   cursor: grab;
-  background: var(--panel-2);
+  background: var(--agora-panel-2);
   overflow: hidden;
   white-space: nowrap;
 }
@@ -1312,10 +1062,10 @@ tr:hover .table__actions,
   width: 13px;
   height: 13px;
   flex: none;
-  color: var(--text-2);
+  color: var(--agora-text-2);
 }
 .palette__item--add:hover {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in oklab, var(--agora-accent) 14%, transparent);
 }
 .palette__item--row {
   flex: 1;
@@ -1326,17 +1076,17 @@ tr:hover .table__actions,
 .palette__item--row small {
   flex-basis: 100%;
   overflow: hidden;
-  color: var(--text-2);
+  color: var(--agora-text-2);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .palette__item--active,
 .palette__item--active:hover {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  background: color-mix(in oklab, var(--agora-accent) 16%, transparent);
 }
 .palette__grip {
-  color: var(--text-2);
+  color: var(--agora-text-2);
   font-size: 11.5px;
 }
 .visual__stage {
@@ -1344,7 +1094,7 @@ tr:hover .table__actions,
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: var(--bg);
+  background: var(--agora-bg);
 }
 .stage-bar {
   display: flex;
@@ -1352,7 +1102,7 @@ tr:hover .table__actions,
   justify-content: space-between;
   gap: 8px;
   padding: 6px 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--agora-line);
 }
 .panel--inline {
   position: static;
@@ -1387,7 +1137,6 @@ tr:hover .table__actions,
   font-size: 15px;
   font-weight: 600;
 }
-
 /* Floating menu inside the preview ("+" insert, right-click on a block). */
 .preview-menu {
   position: fixed;
@@ -1398,42 +1147,41 @@ tr:hover .table__actions,
   max-height: 60vh;
   overflow-y: auto;
   padding: 4px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--agora-line-strong);
   border-radius: 9px;
-  background: var(--panel-2);
-  box-shadow: var(--shadow);
+  background: var(--agora-panel-2);
+  box-shadow: var(--agora-shadow);
 }
 .preview-menu button {
   padding: 6px 10px;
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--text);
+  color: var(--agora-text);
   font: inherit;
   font-size: 13px;
   text-align: left;
   cursor: pointer;
 }
 .preview-menu button:hover {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: color-mix(in oklab, var(--agora-accent) 14%, transparent);
 }
 .preview-menu button.preview-menu__danger {
-  color: var(--bad);
+  color: var(--agora-bad);
 }
 .preview-menu button.preview-menu__danger:hover {
-  background: color-mix(in srgb, var(--bad) 14%, transparent);
+  background: color-mix(in oklab, var(--agora-bad) 14%, transparent);
 }
 .preview-menu__empty {
   padding: 8px 10px;
-  color: var(--text-2);
+  color: var(--agora-text-2);
 }
-
 /* Tabs, collapsibles and the column menu. */
 .tabs__list {
   display: flex;
   gap: 2px;
   margin-bottom: 14px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--agora-line);
   overflow-x: auto;
 }
 .tabs__tab {
@@ -1441,18 +1189,18 @@ tr:hover .table__actions,
   border: 0;
   border-bottom: 2px solid transparent;
   background: none;
-  color: var(--text-2);
+  color: var(--agora-text-2);
   font: inherit;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
 }
 .tabs__tab:hover {
-  color: var(--text);
+  color: var(--agora-text);
 }
 .tabs__tab--active {
-  border-bottom-color: var(--accent);
-  color: var(--text);
+  border-bottom-color: var(--agora-accent);
+  color: var(--agora-text);
 }
 .tabs__panel {
   display: flex;
@@ -1489,15 +1237,15 @@ tr:hover .table__actions,
   max-height: 320px;
   overflow-y: auto;
   padding: 10px 12px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--agora-line-strong);
   border-radius: 9px;
-  background: var(--panel-2);
-  box-shadow: var(--shadow);
+  background: var(--agora-panel-2);
+  box-shadow: var(--agora-shadow);
 }
 .notice {
   border-radius: 9px;
   padding: 10px 14px;
-  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  background: color-mix(in oklab, var(--agora-warn) 12%, transparent);
   font-size: 13px;
 }
 .version__actions {
@@ -1511,7 +1259,7 @@ tr:hover .table__actions,
   gap: 10px;
   margin: 4px 0 0;
   padding-top: 10px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--agora-line);
   font-size: 13px;
 }
 .diff dt {
@@ -1531,84 +1279,10 @@ tr:hover .table__actions,
   text-decoration: none;
 }
 .diff del {
-  background: color-mix(in srgb, var(--bad) 13%, transparent);
+  background: color-mix(in oklab, var(--agora-bad) 13%, transparent);
 }
 .diff ins {
-  background: color-mix(in srgb, var(--good) 13%, transparent);
-}
-
-.palette-dialog {
-  width: min(560px, calc(100vw - 32px));
-  margin: 14vh auto 0;
-  padding: 0;
-  border: 1px solid var(--line-strong);
-  border-radius: 12px;
-  background: var(--panel);
-  color: var(--text);
-  box-shadow: var(--shadow);
-}
-.palette-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.5);
-}
-.palette-dialog__input {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--line);
-}
-.palette-dialog__input svg {
-  width: 16px;
-  height: 16px;
-  color: var(--text-2);
-}
-.palette-dialog__input input {
-  flex: 1;
-  border: 0;
-  outline: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-size: 15px;
-}
-.palette-dialog__list {
-  max-height: 340px;
-  overflow-y: auto;
-  padding: 6px;
-}
-.palette-dialog__list .hint {
-  padding: 8px;
-}
-.palette-dialog__item {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  padding: 7px 10px;
-  border: 0;
-  border-radius: 7px;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.palette-dialog__item small {
-  color: var(--text-2);
-  font-size: 12px;
-}
-.palette-dialog__item--active {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.brand__logo {
-  height: 22px;
-  width: auto;
+  background: color-mix(in oklab, var(--agora-good) 13%, transparent);
 }
 .rich-text__link {
   display: flex;
@@ -1616,14 +1290,14 @@ tr:hover .table__actions,
   align-items: center;
   gap: 6px;
   padding: 6px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--agora-line);
 }
 .rich-text__body img {
   max-width: 100%;
   border-radius: 6px;
 }
 .rich-text__body a {
-  color: var(--accent);
+  color: var(--agora-accent-ink);
   text-decoration: underline;
 }
 .library {
@@ -1631,11 +1305,11 @@ tr:hover .table__actions,
   margin: auto;
   max-height: 80vh;
   padding: 16px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--agora-line-strong);
   border-radius: 12px;
-  background: var(--panel);
-  color: var(--text);
-  box-shadow: var(--shadow);
+  background: var(--agora-panel);
+  color: var(--agora-text);
+  box-shadow: var(--agora-shadow);
 }
 .library::backdrop {
   background: rgba(0, 0, 0, 0.5);
@@ -1669,7 +1343,7 @@ tr:hover .table__actions,
   cursor: pointer;
 }
 .library__item:hover {
-  background: var(--panel-2);
+  background: var(--agora-panel-2);
 }
 .library__thumb {
   display: grid;
@@ -1677,8 +1351,8 @@ tr:hover .table__actions,
   aspect-ratio: 4 / 3;
   overflow: hidden;
   border-radius: 6px;
-  background: var(--panel-2);
-  color: var(--text-2);
+  background: var(--agora-panel-2);
+  color: var(--agora-text-2);
 }
 .library__thumb img {
   width: 100%;
@@ -1692,7 +1366,6 @@ tr:hover .table__actions,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .focal {
   display: grid;
   justify-items: start;
@@ -1745,56 +1418,6 @@ tr:hover .table__actions,
 .bulk-edit .confirm__actions {
   margin-top: 6px;
 }
-
-.dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-.dashboard__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 16px;
-  align-items: start;
-}
-.dashboard__card {
-  padding: 14px 8px 8px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel);
-}
-.dashboard__card h2 {
-  margin: 0 8px 8px;
-  font-size: 14px;
-}
-.dashboard__row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  width: 100%;
-  padding: 7px 8px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.dashboard__row:hover {
-  background: var(--panel-2);
-}
-.dashboard__row small {
-  color: var(--text-2);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.dashboard__title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .relation-many {
   display: flex;
   flex-direction: column;
@@ -1802,15 +1425,15 @@ tr:hover .table__actions,
   max-height: 180px;
   overflow-y: auto;
   padding: 8px 10px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--agora-line-strong);
   border-radius: 7px;
 }
 .rich-block {
   margin: 10px 0;
   padding: 10px 12px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--agora-line-strong);
   border-radius: 8px;
-  background: var(--panel-2);
+  background: var(--agora-panel-2);
 }
 .rich-block__head {
   display: flex;
@@ -1822,9 +1445,7 @@ tr:hover .table__actions,
   display: flex;
   gap: 6px;
 }
-
 /* ----------------------------------------------------------- small screens */
-
 @media (max-width: 1100px) {
   .visual {
     grid-template-columns: minmax(0, 1fr) 320px;
@@ -1833,44 +1454,13 @@ tr:hover .table__actions,
     display: none;
   }
 }
-@media (max-width: 820px) {
-  .shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .sidebar {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 12px;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    overflow-x: auto;
-  }
-  .brand {
-    padding: 0;
-    white-space: nowrap;
-  }
-  .nav {
-    flex-direction: row;
-  }
-  .nav__label {
-    display: none;
-  }
-  .nav-item {
-    white-space: nowrap;
-  }
-  .sidebar__foot {
-    margin: 0 0 0 auto;
-  }
-  .page {
-    padding: 20px 16px 48px;
-  }
+@media (max-width: 767px) {
   .form-head {
     margin: -20px -16px 0;
     padding: 10px 16px;
   }
+}
+@media (max-width: 820px) {
   .search {
     width: 100%;
   }
@@ -1885,6 +1475,6 @@ tr:hover .table__actions,
   }
   .visual__inspector {
     border-left: 0;
-    border-top: 1px solid var(--line);
+    border-top: 1px solid var(--agora-line);
   }
 }

@@ -114,7 +114,10 @@ test('anonymous cannot read a version snapshot', async ({ request }) => {
 
 test('globals open and save', async ({ page, request }) => {
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Site settings' }).click();
+  await page
+    .getByRole('navigation', { name: 'Console' })
+    .getByRole('link', { name: 'Site settings' })
+    .click();
   const name = unique('Site');
   await page.getByRole('textbox', { name: /^site name/i }).fill(name);
   await page.getByRole('button', { name: 'Save' }).click();
@@ -134,16 +137,17 @@ test('ctrl+k jumps to a document, and the list filters and picks columns', async
   const { id } = (await created.json()) as { id: string };
 
   await page.goto('/admin');
-  await expect(page.locator('.brand')).toBeVisible();
-  // The palette mounts once the schema has loaded, which can be after the brand shows.
-  const palette = page.getByRole('textbox', { name: /search documents/i });
+  await expect(page.getByRole('navigation', { name: 'Console' })).toBeVisible();
+  // ⌘K mounts with the console shell, once the schema has loaded. Documents come from the
+  // server's console search.
+  const palette = page.locator('[data-slot="command-input"]');
   await expect(async () => {
     await page.keyboard.press('Control+k');
     await expect(palette).toBeVisible({ timeout: 500 });
   }).toPass();
   await palette.fill(title);
   await page
-    .locator('.palette-dialog__item')
+    .locator('[data-slot="command-item"]')
     .filter({ hasText: title })
     .filter({ hasText: 'Note' })
     .click();
@@ -226,7 +230,7 @@ test('csv imports into the collection, plugins add fields and collections', asyn
 
   await page.goto('/admin');
   await expect(
-    page.getByRole('navigation').getByRole('button', { name: 'Redirects' }),
+    page.getByRole('navigation', { name: 'Console' }).getByRole('link', { name: 'Redirects' }),
   ).toBeVisible();
   const created = await request.post('/api/cms/collections/notes', {
     data: { title: unique('Seo'), seo: { metaTitle: 'Meta' } },
@@ -371,7 +375,10 @@ test('the panel opens on a dashboard, with what an extension adds', async ({ pag
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
   await expect(page.getByText('Hello from a widget')).toBeVisible();
-  await page.getByRole('button', { name: 'Reports' }).click();
+  await page
+    .getByRole('navigation', { name: 'Console' })
+    .getByRole('link', { name: 'Reports' })
+    .click();
   await expect(page.getByRole('heading', { name: 'Custom report' })).toBeVisible();
 });
 

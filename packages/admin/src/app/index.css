@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+/* The Agora console kit: tokens (dark + light), shadcn variable mapping, Tailwind theme. */
+@import "../agora-kit/tokens.css";
+/* The editor organisms of @adonis-agora/cms-react, drawn on the kit tokens. */
+@import "./cms.css";
+
+/* Tailwind 4 scans the package directory by default; pin the sources explicitly. */
+@source "../../index.html";
+@source "./";
+@source "../agora-kit";
+/*
+  The atoms and organisms live in @adonis-agora/cms-react, which Tailwind's automatic source
+  detection skips because it sits behind a workspace symlink in node_modules. Without this the
+  utilities those components use (`grid`, `rounded-lg`, …) are never generated and the structured
+  field builders render unstyled.
+*/
+@source "../../../react/src";

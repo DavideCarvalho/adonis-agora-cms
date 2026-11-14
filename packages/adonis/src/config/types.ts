@@ -1,3 +1,4 @@
+import type { SignOutOption, ViewerHook } from '../console/shell.js';
 import type { CmsAuthAdapter } from '../integrations/authkit.js';
 import type { CmsAdapter } from '../integrations/container.js';
 import type { CmsEvent } from '../integrations/durable.js';
@@ -427,8 +428,23 @@ export type AdminConfig = {
    * editor's session.
    */
   extensions?: readonly string[];
-  /** White label: a valid CSS color for `--accent`, and an image for the sidebar. */
+  /**
+   * White label: a valid CSS color that replaces the console accent (orange by default), and an
+   * image that replaces the CMS mark in the sidebar.
+   */
   theme?: { accent?: string; logoUrl?: string };
+  /**
+   * Who the sidebar footer shows as signed in. Default: the principal the REST API sees (the auth
+   * adapter's user or `ctx.auth.user`), labelled by `fullName` / `name` / `email`. A throw or an
+   * empty answer shows no user row.
+   */
+  viewer?: ViewerHook;
+  /**
+   * How the sidebar footer signs out: a POST action path, `{ action }`, `{ href }`, or `false` for
+   * none. Default: the CMS's own logout with `auth.builtin`, else the sign-out an account console
+   * (authkit) announces on the `agora.consoles` registry. Same-origin paths only.
+   */
+  signOut?: SignOutOption;
   livePreview?: {
     /** Site URL the iframe loads, e.g. `/preview`. */
     url?: string;
