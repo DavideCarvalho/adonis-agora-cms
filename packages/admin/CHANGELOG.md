@@ -1,5 +1,16 @@
 # @adonis-agora/cms-admin
 
+## 0.5.0
+
+### Minor Changes
+
+- [#22](https://github.com/DavideCarvalho/adonis-agora-cms/pull/22) [`6b09718`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/6b0971811bd541a2c87836532070b5b673754af0) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - The CMS registers in the `agora.consoles` registry with its own `cms` icon (was `generic`), and the `agora.consoles` registry accepts the `flags` and `cms` icon keys, so those consoles show their own tile instead of `generic`. The admin: the console switcher shows the CMS console with its own orange tile and glyph, and the kit gains a 16px `DocumentIcon`; the collapsible nav section toggle has a test pinning its focus ring (Agora console kit round 3).
+
+### Patch Changes
+
+- Updated dependencies [[`6b09718`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/6b0971811bd541a2c87836532070b5b673754af0)]:
+  - @adonis-agora/cms@0.7.0
+
 ## 0.4.0
 
 ### Minor Changes
