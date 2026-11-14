@@ -11,6 +11,11 @@
     "verbatimModuleSyntax": false,
     "types": ["vite/client"]
   },
-  "include": ["src/app/**/*.ts", "src/app/**/*.tsx"],
-  "exclude": ["dist/**", "node_modules"]
+  "include": [
+    "src/app/**/*.ts",
+    "src/app/**/*.tsx",
+    "src/agora-kit/**/*.ts",
+    "src/agora-kit/**/*.tsx"
+  ],
+  "exclude": ["**/*.spec.ts", "**/*.spec.tsx", "dist/**", "node_modules"]
 }

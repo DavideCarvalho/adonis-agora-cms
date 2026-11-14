@@ -234,6 +234,13 @@ type AuthContext = {
   };
 };
 
+/** A browser form submission (`application/x-www-form-urlencoded` or multipart), not a fetch. */
+function isFormPost(ctx: AuthContext): boolean {
+  const type =
+    ctx.request.header?.('content-type') ?? ctx.request.headers?.()['content-type'] ?? '';
+  return /^(application\/x-www-form-urlencoded|multipart\/form-data)/i.test(type);
+}
+
 const failure = (ctx: AuthContext, status: number, code: string, message: string) =>
   ctx.response.status(status).json({ error: { code, message } });
 
@@ -332,6 +339,12 @@ export function registerAuthRoutes(
   router.post(`${options.prefix}/auth/logout`, async (context) => {
     const ctx = context as AuthContext;
     ctx.response.header('Set-Cookie', `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+    // The console's sidebar signs out with a plain form POST: send the browser back to the panel,
+    // which then shows the login screen. The panel's own fetch still gets JSON.
+    if (isFormPost(ctx)) {
+      ctx.response.header('Location', options.adminPath);
+      return ctx.response.status(303).json({ ok: true });
+    }
     return ctx.response.status(200).json({ ok: true });
   });
 

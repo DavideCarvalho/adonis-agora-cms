@@ -17,7 +17,10 @@ test('upload field takes a dropped file and stores the asset', async ({ page, re
   const id = ((await created.json()) as { id: string }).id;
 
   await page.goto('/admin');
-  await page.getByRole('navigation').getByRole('button', { name: 'Posts' }).click();
+  await page
+    .getByRole('navigation', { name: 'Console' })
+    .getByRole('link', { name: 'Posts' })
+    .click();
   await page
     .getByRole('row')
     .filter({ hasText: title })

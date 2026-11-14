@@ -25,6 +25,28 @@ export {
   resolveTenancy,
 } from './config/types.js';
 export { assertValidConfig, validateConfig } from './config/validate.js';
+export {
+  CMS_CONSOLE_BINDING,
+  CMS_CONSOLE_ID,
+  type CmsConsole,
+  type CmsShellFields,
+  createCmsConsole,
+} from './console/cms_console.js';
+export type {
+  AgoraConsoleEntry,
+  AgoraConsoleIcon,
+  AgoraConsoleRegistry,
+  AgoraConsoleSearchHit,
+} from './console/registry.js';
+export {
+  AGORA_CONSOLES_BINDING,
+  listVisibleConsoles,
+  readAgoraConsoles,
+  registerAgoraConsole,
+  searchConsoles,
+} from './console/registry.js';
+export type { ConsoleSignOut, ConsoleViewer, SignOutOption, ViewerHook } from './console/shell.js';
+export { resolveSignOut, resolveViewer, viewerFromUser } from './console/shell.js';
 export { createCmsTables, diffSchema, dropCmsTables, syncCmsSchema } from './db/index.js';
 export type * from './db/types.js';
 export type { CmsDevToolsOptions } from './dev_tools/tools.js';

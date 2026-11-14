@@ -1,13 +1,65 @@
-import { Button, CmsApiError, Field, Input, useCms, useMessages } from '@adonis-agora/cms-react';
+import { CmsApiError, useCms, useMessages } from '@adonis-agora/cms-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { AlertIcon } from '../agora-kit/icons';
+import { Button } from '../agora-kit/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../agora-kit/ui/card';
+import { Input } from '../agora-kit/ui/input';
+import { Skeleton } from '../agora-kit/ui/skeleton';
+import { CmsMark } from './icons.js';
 
 type Mode = 'login' | 'first' | 'forgot' | 'reset';
 
 const resetTokenOf = (hash: string) => /^#\/reset\/(.+)$/.exec(hash)?.[1];
 
+/** A centered card on the console background: login, sign-in link, boot error. */
+export function CenteredCard({
+  title,
+  description,
+  logoUrl,
+  children,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  logoUrl?: string | undefined;
+  children?: ReactNode;
+}) {
+  return (
+    <main className="relative grid min-h-svh place-items-center px-4 py-10">
+      <div className="agora-glow" aria-hidden />
+      <Card className="agora-surface relative z-[1] w-full max-w-[380px]">
+        <CardHeader className="gap-3">
+          <div className="grid size-[34px] place-items-center rounded-md border border-brand-border bg-brand-soft text-brand [&_svg]:size-[18px]">
+            {logoUrl ? (
+              <img src={logoUrl} alt="" className="size-[18px] object-contain" />
+            ) : (
+              <CmsMark />
+            )}
+          </div>
+          <CardTitle>
+            <h1 className="text-lg font-semibold text-fg">{title}</h1>
+          </CardTitle>
+          {description ? <CardDescription>{description}</CardDescription> : null}
+        </CardHeader>
+        {children ? <CardContent className="flex flex-col gap-3.5">{children}</CardContent> : null}
+      </Card>
+    </main>
+  );
+}
+
+function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-[12px] font-medium text-dim">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
 /** The login screen for `auth.builtin`. An app with its own login never reaches it. */
-export function LoginScreen({ title }: { title: string }) {
+export function LoginScreen({ title, logoUrl }: { title: string; logoUrl?: string | undefined }) {
   const t = useMessages();
   const { client } = useCms();
   const queryClient = useQueryClient();
@@ -30,7 +82,7 @@ export function LoginScreen({ title }: { title: string }) {
 
   const firstInput = useRef<HTMLInputElement>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: focus follows the visible form
-  useEffect(() => firstInput.current?.focus(), [mode]);
+  useEffect(() => firstInput.current?.focus(), [mode, status.isPending]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -56,20 +108,45 @@ export function LoginScreen({ title }: { title: string }) {
     }
   };
 
+  if (status.isPending && !token) {
+    return (
+      <CenteredCard title={title} logoUrl={logoUrl}>
+        <div className="flex flex-col gap-3.5" aria-busy="true">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+      </CenteredCard>
+    );
+  }
+
   return (
-    <div className="signin">
-      <form className="signin__card" onSubmit={(event) => void submit(event)}>
-        <h1 className="page-title">{heading}</h1>
-        {mode === 'first' ? <p>{t.firstUserBody}</p> : null}
+    <CenteredCard
+      title={heading}
+      logoUrl={logoUrl}
+      description={mode === 'first' ? t.firstUserBody : undefined}
+    >
+      <form className="flex flex-col gap-3.5" onSubmit={(event) => void submit(event)}>
         {error ? (
-          <p className="error" role="alert">
+          <p
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-bad/30 bg-bad/10 px-3 py-2 text-[12.5px] text-bad [&_svg]:mt-px [&_svg]:size-3.5 [&_svg]:shrink-0"
+          >
+            <AlertIcon />
             {error}
           </p>
         ) : null}
-        {notice ? <p role="status">{notice}</p> : null}
+        {notice ? (
+          <p
+            role="status"
+            className="rounded-md border border-good/30 bg-good/10 px-3 py-2 text-[12.5px] text-good"
+          >
+            {notice}
+          </p>
+        ) : null}
 
         {mode !== 'reset' ? (
-          <Field label={t.email} htmlFor="cms-email">
+          <Field id="cms-email" label={t.email}>
             <Input
               ref={firstInput}
               id="cms-email"
@@ -81,13 +158,14 @@ export function LoginScreen({ title }: { title: string }) {
           </Field>
         ) : null}
         {mode === 'first' ? (
-          <Field label={t.name} htmlFor="cms-name">
+          <Field id="cms-name" label={t.name}>
             <Input id="cms-name" name="name" autoComplete="name" />
           </Field>
         ) : null}
         {mode !== 'forgot' ? (
-          <Field label={mode === 'reset' ? t.newPassword : t.password} htmlFor="cms-password">
+          <Field id="cms-password" label={mode === 'reset' ? t.newPassword : t.password}>
             <Input
+              ref={mode === 'reset' ? firstInput : undefined}
               id="cms-password"
               name="password"
               type="password"
@@ -98,7 +176,7 @@ export function LoginScreen({ title }: { title: string }) {
           </Field>
         ) : null}
 
-        <Button tone="accent" size="md" type="submit" disabled={busy} className="signin__submit">
+        <Button type="submit" disabled={busy} className="mt-1 w-full">
           {mode === 'first'
             ? t.createAccount
             : mode === 'forgot'
@@ -109,16 +187,41 @@ export function LoginScreen({ title }: { title: string }) {
         </Button>
 
         {mode === 'login' && status.data?.canReset ? (
-          <Button tone="ghost" size="sm" onClick={() => setPicked('forgot')}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setPicked('forgot')}>
             {t.forgotPassword}
           </Button>
         ) : null}
         {mode === 'forgot' ? (
-          <Button tone="ghost" size="sm" onClick={() => setPicked('login')}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setPicked('login')}>
             {t.backToLogin}
           </Button>
         ) : null}
       </form>
-    </div>
+    </CenteredCard>
+  );
+}
+
+/** Shown when the API answers 401: the host app owns the login, the panel only links to it. */
+export function SignInRequired({ logoUrl }: { logoUrl?: string | undefined }) {
+  const t = useMessages();
+  const loginUrl = import.meta.env.VITE_CMS_LOGIN_URL ?? '/login';
+  return (
+    <CenteredCard title={t.signInTitle} description={t.signInBody} logoUrl={logoUrl}>
+      <Button className="w-full" nativeButton={false} render={<a href={loginUrl} />}>
+        {t.signIn}
+      </Button>
+    </CenteredCard>
+  );
+}
+
+/** The schema could not be loaded at all: say why, offer a retry. */
+export function PanelError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const t = useMessages();
+  return (
+    <CenteredCard title={t.loadFailed} description={message}>
+      <Button variant="outline" className="w-full" onClick={onRetry}>
+        {t.retry}
+      </Button>
+    </CenteredCard>
   );
 }

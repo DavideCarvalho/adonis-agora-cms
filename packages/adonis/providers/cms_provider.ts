@@ -6,6 +6,7 @@ import { type BuiltinAuth, registerAuthRoutes } from '../src/auth/builtin.js';
 import type { CmsConfig, CmsUploadHandler, UploadsConfig } from '../src/config/types.js';
 import { resolveDbConfig, resolveTenancy } from '../src/config/types.js';
 import { validateConfig } from '../src/config/validate.js';
+import { CMS_CONSOLE_BINDING, createCmsConsole } from '../src/console/cms_console.js';
 import { detectEngine, readSchemaState, syncCmsSchema } from '../src/db/sync.js';
 import type { CmsKnex } from '../src/db/types.js';
 import { registerCmsDevTools } from '../src/dev_tools/tools.js';
@@ -129,6 +130,18 @@ export default class CmsProvider {
     if (config.rest?.enabled !== false) {
       await this.registerRoutes(config, cms);
       await this.registerDevTools(config, cms);
+      // The admin as an Agora console (switcher, ⌘K, viewer, sign-out). `@adonis-agora/cms-admin`
+      // registers it in `'agora.consoles'` when it mounts the panel; without the panel it stays idle.
+      const cmsConsole = createCmsConsole({
+        cms,
+        request: this.requestOptions(config, cms),
+        inProduction: this.app.inProduction,
+      });
+      (
+        this.app.container as unknown as {
+          singleton(name: string, factory: () => unknown): void;
+        }
+      ).singleton(CMS_CONSOLE_BINDING, () => cmsConsole);
       const auth = config.integrations?.auth as BuiltinAuth | undefined;
       if (auth?.builtin) {
         registerAuthRoutes(
