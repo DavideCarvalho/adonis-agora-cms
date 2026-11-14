@@ -78,17 +78,22 @@ start as drafts. A published document has one row: saving it changes what is liv
 The panel is an Agora console and looks like the other ones (durable, telescope, flags…). Its
 sidebar comes from your config:
 
-| Section   | What is in it                                                               |
-| --------- | --------------------------------------------------------------------------- |
-| Content   | the dashboard, then every collection without an `admin.group`               |
-| _a group_ | one section per `admin.group`, in the order the groups first appear         |
-| Globals   | every global                                                                |
-| Media     | the collections that `upload` fields point at (and one called `media`)      |
-| Settings  | the users collection (the `auth.builtin` collection, else `users`)          |
-| Views     | the views your extensions register                                          |
+| Section   | What is in it                                                          |
+| --------- | ---------------------------------------------------------------------- |
+| Content   | the dashboard, then every collection without an `admin.group`          |
+| _a group_ | one section per `admin.group`, in the order the groups first appear    |
+| Globals   | every global                                                           |
+| Media     | the collections that `upload` fields point at (and one called `media`) |
+| Settings  | the users collection (the `auth.builtin` collection, else `users`)     |
+| Views     | the views your extensions register                                     |
 
 ```ts
-collection('menus', { admin: { group: 'Navigation' }, fields: [/* … */] })
+collection('menus', {
+  admin: { group: 'Navigation' },
+  fields: [
+    /* … */
+  ],
+});
 ```
 
 ## White label
