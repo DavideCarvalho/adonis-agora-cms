@@ -1,4 +1,8 @@
-# MCP: the CMS for AI clients
+---
+title: MCP
+description: The CMS tools on the agora MCP endpoint /mcp/agora: who gets in, the tools, write actions, and upgrading from @adonis-agora/cms-mcp.
+icon: Bot
+---
 
 With `@adonis-agora/agent/mcp_provider` in `adonisrc.ts`, the CMS adds its tools to the agora MCP
 endpoint, `/mcp/agora`. There is nothing to configure on the CMS side.
@@ -11,8 +15,9 @@ Cursor, Claude Desktop and any other MCP client take the same URL.
 
 ## Who gets in
 
-The CMS has no console of its own, so `devTools.authorize` in `config/mcp.ts` decides who reaches its
-tools. Left out, they are open outside production and refused in production.
+The CMS [admin console](/docs/admin) is a client of the REST API and has no `authorize` of its own, so
+`devTools.authorize` in `config/mcp.ts` decides who reaches the CMS tools. Left out, they are open
+outside production and refused in production.
 
 ```ts
 // config/mcp.ts
@@ -77,4 +82,40 @@ devTools: {
 }
 ```
 
+Or give the CMS, or one of its tools, its own `authorize`. A tool name wins over the lib id:
+
+```ts
+// config/mcp.ts
+devTools: {
+  actions: {
+    cms: (ctx) => ctx.auth.user?.isEditor === true,
+    cms_delete_document: (ctx) => ctx.auth.user?.isAdmin === true,
+  },
+}
+```
+
+See [Dev tools over MCP](/docs/agent/dev-tools#actions) for every form `actions` takes.
+
 To leave the CMS out of `/mcp/agora`, use `devTools: { exclude: ['cms'] }`.
+
+## Upgrading: remove `@adonis-agora/cms-mcp`
+
+The standalone `@adonis-agora/cms-mcp` package and its `cms:mcp` stdio command are gone. The tools
+are on `/mcp/agora` instead.
+
+1. Uninstall the package:
+
+   ```sh
+   pnpm remove @adonis-agora/cms-mcp
+   ```
+
+2. Remove every `cms:mcp` use: `.mcp.json` entries that run `node ace cms:mcp`, scripts and docs.
+3. Install the agora endpoint if the app does not have it (`@adonis-agora/agent/mcp_provider` in
+   `adonisrc.ts`) and point your MCP clients at it:
+
+   ```sh
+   claude mcp add --transport http agora http://localhost:3333/mcp/agora
+   ```
+
+4. Write tools are hidden by default. Turn them on with `devTools.actions` in `config/mcp.ts`,
+   `['cms']` or a map, as in [Tools](#tools).

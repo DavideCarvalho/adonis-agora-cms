@@ -1,0 +1,47 @@
+---
+title: Introduction
+description: A config-first CMS for AdonisJS — collections, globals, drafts, i18n and an admin panel on the Agora console kit, all derived from your config.
+icon: Newspaper
+---
+
+`@adonis-agora/cms` is a config-first CMS for AdonisJS. You declare collections and globals in
+`config/cms.ts`; the tables, the admin panel, the REST API, the MCP tools and the TypeScript types
+all follow from it.
+
+## Quick start
+
+In an AdonisJS 7 app with Lucid (`node ace add @adonisjs/lucid` if you don't have it):
+
+```bash
+node ace add @adonis-agora/cms
+node ace add @adonis-agora/cms-admin
+node ace serve --hmr
+```
+
+Open `http://localhost:3333/admin`. You have a `posts` collection to play with, and its tables were
+created at boot. Read it from your code:
+
+```ts title="app/controllers/posts_controller.ts"
+import type { HttpContext } from '@adonisjs/core/http'
+import cms from '#services/cms'
+
+export default class PostsController {
+  async show({ params }: HttpContext) {
+    const { docs } = await cms.collection('posts').find({ where: { slug: { equals: params.slug } } })
+    return docs[0]
+  }
+}
+```
+
+**Before production:** in development anyone can write, so a new app works before it has a login.
+In production, an anonymous write to a collection with no `access` rule gets a 401. Pick a login
+with [`integrations.auth`](/docs/using#integrations) and run `node ace cms:sync` when you deploy.
+
+## Where to go next
+
+- [Using the CMS](/docs/using): from the first collection to rendering pages and plugins.
+- [Fields](/docs/fields): every field type and its options.
+- [Access control](/docs/access): who can read and write what.
+- [Local API](/docs/local-api) and [REST](/docs/rest): reading and writing content.
+- [Versions and drafts](/docs/versions): drafts, history and scheduled publishing.
+- [Going to production](/docs/deploy): the login, the schema and each deploy.

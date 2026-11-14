@@ -1,4 +1,8 @@
-# CLI: content from the terminal
+---
+title: CLI
+description: Every content operation as a node ace command: collections, documents, versions and globals.
+icon: SquareTerminal
+---
 
 Every content operation the admin, the REST API and the MCP tools offer is also a `node ace`
 command. A command runs the same REST handler, on the CMS instance a REST call would get, so
@@ -66,7 +70,7 @@ A refusal prints the REST answer on one line, such as `403 CMS_FORBIDDEN: token 
 
 | Command                                               | What it does                                                                                                                                                              |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cms:documents:list <collection>`                     | `--filter <json\|@file>` (`{"title":{"contains":"news"}}`, operators as in [REST](./rest.md)), `--sort -createdAt`, `--page`, `--size`, `--deleted`, plus the read flags. |
+| `cms:documents:list <collection>`                     | `--filter <json\|@file>` (`{"title":{"contains":"news"}}`, operators as in [REST](/docs/rest)), `--sort -createdAt`, `--page`, `--size`, `--deleted`, plus the read flags. |
 | `cms:documents:show <collection> <id>`                | One document. Read flags: `--locale`, `--draft`, `--depth`, `--select` (repeat).                                                                                          |
 | `cms:documents:create <collection> --data …`          | `--draft` creates it unpublished.                                                                                                                                         |
 | `cms:documents:update <collection> <id> --data …`     | Unlisted fields are kept. `--draft` keeps the edit as a pending draft.                                                                                                    |

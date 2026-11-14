@@ -1,4 +1,8 @@
-# Fields
+---
+title: Fields
+description: Every field type and its options: localized fields, relations, blocks, validation, conditional fields and custom field types.
+icon: TextCursorInput
+---
 
 Every field builder is a plain-data identity function. The `const` type parameters keep names,
 types and option values literal, which is what makes `CmsDocument` inference work without
@@ -147,7 +151,7 @@ fields.text('code', {
 It runs on non-empty values, and `data` holds the sibling fields. On an update it runs on the whole
 document, not only on what was sent.
 
-To change a value on its way in or out, use the [hooks of the collection](./local-api.md).
+To change a value on its way in or out, use the [hooks of the collection](/docs/local-api).
 
 ## Config errors
 
@@ -177,7 +181,7 @@ collection('posts', { fields: [fields.text('title'), color('accent', { required:
 ```
 
 `column` says what the schema creates. `component` is the id the panel looks up, so register it from an
-[extension](./using.md#extending-the-panel):
+[extension](/docs/using#extending-the-panel):
 
 ```js
 export default ({ React, registerField }) => {

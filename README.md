@@ -29,20 +29,20 @@ const { docs } = await cms.collection('posts').find({ where: { slug: { equals: '
 
 **Before production:** in development anyone can write, so a new app works before it has a login. In
 production, an anonymous write to a collection with no `access` rule gets a 401. Pick a login with
-[`integrations.auth`](./docs/using.md#integrations) and run `node ace cms:sync` when you deploy.
+[`integrations.auth`](./docs/using.mdx#integrations) and run `node ace cms:sync` when you deploy.
 
 ## Documentation
 
-| Guide                                     | For                                                      |
-| ----------------------------------------- | -------------------------------------------------------- |
-| [Using the CMS](./docs/using.md)          | From the first collection to rendering pages and plugins |
-| [Fields](./docs/fields.md)                | Every field type and its options                         |
-| [Access control](./docs/access.md)        | Who can read and write what                              |
-| [Local API](./docs/local-api.md)          | Reading and writing from your own code                   |
-| [REST](./docs/rest.md)                    | The HTTP API                                             |
-| [Versions and drafts](./docs/versions.md) | Drafts, history and scheduled publishing                 |
-| [Going to production](./docs/deploy.md)   | The login, the schema and what to do on each deploy      |
-| [CLI](./docs/cli.md)                      | Reading and writing content with `node ace`              |
+| Guide                                      | For                                                      |
+| ------------------------------------------ | -------------------------------------------------------- |
+| [Using the CMS](./docs/using.mdx)          | From the first collection to rendering pages and plugins |
+| [Fields](./docs/fields.mdx)                | Every field type and its options                         |
+| [Access control](./docs/access.mdx)        | Who can read and write what                              |
+| [Local API](./docs/local-api.mdx)          | Reading and writing from your own code                   |
+| [REST](./docs/rest.mdx)                    | The HTTP API                                             |
+| [Versions and drafts](./docs/versions.mdx) | Drafts, history and scheduled publishing                 |
+| [Going to production](./docs/deploy.mdx)   | The login, the schema and what to do on each deploy      |
+| [CLI](./docs/cli.mdx)                      | Reading and writing content with `node ace`              |
 
 ## The idea
 
@@ -106,7 +106,7 @@ node ace cms:status        # applied hash vs current, documents per collection
 
 Three modes: `managed` (auto in dev, explicit in production), `migrations` (Lucid owns the
 DDL) and `manual` (you call the exported functions). Read
-[`docs/schema.md`](./docs/schema.md).
+[`docs/schema.mdx`](./docs/schema.mdx).
 
 ## Storage model
 
@@ -122,7 +122,7 @@ cms_posts__layout__gallery ← nested array inside a block
 
 A logical-path query plan maps `layout.gallery.caption` to its table, column and join chain, so
 the filter and the REST layer never need to know the physical layout. Read
-[`docs/fields.md`](./docs/fields.md).
+[`docs/fields.mdx`](./docs/fields.mdx).
 
 ## Tenancy
 
@@ -136,11 +136,11 @@ admin/labels/visibility because the DDL is shared. Read the spec, §23.
 
 ## Reading content from app code
 
-New here? [`docs/using.md`](./docs/using.md) walks through install → config → sync → read → preview
+New here? [`docs/using.mdx`](./docs/using.mdx) walks through install → config → sync → read → preview
 with copy-paste snippets.
 
 An AI client can use the same content surface over MCP, through the agora hub at `/mcp/agora`:
-see [`docs/mcp.md`](./docs/mcp.md).
+see [`docs/mcp.mdx`](./docs/mcp.mdx).
 
 
 ```ts

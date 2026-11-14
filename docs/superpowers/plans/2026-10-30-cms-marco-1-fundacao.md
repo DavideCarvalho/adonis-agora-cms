@@ -1,7 +1,7 @@
 # Adonis CMS — Marco 1 (Fundação) — plano de implementação
 
 > **For agentic workers:** execute tarefa por tarefa, na ordem. Cada tarefa termina em teste
-> verde + commit. Leia a spec antes: `docs/specs/2026-10-30-adonis-cms-design.md`.
+> verde + commit. Leia a spec antes: `docs/superpowers/specs/2026-10-30-adonis-cms-design.md`.
 
 **Goal:** entregar o núcleo de schema do CMS — config tipada, compilador de `SchemaSpec`
 (incluindo tabelas filhas de `array`/`blocks`/`group`/`select hasMany`), diff/introspecção,
