@@ -29,7 +29,9 @@ function call(contentType: string) {
       header: (name: string) => (name === 'content-type' ? contentType : undefined),
     },
     response: {
-      header: (name: string, value: string) => void (headers[name] = value),
+      header: (name: string, value: string) => {
+        headers[name] = value;
+      },
       status: (code: number) => ({
         json: (body: unknown) => void Object.assign(answer, { status: code, body }),
       }),
