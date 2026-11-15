@@ -1,5 +1,11 @@
 # @adonis-agora/cms-admin
 
+## 0.5.4
+
+### Patch Changes
+
+- [#28](https://github.com/DavideCarvalho/adonis-agora-cms/pull/28) [`893a2da`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/893a2da70c1297e363a29e23c348646bad63d00d) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - ⌘K now navigates: it lists every page of the console's sidebar and every other Agora console you can open ("Go to Workflows", found by "durable" too), matched case- and accent-insensitively, before the console's own commands and the cross-console search hits. ⌘K opens even without a search endpoint, and shows the pages and consoles before anything is typed. The admin no longer repeats its nav entries as ⌘K commands, so each appears once.
+
 ## 0.5.3
 
 ### Patch Changes
