@@ -1,5 +1,11 @@
 # @adonis-agora/cms
 
+## 0.8.0
+
+### Minor Changes
+
+- [#26](https://github.com/DavideCarvalho/adonis-agora-cms/pull/26) [`e6ae454`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/e6ae454026a1bff2337fc495a052be6eb65047f2) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - `requiresRole` also matches authkit's `globalRoles` and a `roles` array, not only `user.role`, so `requiresRole('ADMIN')` works with an authkit identity user (in-process or remote authkit). The `authkitAuth` comment no longer refers to the removed `authkit_middleware`.
+
 ## 0.7.0
 
 ### Minor Changes
