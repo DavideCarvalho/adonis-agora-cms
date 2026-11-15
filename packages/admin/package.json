@@ -3,6 +3,11 @@
   "version": "0.5.4",
   "description": "Admin SPA for @adonis-agora/cms — schema-driven list and edit views, TanStack Query, atomic UI. Ships embedded in a thin AdonisJS provider. Part of the Agora ecosystem.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DavideCarvalho/adonis-agora-cms.git",
+    "directory": "packages/admin"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
