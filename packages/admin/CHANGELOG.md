@@ -1,5 +1,11 @@
 # @adonis-agora/cms-admin
 
+## 0.5.3
+
+### Patch Changes
+
+- [#27](https://github.com/DavideCarvalho/adonis-agora-cms/pull/27) [`7dbcf0c`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/7dbcf0c2e17fd22ef2d033cfb093ba54f0684f1b) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - The console kit gains charts on TanStack Charts (`agora-kit/charts`: TimeSeriesChart, BarChart, Sparkline, DonutChart) with a themed tooltip on hover and keyboard focus. No chart in this console uses it yet; nothing changes on screen and its JS bundle stays the same (the chart styles add a few lines of CSS).
+
 ## 0.5.2
 
 ### Patch Changes
