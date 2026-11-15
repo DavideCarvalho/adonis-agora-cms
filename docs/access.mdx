@@ -22,6 +22,11 @@ collection('posts', {
 
 A rule that throws fails the operation, so a bug cannot open anything.
 
+`requiresRole` matches `user.role`, a `user.roles` array, or authkit's `user.globalRoles`. With
+`auth.authkit()` and the `authkitIdentityProvider()` user, `requiresRole('ADMIN')` checks the global roles
+from the token, whether authkit runs in your app or on its own server. With a Lucid user, set
+`lucidMirror({ injectGlobalRoles: true })` so the user carries them.
+
 ## Without a rule
 
 | Environment       | Read | Anonymous write                                                     |

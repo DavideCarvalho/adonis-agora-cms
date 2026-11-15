@@ -25,8 +25,9 @@ export function authkitAdapter(options: {
 type AuthkitContext = { auth?: { check?(): Promise<unknown>; user?: unknown } };
 
 /**
- * `@adonis-agora/authkit`, with its `authkit_middleware` on the routes: checks the session itself, so
- * the CMS routes need no `silentAuth`. A failed check is anonymous, never an error.
+ * `@adonis-agora/authkit` through `ctx.auth` (the `authkitClientGuard`, or any `@adonisjs/auth`
+ * guard): checks the session itself, so the CMS routes need no `silentAuth`. A failed check is
+ * anonymous, never an error.
  */
 export function authkitAuth(): CmsAuthAdapter {
   return {
@@ -46,11 +47,26 @@ export function authkitAuth(): CmsAuthAdapter {
 /** Access function that only requires an authenticated principal. */
 export const requiresUser: AccessFn = ({ user }) => Boolean(user);
 
-/** Access function that requires one of the given roles (`user.role`). */
+type RoleBearer = { role?: unknown; roles?: unknown; globalRoles?: unknown };
+
+function rolesOf(user: RoleBearer): string[] {
+  const found: string[] = [];
+  if (typeof user.role === 'string') found.push(user.role);
+  for (const list of [user.roles, user.globalRoles]) {
+    if (!Array.isArray(list)) continue;
+    for (const role of list) if (typeof role === 'string') found.push(role);
+  }
+  return found;
+}
+
+/**
+ * Access function that requires one of the given roles. It reads `user.role`, a `user.roles` array
+ * and authkit's `user.globalRoles`, so it works with your own user model and with an authkit
+ * identity user alike.
+ */
 export function requiresRole(...roles: readonly string[]): AccessFn {
   return ({ user }) => {
     if (!user || typeof user !== 'object') return false;
-    const role = (user as { role?: unknown }).role;
-    return typeof role === 'string' && roles.includes(role);
+    return rolesOf(user as RoleBearer).some((role) => roles.includes(role));
   };
 }
