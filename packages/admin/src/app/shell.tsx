@@ -3,7 +3,6 @@ import { type ReactNode, useMemo } from 'react';
 import { ErrorBoundary } from '../agora-kit/blocks/error-boundary';
 import { GridIcon, UsersIcon } from '../agora-kit/icons';
 import { AppShell, type ConsoleBrand, type NavSection } from '../agora-kit/shell/app-shell';
-import type { SearchCommand } from '../agora-kit/shell/console-search';
 import type { AgoraShellConfig } from '../agora-kit/shell-config';
 import { href, type Route } from './hash-route.js';
 import { CmsMark, DocumentsIcon, GlobeIcon, ImageIcon, PuzzleIcon } from './icons.js';
@@ -55,25 +54,12 @@ export function CmsShell({
           id: entry.id,
           label: entry.label,
           icon: ICONS[entry.kind],
+          // ⌘K lists every nav entry; the slug finds it too.
+          keywords: [entry.route.slug],
           href: href(entry.route),
           onSelect: () => onNavigate(entry.route),
         })),
       })),
-    [groups, onNavigate],
-  );
-
-  const commands = useMemo<SearchCommand[]>(
-    () =>
-      groups.flatMap((group) =>
-        group.items.map((entry) => ({
-          id: entry.id,
-          label: entry.label,
-          group: group.section,
-          icon: ICONS[entry.kind],
-          keywords: [entry.route.slug, group.section],
-          onSelect: () => onNavigate(entry.route),
-        })),
-      ),
     [groups, onNavigate],
   );
 
@@ -95,7 +81,6 @@ export function CmsShell({
       activeId={navIdOf(route)}
       shell={shell}
       title={title}
-      commands={commands}
       searchPlaceholder={t.jumpTo}
     >
       <ErrorBoundary label={title} resetKeys={[href(route)]}>
