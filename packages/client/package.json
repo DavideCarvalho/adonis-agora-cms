@@ -2,6 +2,11 @@
   "name": "@adonis-agora/cms-client",
   "version": "0.2.0",
   "description": "Read-only content client for a @adonis-agora/cms server — token-bound tenant, filter wire format, no Adonis dependency.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DavideCarvalho/adonis-agora-cms.git",
+    "directory": "packages/client"
+  },
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
