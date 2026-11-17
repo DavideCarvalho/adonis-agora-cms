@@ -1,5 +1,13 @@
 # @adonis-agora/cms-admin
 
+## 0.6.1
+
+### Patch Changes
+
+- [#31](https://github.com/DavideCarvalho/adonis-agora-cms/pull/31) [`1262be1`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/1262be13ab9f69e015c5576d2ecba37160c23f39) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Declare `repository` in package.json so npm can verify the provenance of the published packages.
+- Updated dependencies [[`1262be1`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/1262be13ab9f69e015c5576d2ecba37160c23f39)]:
+  - @adonis-agora/cms-react@0.4.1
+
 ## 0.6.0
 
 ### Minor Changes
