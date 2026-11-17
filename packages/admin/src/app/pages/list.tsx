@@ -17,6 +17,13 @@ import {
   useRestoreDocument,
 } from '@adonis-agora/cms-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  parseAsArrayOf,
+  parseAsBoolean,
+  parseAsInteger,
+  parseAsString,
+  useQueryStates,
+} from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseCsv, toCsv } from '../csv.js';
 import type { Route } from '../hash-route.js';
@@ -38,6 +45,61 @@ const CSV_TYPES = new Set([
   'checkbox',
 ]);
 
+/**
+ * The list's view, in the hash's query (`#/collections/posts?q=launch&status=draft&f=category:news`):
+ * page, trash, search, sort, draft status, the option/relation filters (`f`, `name:value` each) and
+ * the date ranges (`d`, `name:from:to` each). Typing the search rewrites the current history entry;
+ * every other pick adds one.
+ */
+export const listParams = {
+  page: parseAsInteger.withDefault(1),
+  deleted: parseAsBoolean.withDefault(false),
+  q: parseAsString.withDefault('').withOptions({ history: 'replace' }),
+  sort: parseAsString,
+  status: parseAsString.withDefault(''),
+  f: parseAsArrayOf(parseAsString).withDefault([]),
+  d: parseAsArrayOf(parseAsString).withDefault([]),
+};
+
+/** `['category:news']` ↔ `{ category: 'news' }` (the value may hold colons; empty ones are dropped). */
+export function readFieldFilters(entries: readonly string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of entries) {
+    const at = entry.indexOf(':');
+    if (at > 0 && at < entry.length - 1) out[entry.slice(0, at)] = entry.slice(at + 1);
+  }
+  return out;
+}
+
+export function writeFieldFilters(filters: Record<string, string>): string[] | null {
+  const entries = Object.entries(filters)
+    .filter(([, value]) => value !== '')
+    .map(([name, value]) => `${name}:${value}`);
+  return entries.length > 0 ? entries : null;
+}
+
+/** `['publishedAt:2026-01-01:2026-02-01']` ↔ `{ publishedAt: { from, to } }` (either edge may be empty). */
+export function readDateRanges(
+  entries: readonly string[],
+): Record<string, { from?: string; to?: string }> {
+  const out: Record<string, { from?: string; to?: string }> = {};
+  for (const entry of entries) {
+    const [name, from = '', to = ''] = entry.split(':');
+    if (!name || (from === '' && to === '')) continue;
+    out[name] = { ...(from ? { from } : {}), ...(to ? { to } : {}) };
+  }
+  return out;
+}
+
+export function writeDateRanges(
+  ranges: Record<string, { from?: string; to?: string }>,
+): string[] | null {
+  const entries = Object.entries(ranges)
+    .filter(([, range]) => range.from || range.to)
+    .map(([name, range]) => `${name}:${range.from ?? ''}:${range.to ?? ''}`);
+  return entries.length > 0 ? entries : null;
+}
+
 /** A collection: filters, saved views, CSV in and out, bulk edit, trash. */
 export function ListView({
   collection,
@@ -51,10 +113,14 @@ export function ListView({
   const t = useMessages();
   const toast = useToast();
   const confirm = useConfirm();
-  const [page, setPage] = useState(1);
-  const [showDeleted, setShowDeleted] = useState(false);
-  const [term, setTerm] = useState('');
-  const [sort, setSort] = useState<string | undefined>(undefined);
+  // Every filter below lives in the URL: a filtered list is a link, back/forward step through it.
+  const [view, setView] = useQueryStates(listParams, { history: 'push' });
+  const page = view.page;
+  const showDeleted = view.deleted;
+  const term = view.q;
+  const sort = view.sort ?? undefined;
+  const setPage = (next: number | ((value: number) => number)) =>
+    void setView((current) => ({ page: typeof next === 'function' ? next(current.page) : next }));
 
   // Search runs on the title column; a collection without a text title has nothing to search.
   const allFields = useMemo(() => flattenFields(collection.fields), [collection]);
@@ -67,8 +133,8 @@ export function ListView({
 
   // The API only hands drafts to a signed-in user; asking anonymously is a 403.
   const canReadDrafts = collection.drafts && Boolean(schema.user);
-  const [status, setStatus] = useState('');
-  const [fieldFilters, setFieldFilters] = useState<Record<string, string>>({});
+  const status = view.status;
+  const fieldFilters = useMemo(() => readFieldFilters(view.f), [view.f]);
   const filterFields = useMemo(
     () =>
       allFields.filter((field) => (field.options?.length ?? 0) > 0 && !field.hidden).slice(0, 3),
@@ -89,15 +155,19 @@ export function ListView({
     () => allFields.filter((field) => field.type === 'date').slice(0, 2),
     [allFields],
   );
-  const [dateRanges, setDateRanges] = useState<Record<string, { from?: string; to?: string }>>({});
+  const dateRanges = useMemo(() => readDateRanges(view.d), [view.d]);
   const [editing, setEditing] = useState<AdminDocument[] | null>(null);
   const filtersNow: SavedFilter = { status, fieldFilters, dateRanges };
-  const applyFilter = (saved: SavedFilter) => {
-    setStatus(saved.status);
-    setFieldFilters(saved.fieldFilters);
-    setDateRanges(saved.dateRanges);
-    setPage(1);
-  };
+  // A filter change makes the current page meaningless, so every one goes back to page 1.
+  const applyFilter = (saved: SavedFilter) =>
+    void setView({
+      status: saved.status,
+      f: writeFieldFilters(saved.fieldFilters),
+      d: writeDateRanges(saved.dateRanges),
+      page: null,
+    });
+  const setFieldFilter = (name: string, value: string) =>
+    void setView({ f: writeFieldFilters({ ...fieldFilters, [name]: value }), page: null });
 
   const filter = useMemo(() => {
     const clause: Record<string, unknown> = {};
@@ -132,10 +202,10 @@ export function ListView({
   const queryClient = useQueryClient();
   const remove = useDeleteDocument(collection.slug);
   const restore = useRestoreDocument(collection.slug);
-  const onSearch = useCallback((next: string) => {
-    setTerm(next);
-    setPage(1);
-  }, []);
+  const onSearch = useCallback(
+    (next: string) => void setView({ q: next, page: null }, { history: 'replace' }),
+    [setView],
+  );
   const fail = (error: unknown) => toast(messageOf(error, t.requestFailed), 'bad');
   const importInput = useRef<HTMLInputElement>(null);
 
@@ -204,6 +274,7 @@ export function ListView({
         error={documents.error?.message}
         onRetry={() => void documents.refetch()}
         onSearch={searchField ? onSearch : undefined}
+        initialSearch={term}
         filters={
           <>
             <SavedFilters slug={collection.slug} current={filtersNow} onApply={applyFilter} />
@@ -246,10 +317,7 @@ export function ListView({
                 className="select select--inline"
                 aria-label={t.status}
                 value={status}
-                onChange={(event) => {
-                  setStatus(event.target.value);
-                  setPage(1);
-                }}
+                onChange={(event) => void setView({ status: event.target.value, page: null })}
               >
                 <option value="">{t.allStatuses}</option>
                 <option value="draft">{t.draft}</option>
@@ -262,10 +330,7 @@ export function ListView({
                 field={field}
                 schema={schema}
                 value={fieldFilters[field.name] ?? ''}
-                onChange={(value) => {
-                  setFieldFilters((current) => ({ ...current, [field.name]: value }));
-                  setPage(1);
-                }}
+                onChange={(value) => setFieldFilter(field.name, value)}
               />
             ))}
             {dateFilters.map((field) =>
@@ -277,13 +342,15 @@ export function ListView({
                   aria-label={`${fieldTitle(field)} ${t[edge]}`}
                   title={`${fieldTitle(field)} ${t[edge]}`}
                   value={dateRanges[field.name]?.[edge] ?? ''}
-                  onChange={(event) => {
-                    setDateRanges((current) => ({
-                      ...current,
-                      [field.name]: { ...current[field.name], [edge]: event.target.value },
-                    }));
-                    setPage(1);
-                  }}
+                  onChange={(event) =>
+                    void setView({
+                      d: writeDateRanges({
+                        ...dateRanges,
+                        [field.name]: { ...dateRanges[field.name], [edge]: event.target.value },
+                      }),
+                      page: null,
+                    })
+                  }
                 />
               )),
             )}
@@ -293,10 +360,7 @@ export function ListView({
                 className="select select--inline"
                 aria-label={fieldTitle(field)}
                 value={fieldFilters[field.name] ?? ''}
-                onChange={(event) => {
-                  setFieldFilters((current) => ({ ...current, [field.name]: event.target.value }));
-                  setPage(1);
-                }}
+                onChange={(event) => setFieldFilter(field.name, event.target.value)}
               >
                 <option value="">
                   {fieldTitle(field)}: {t.all.toLowerCase()}
@@ -332,10 +396,7 @@ export function ListView({
             : undefined
         }
         sort={sort}
-        onSort={(next) => {
-          setSort(next);
-          setPage(1);
-        }}
+        onSort={(next) => void setView({ sort: next ?? null, page: null })}
         onOpen={(doc: AdminDocument) =>
           onNavigate({ view: 'edit', slug: collection.slug, id: String(doc.id) })
         }
@@ -379,10 +440,7 @@ export function ListView({
           })
         }
         showDeleted={showDeleted}
-        onToggleDeleted={() => {
-          setShowDeleted((value) => !value);
-          setPage(1);
-        }}
+        onToggleDeleted={() => void setView({ deleted: !showDeleted, page: null })}
       />
 
       {editing ? (

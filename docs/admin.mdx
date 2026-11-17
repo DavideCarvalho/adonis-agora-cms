@@ -59,6 +59,11 @@ The output is JSON-safe by construction: defaults, labels and options survive; f
 | `versioned` / `drafts`   | publish button, draft toggle, version history |
 | `permissions`            | hiding actions without a second request       |
 
+A collection's list filters are in the URL: copy the link to share a filtered view.
+`/admin#/collections/posts?q=launch&status=draft&f=category:news&sort=-title&page=2` opens that
+search, filter, sort and page, and back/forward step through your picks. The params are `q`,
+`status`, `f` (`field:value`), `d` (`field:from:to`), `sort`, `page` and `deleted`.
+
 ## Next
 
 The React SPA (`@adonis-agora/cms-react` + `@adonis-agora/cms-admin`) consumes this endpoint.

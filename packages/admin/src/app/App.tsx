@@ -12,6 +12,8 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { readShellConfig } from '../agora-kit/shell-config';
 import { ThemeProvider } from '../agora-kit/theme';
+import { subscribeHashUrl } from '../agora-kit/url-state/hash-url';
+import { NuqsHashAdapter } from '../agora-kit/url-state/nuqs-hash-adapter';
 import { DashboardPage } from './dashboard.js';
 import { parseHash, type Route, href as routeHref } from './hash-route.js';
 import { LoginScreen, PanelError, SignInRequired } from './login.js';
@@ -76,7 +78,10 @@ export function App() {
     >
       <ToastProvider>
         <ConfirmProvider>
-          <Panel />
+          {/* A list's filters live in the hash's query (`#/collections/posts?status=draft`). */}
+          <NuqsHashAdapter>
+            <Panel />
+          </NuqsHashAdapter>
         </ConfirmProvider>
       </ToastProvider>
     </ThemeProvider>
@@ -91,11 +96,18 @@ function Panel() {
   // Read inside the component: a test or preview may inject the block after import.
   const shell = useMemo(() => readShellConfig(CONFIG_ELEMENT_ID), []);
 
-  useEffect(() => {
-    const onChange = () => setRoute(parseHash(window.location.hash));
-    window.addEventListener('hashchange', onChange);
-    return () => window.removeEventListener('hashchange', onChange);
-  }, []);
+  // Follows links, back/forward and a list's own query-only filter writes (no `hashchange`); the
+  // route object is kept while the page itself is unchanged.
+  useEffect(
+    () =>
+      subscribeHashUrl(() =>
+        setRoute((prev) => {
+          const next = parseHash(window.location.hash);
+          return routeHref(next) === routeHref(prev) ? prev : next;
+        }),
+      ),
+    [],
+  );
 
   const schema = useAdminSchema();
 
