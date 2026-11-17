@@ -24,6 +24,8 @@ export type DataTableProps = {
   onRetry?: (() => void) | undefined;
   /** Omit to hide the search box. */
   onSearch?: ((term: string) => void) | undefined;
+  /** What the search box starts with (a term restored from the URL); not echoed to `onSearch`. */
+  initialSearch?: string | undefined;
   /** `title` ascending, `-title` descending. */
   sort?: string | undefined;
   onSort?: ((sort: string | undefined) => void) | undefined;
@@ -66,6 +68,7 @@ export function DataTable({
   error,
   onRetry,
   onSearch,
+  initialSearch,
   sort,
   onSort,
   filters,
@@ -74,7 +77,7 @@ export function DataTable({
 }: DataTableProps) {
   const t = useMessages();
   const { locale } = useCms();
-  const [term, setTerm] = useState('');
+  const [term, setTerm] = useState(initialSearch ?? '');
   const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
 
   const allFields = flattenFields(collection.fields);
@@ -113,7 +116,7 @@ export function DataTable({
     columns.length + (collection.drafts ? 1 : 0) + (showUpdated ? 1 : 0) + (selectable ? 2 : 1);
 
   // Debounced: the list refetches per keystroke otherwise. Only user typing counts.
-  const emitted = useRef('');
+  const emitted = useRef(initialSearch ?? '');
   useEffect(() => {
     if (term === emitted.current) return;
     const timer = window.setTimeout(() => {
