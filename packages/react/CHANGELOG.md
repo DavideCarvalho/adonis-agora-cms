@@ -1,5 +1,11 @@
 # @adonis-agora/cms-react
 
+## 0.4.0
+
+### Minor Changes
+
+- [#30](https://github.com/DavideCarvalho/adonis-agora-cms/pull/30) [`633fe9f`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/633fe9f7e833f0e95b183745dabed2d26eee103d) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - A collection's list filters now live in the URL, so a filtered view can be shared, bookmarked and reloaded, and back/forward step through it: the search, draft status, option/relation filters, date ranges, sort, page and trash toggle sit in the hash's query (`#/collections/posts?q=launch&status=draft&f=category:news`). A value at its default is left out, so existing links open as before. `DataTable` takes an optional `initialSearch`, so the search box shows a term restored from the URL.
+
 ## 0.3.0
 
 ### Minor Changes
