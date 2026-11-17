@@ -479,7 +479,10 @@ test('saved filters come back after a reload, and can be deleted', async ({ page
   page.once('dialog', (dialog) => void dialog.accept('Only links'));
   await page.getByRole('button', { name: 'Save these filters' }).click();
 
+  // The filter is in the URL, so a reload keeps it; a fresh visit to the list starts clean.
   await page.reload();
+  await expect(page.getByRole('combobox', { name: 'Kind' })).toHaveValue('link');
+  await page.goto('/admin#/collections/notes');
   await expect(page.getByRole('combobox', { name: 'Kind' })).toHaveValue('');
   await page.getByRole('combobox', { name: 'Saved filters' }).selectOption('Only links');
   await expect(page.getByRole('combobox', { name: 'Kind' })).toHaveValue('link');
