@@ -25,6 +25,7 @@ import {
   useQueryStates,
 } from 'nuqs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ComboOption, ComboSelect } from '../../agora-kit';
 import { parseCsv, toCsv } from '../csv.js';
 import type { Route } from '../hash-route.js';
 import { BookmarkPlusIcon, BookmarkXIcon, DownloadIcon, UploadIcon } from '../icons.js';
@@ -354,24 +355,36 @@ export function ListView({
                 />
               )),
             )}
-            {filterFields.map((field) => (
-              <select
-                key={field.name}
-                className="select select--inline"
-                aria-label={fieldTitle(field)}
-                value={fieldFilters[field.name] ?? ''}
-                onChange={(event) => setFieldFilter(field.name, event.target.value)}
-              >
-                <option value="">
-                  {fieldTitle(field)}: {t.all.toLowerCase()}
-                </option>
-                {(field.options ?? []).map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+            {filterFields.map((field) =>
+              (field.options?.length ?? 0) > COMBO_MIN_OPTIONS ? (
+                <div key={field.name} className="w-48">
+                  <ComboSelect
+                    aria-label={fieldTitle(field)}
+                    placeholder={`${fieldTitle(field)}: ${t.all.toLowerCase()}`}
+                    options={comboOptionsOf(field)}
+                    value={fieldFilters[field.name] || null}
+                    onValueChange={(next) => setFieldFilter(field.name, next ?? '')}
+                  />
+                </div>
+              ) : (
+                <select
+                  key={field.name}
+                  className="select select--inline"
+                  aria-label={fieldTitle(field)}
+                  value={fieldFilters[field.name] ?? ''}
+                  onChange={(event) => setFieldFilter(field.name, event.target.value)}
+                >
+                  <option value="">
+                    {fieldTitle(field)}: {t.all.toLowerCase()}
                   </option>
-                ))}
-              </select>
-            ))}
+                  {(field.options ?? []).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              ),
+            )}
           </>
         }
         onEditMany={setEditing}
@@ -569,6 +582,30 @@ function SavedFilters({
   );
 }
 
+/** Option filters with more choices than this get a searchable combobox instead of a `<select>`. */
+const COMBO_MIN_OPTIONS = 6;
+/** A field's options for a combobox, one array per field (the combobox needs stable options). */
+const comboOptionsCache = new WeakMap<AdminField, ComboOption[]>();
+function comboOptionsOf(field: AdminField): ComboOption[] {
+  let options = comboOptionsCache.get(field);
+  if (!options) {
+    options = (field.options ?? []).map((option) => ({
+      value: String(option.value),
+      label: option.label,
+    }));
+    comboOptionsCache.set(field, options);
+  }
+  return options;
+}
+
+/** How many target documents a relation filter lists per search. */
+const RELATION_PAGE = 100;
+
+/**
+ * Filter by a related document. The first page of the target lists on open; typing searches the
+ * target's title field on the server (when it is a text/slug field), so targets with more than one
+ * page stay reachable. The picked document's label is fetched on its own when it is not in the page.
+ */
 function RelationFilter({
   field,
   schema,
@@ -583,29 +620,71 @@ function RelationFilter({
   const t = useMessages();
   const { client } = useCms();
   const target = String(field.relationTo);
-  const title = schema.collections.find((item) => item.slug === target)?.admin?.useAsTitle;
-  const options = useQuery({
-    queryKey: ['cms', 'relation', target, ''],
+  const targetCollection = schema.collections.find((item) => item.slug === target);
+  const title = targetCollection?.admin?.useAsTitle;
+  const titleType = title
+    ? flattenFields(targetCollection?.fields ?? []).find((item) => item.name === title)?.type
+    : undefined;
+  const searchable = titleType === 'text' || titleType === 'slug';
+  const [term, setTerm] = useState('');
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(term.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [term]);
+  // Every label seen so far, so the picked document keeps its label while the page changes
+  // (only grows: reading it during render cannot flip back and forth).
+  const labels = useRef(new Map<string, string>()).current;
+  const labelOf = useCallback(
+    (doc: AdminDocument) => String((title && doc[title]) ?? doc.id),
+    [title],
+  );
+  const picked = useQuery({
+    queryKey: ['cms', 'relation', target, 'doc', value],
     staleTime: 30_000,
-    queryFn: () => client.list(target, { size: 100, depth: 0 }),
+    enabled: Boolean(value) && !labels.has(value),
+    queryFn: () => client.find(target, value, { depth: 0 }),
   });
+  if (picked.data) labels.set(String(picked.data.id), labelOf(picked.data));
+  const pickedLabel = value ? labels.get(value) : undefined;
+  // The input shows the picked document's label; that text is not a search.
+  const query = searchable && search !== pickedLabel ? search : '';
+
+  const page = useQuery({
+    queryKey: ['cms', 'relation', target, query],
+    staleTime: 30_000,
+    placeholderData: (previous) => previous,
+    queryFn: () =>
+      client.list(target, {
+        size: RELATION_PAGE,
+        depth: 0,
+        ...(query && title ? { filter: { [title]: { iContains: query } } } : {}),
+      }),
+  });
+  const docs = page.data?.data;
+  for (const doc of docs ?? []) labels.set(String(doc.id), labelOf(doc));
+
+  // Stable identity: the combobox resets what is typed whenever its options change identity.
+  const options = useMemo(() => {
+    const list = (docs ?? []).map((doc) => ({ value: String(doc.id), label: labelOf(doc) }));
+    if (value && pickedLabel !== undefined && !list.some((option) => option.value === value)) {
+      list.unshift({ value, label: pickedLabel });
+    }
+    return list;
+  }, [docs, value, pickedLabel, labelOf]);
 
   return (
-    <select
-      className="select select--inline"
-      aria-label={fieldTitle(field)}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      <option value="">
-        {fieldTitle(field)}: {t.all.toLowerCase()}
-      </option>
-      {(options.data?.data ?? []).map((doc) => (
-        <option key={String(doc.id)} value={String(doc.id)}>
-          {String((title && doc[title]) ?? doc.id)}
-        </option>
-      ))}
-    </select>
+    <div className="w-48">
+      <ComboSelect
+        aria-label={fieldTitle(field)}
+        placeholder={`${fieldTitle(field)}: ${t.all.toLowerCase()}`}
+        options={options}
+        value={value || null}
+        onValueChange={(next) => onChange(next ?? '')}
+        onQueryChange={searchable ? setTerm : undefined}
+        loading={page.isFetching}
+      />
+    </div>
   );
 }
 

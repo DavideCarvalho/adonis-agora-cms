@@ -341,7 +341,9 @@ test('list filters by relation and by date; point and join fields work', async (
   await page.goto('/admin#/collections/posts');
   await page.getByRole('searchbox').fill(stamp);
   await expect(page.getByRole('row')).toHaveCount(3);
-  await page.locator('select[aria-label="Author"]').selectOption(author.id);
+  // The author filter searches the authors on the server as you type.
+  await page.getByRole('combobox', { name: 'Author' }).fill(stamp);
+  await page.getByRole('option', { name: `Author ${stamp}` }).click();
   await expect(page.getByRole('row')).toHaveCount(2);
   await expect(page.getByRole('row').filter({ hasText: mine })).toBeVisible();
 
