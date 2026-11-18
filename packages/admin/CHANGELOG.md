@@ -1,5 +1,13 @@
 # @adonis-agora/cms-admin
 
+## 0.6.2
+
+### Patch Changes
+
+- [#32](https://github.com/DavideCarvalho/adonis-agora-cms/pull/32) [`b29c1dc`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/b29c1dc68ba5b3e4ced6873ebf543532a64338fc) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Console ⌘K: arrow keys now visibly move the selection. The highlighted item was styled with a bare `data-selected:` (cmdk marks every item `true` or `false`) and with the dialog's own surface color, so moving looked like nothing happened.
+- Updated dependencies [[`b29c1dc`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/b29c1dc68ba5b3e4ced6873ebf543532a64338fc)]:
+  - @adonis-agora/cms@0.8.1
+
 ## 0.6.1
 
 ### Patch Changes
