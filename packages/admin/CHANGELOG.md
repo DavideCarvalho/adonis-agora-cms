@@ -1,5 +1,12 @@
 # @adonis-agora/cms-admin
 
+## 0.6.4
+
+### Patch Changes
+
+- Updated dependencies [[`f43a842`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/f43a8421bb5bcd353d3d6993f0bb9a8f16c9eaeb)]:
+  - @adonis-agora/cms@0.8.2
+
 ## 0.6.3
 
 ### Patch Changes

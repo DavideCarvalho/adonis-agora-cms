@@ -1,5 +1,11 @@
 # @adonis-agora/cms
 
+## 0.8.2
+
+### Patch Changes
+
+- [#34](https://github.com/DavideCarvalho/adonis-agora-cms/pull/34) [`f43a842`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/f43a8421bb5bcd353d3d6993f0bb9a8f16c9eaeb) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Describe the CMS infrastructure for telescope's Architecture page: `media.drive()` and `uploads.drive()` carry their Drive disk (`media files` / `uploads`), and at boot the `cms` config is tagged with the default Lucid connection its documents live in (`content`). Uses the global `Symbol.for('@adonis-agora/stack')`; no dependency on telescope.
+
 ## 0.8.1
 
 ### Patch Changes
