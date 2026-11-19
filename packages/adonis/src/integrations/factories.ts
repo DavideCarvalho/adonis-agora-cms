@@ -38,6 +38,7 @@ import {
   mediaLibraryUploads,
   type ReadLibrary,
 } from './media.js';
+import { describeStackUse } from './stack.js';
 import { type CmsObserver, telescopeWatcher } from './telescope.js';
 import type { CmsJobs } from './webhooks.js';
 
@@ -107,7 +108,10 @@ export const media = {
   /** `@adonisjs/drive`: the default disk, or a name from `config/drive.ts`. */
   drive(options: { disk?: string } & UrlOptions = {}): CmsAdapter<MediaAdapter> {
     const { disk, ...urls } = options;
-    return adapter((app) => driveMedia(diskOf(app, disk), urls));
+    return describeStackUse(
+      adapter((app) => driveMedia(diskOf(app, disk), urls)),
+      { tech: 'drive', label: disk ?? 'default', purpose: 'media files' },
+    );
   },
   /** `@adonis-agora/media`. */
   library(): CmsAdapter<MediaAdapter> {
@@ -121,7 +125,10 @@ export const uploads = {
     options: { disk?: string; prefix?: string } & UrlOptions = {},
   ): CmsAdapter<CmsUploadHandler> {
     const { disk, ...rest } = options;
-    return adapter((app) => driveUploads(diskOf(app, disk), rest));
+    return describeStackUse(
+      adapter((app) => driveUploads(diskOf(app, disk), rest)),
+      { tech: 'drive', label: disk ?? 'default', purpose: 'uploads' },
+    );
   },
   /** `@adonis-agora/media`. `collection` is one of the library's media collections. */
   library(
