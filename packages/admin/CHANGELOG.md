@@ -1,5 +1,11 @@
 # @adonis-agora/cms-admin
 
+## 0.6.5
+
+### Patch Changes
+
+- [#35](https://github.com/DavideCarvalho/adonis-agora-cms/pull/35) [`d49ca54`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/d49ca546ae5978f231aa57d5a66e794425a13b13) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Going to another console (switcher, ⌘K, search results, sidebar links) keeps this page's `?app=` and `?tenant=`, so the picked app and organization follow you. The console kit copy is updated from the canonical kit (shared `ScopeMenu` / `ScopeChip` header picker, `app-mode` block, `globalThis.fetch` in console data).
+
 ## 0.6.4
 
 ### Patch Changes
