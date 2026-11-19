@@ -14,6 +14,7 @@ import { CmsConfigError, CmsSchemaError } from '../src/errors.js';
 import { createCmsEvents } from '../src/integrations/durable.js';
 import type { BuiltIntegrations } from '../src/integrations/factories.js';
 import { buildAdapters } from '../src/integrations/factories.js';
+import { describeCmsDatabase } from '../src/integrations/stack.js';
 import { listenQueuedWebhooks, listenWebhooks } from '../src/integrations/webhooks.js';
 import { createCms } from '../src/local_api/index.js';
 import type { CmsRouter, RegisterCmsRoutesOptions, RouteContext } from '../src/rest/routes.js';
@@ -71,6 +72,8 @@ export default class CmsProvider {
   async boot(): Promise<void> {
     const declared = this.app.config.get('cms') as CmsConfig | undefined;
     if (!declared) return;
+    // For telescope's Architecture page: the documents live in the default Lucid connection.
+    describeCmsDatabase(declared, this.app.config.get('database', undefined));
     const config = await buildAdapters(declared, this.app as never);
 
     const errors = validateConfig(config);
