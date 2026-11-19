@@ -1,5 +1,11 @@
 # @adonis-agora/cms-admin
 
+## 0.6.6
+
+### Patch Changes
+
+- [#36](https://github.com/DavideCarvalho/adonis-agora-cms/pull/36) [`a845537`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/a8455372e8c3b9b6671be957b3b1d78ec81275a1) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Admin UI: the app/scope picker button now announces "noun: label" instead of the two spans run together, its search also matches the option hint, the highlight stays on a real option when the list shrinks, and focus returns to the button after a pick (console kit sync).
+
 ## 0.6.5
 
 ### Patch Changes
