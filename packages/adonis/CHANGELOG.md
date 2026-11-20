@@ -1,5 +1,11 @@
 # @adonis-agora/cms
 
+## 0.9.0
+
+### Minor Changes
+
+- [#37](https://github.com/DavideCarvalho/adonis-agora-cms/pull/37) [`86f2efb`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/86f2efb14dff1e6ea047bbcef3313a72f265ebba) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - createdAt / updatedAt on everything the CMS owns. Scheduled changes (`cms_document_schedules`) gain nullable `created_at` / `updated_at` columns and `scheduled()` / `schedule()` answer `createdAt` / `updatedAt` (ISO in REST, `null` for a change scheduled before); rescheduling keeps `createdAt`. Password credentials (`cms_auth_credentials`) record `created_at`, and `listApiTokens()` returns each token's `createdAt`. Run `node ace cms:sync` on deploy: production logs schema drift until the columns exist (they are added nullable, no default, no backfill). The admin edit page shows Created / Updated under the title, and the list's Updated date shows the full time on hover.
+
 ## 0.8.2
 
 ### Patch Changes

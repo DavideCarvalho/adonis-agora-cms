@@ -1,6 +1,6 @@
 {
   "name": "@adonis-agora/cms-react",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "React building blocks for @adonis-agora/cms — API client, TanStack Query hooks, the field registry and atomic UI primitives. Compose your own dashboard or use @adonis-agora/cms-admin. Part of the Agora ecosystem.",
   "repository": {
     "type": "git",
