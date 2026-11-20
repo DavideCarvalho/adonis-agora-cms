@@ -1478,3 +1478,6 @@ tr:hover .table__actions,
     border-top: 1px solid var(--agora-line);
   }
 }
+.form-dates {
+  white-space: nowrap;
+}

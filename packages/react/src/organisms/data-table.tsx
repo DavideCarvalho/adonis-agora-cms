@@ -388,7 +388,9 @@ export function DataTable({
                     </td>
                   ) : null}
                   {showUpdated ? (
-                    <td className="table__date">{formatDate(doc.updatedAt, locale)}</td>
+                    <td className="table__date" title={formatTimestamp(doc.updatedAt, locale)}>
+                      {formatDate(doc.updatedAt, locale)}
+                    </td>
                   ) : null}
                   <td>
                     <div className="table__actions">
@@ -426,11 +428,19 @@ export function DataTable({
   );
 }
 
-function formatDate(value: unknown, locale: string): string {
+export function formatDate(value: unknown, locale: string): string {
   if (typeof value !== 'string') return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+/** The full date and time, for a short date's `title`; `undefined` when there is none. */
+export function formatTimestamp(value: unknown, locale: string): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toLocaleString(locale);
 }
 
 function renderCell(

@@ -13,6 +13,23 @@ export function sqlTimestamp(date: Date, engine: Engine): string {
   return engine === 'mysql' ? iso.replace('T', ' ').replace('Z', '') : iso;
 }
 
+/**
+ * A timestamp column read back from any driver (`Date`, ISO/SQL string, Luxon `DateTime`) as a
+ * `Date`; `null` when the row has none (rows written before the column existed).
+ */
+export function rowDate(value: unknown): Date | null {
+  if (value === undefined || value === null || value === '') return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (
+    typeof value === 'object' &&
+    typeof (value as { toJSDate?: unknown }).toJSDate === 'function'
+  ) {
+    return rowDate((value as { toJSDate(): Date }).toJSDate());
+  }
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /** Quotes an identifier. Names always come from the compiled spec, never from user input. */
 export function ident(name: string, engine: Engine): string {
   if (engine === 'mysql') return `\`${name.replace(/`/g, '``')}\``;

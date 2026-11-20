@@ -131,6 +131,8 @@ export type CmsMessages = {
   requestFailed: string;
   status: string;
   updated: string;
+  /** Label of a document's creation date (`created` is the toast after creating one). */
+  createdLabel: string;
   yes: string;
   no: string;
   previous: string;
@@ -305,6 +307,7 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     requestFailed: 'The request failed. Try again.',
     status: 'Status',
     updated: 'Updated',
+    createdLabel: 'Created',
     yes: 'Yes',
     no: 'No',
     previous: 'Previous',
@@ -477,6 +480,7 @@ export const cmsMessages: Record<CmsLocale, CmsMessages> = {
     requestFailed: 'A requisição falhou. Tente de novo.',
     status: 'Status',
     updated: 'Atualizado',
+    createdLabel: 'Criado',
     yes: 'Sim',
     no: 'Não',
     previous: 'Anterior',

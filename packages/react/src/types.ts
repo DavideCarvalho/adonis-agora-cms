@@ -122,4 +122,10 @@ export type VersionRecord = {
   snapshot?: { doc?: AdminDocument };
 };
 
-export type DocumentSchedule = { action: 'publish' | 'unpublish'; at: string };
+export type DocumentSchedule = {
+  action: 'publish' | 'unpublish';
+  at: string;
+  /** ISO 8601; `null` for a change scheduled before this was recorded. */
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};

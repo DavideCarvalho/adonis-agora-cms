@@ -133,7 +133,11 @@ pending change per document (`GET` reads it, `DELETE` cancels it). Scheduling fo
 `update` access. The web process applies what is due every `schedulerInterval` ms (default 30s,
 `false` turns it off, and the app can call `cms.runDueSchedules()` from its own job instead).
 
-The table is new: run `node ace cms:sync` when deploying.
+The pending change answers `{ action, at, createdAt, updatedAt }`: `createdAt` is when it was first
+scheduled and `updatedAt` when it was last rescheduled (ISO strings, `null` on a change scheduled
+before the CMS recorded them). It lives in `cms_document_schedules` (`collection`, `document_id`,
+`action`, `run_at`, `created_at`, `updated_at`, `_tenant_id`); run `node ace cms:sync` when
+deploying a version that adds columns to it.
 
 ## Comparing versions
 
