@@ -197,6 +197,9 @@ function suite(engine: Engine, clientName: string, envVar: string) {
         expect((await notes.findByID(due.id, { draft: true }))._status).toBe('published');
         expect((await notes.scheduled(later.id)).action).toBe('unpublish');
         expect((await notes.scheduled(later.id)).at).toBeInstanceOf(Date);
+        const pending = await notes.scheduled(later.id);
+        expect(pending.createdAt).toBeInstanceOf(Date);
+        expect(pending.updatedAt.getTime()).toBeGreaterThanOrEqual(pending.createdAt.getTime());
 
         await notes.unschedule(later.id);
         expect(await notes.scheduled(later.id)).toBeNull();

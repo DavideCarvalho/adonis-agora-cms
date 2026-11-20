@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { RepoContext } from '../repository/document.js';
-import { exec, ident, selectOne, selectRows, sqlTimestamp } from '../repository/sql.js';
+import { exec, ident, rowDate, selectOne, selectRows, sqlTimestamp } from '../repository/sql.js';
 
 export type ApiTokenPrincipal = {
   id: number;
@@ -9,6 +9,8 @@ export type ApiTokenPrincipal = {
   abilities: readonly string[];
   expiresAt: Date | null;
   lastUsedAt: Date | null;
+  /** When the token was issued. A token is never edited, so it has no `updatedAt`. */
+  createdAt?: Date | null;
 };
 
 export type CreateApiTokenOptions = {
@@ -81,7 +83,7 @@ export async function listApiTokens(ctx: RepoContext): Promise<ApiTokenPrincipal
   const table = `${ctx.spec.tablePrefix}api_tokens`;
   const rows = await selectRows(
     ctx.client,
-    `select id, name, tenant, abilities, expires_at, last_used_at from ${ident(table, ctx.engine)} order by id desc`,
+    `select id, name, tenant, abilities, expires_at, last_used_at, created_at from ${ident(table, ctx.engine)} order by id desc`,
   );
   return rows.map(toPrincipal);
 }
@@ -99,6 +101,7 @@ function toPrincipal(row: Record<string, unknown>): ApiTokenPrincipal {
     abilities: parseAbilities(row.abilities),
     expiresAt: row.expires_at ? new Date(String(row.expires_at)) : null,
     lastUsedAt: row.last_used_at ? new Date(String(row.last_used_at)) : null,
+    createdAt: rowDate(row.created_at),
   };
 }
 

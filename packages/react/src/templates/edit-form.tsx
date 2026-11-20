@@ -27,6 +27,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FieldErrorsContext, normalizeFieldPath } from '../atoms/field.js';
 import { Badge, Button } from '../atoms/index.js';
 import { useCms, useMessages } from '../context.js';
+import { formatDate, formatTimestamp } from '../organisms/data-table.js';
 import { LivePreview } from '../organisms/live-preview.js';
 import {
   ArrayBuilder,
@@ -419,6 +420,7 @@ export function EditForm({
               {dirty ? <span className="dirty">{t.unsavedChanges}</span> : null}
               {autosaved && !dirty ? <span className="hint">{t.autosaved}</span> : null}
             </div>
+            <DocumentDates doc={doc} />
           </div>
 
           <div className="toolbar">
@@ -715,6 +717,25 @@ function toLocalInput(iso: string): string {
   const date = new Date(iso);
   const offset = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+/** "Created · Updated" under the title of a saved document; `—` when a date is unknown. */
+function DocumentDates({ doc }: { doc: AdminDocument }) {
+  const t = useMessages();
+  const { locale } = useCms();
+  if (!doc.id && doc.createdAt === undefined && doc.updatedAt === undefined) return null;
+
+  return (
+    <p className="hint form-dates" data-testid="document-dates">
+      <span title={formatTimestamp(doc.createdAt, locale)}>
+        {t.createdLabel} {formatDate(doc.createdAt, locale)}
+      </span>
+      {' · '}
+      <span title={formatTimestamp(doc.updatedAt, locale)}>
+        {t.updated} {formatDate(doc.updatedAt, locale)}
+      </span>
+    </p>
+  );
 }
 
 function SchedulePicker({

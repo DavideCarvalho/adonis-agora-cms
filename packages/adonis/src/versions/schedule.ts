@@ -3,11 +3,18 @@ import { decideAccess } from '../repository/access.js';
 import type { OperationOptions } from '../repository/crud.js';
 import { findDocumentByID } from '../repository/crud.js';
 import type { RepoContext } from '../repository/document.js';
-import { exec, ident, selectOne, selectRows, sqlTimestamp } from '../repository/sql.js';
+import { exec, ident, rowDate, selectOne, selectRows, sqlTimestamp } from '../repository/sql.js';
 import { publishDocument, unpublishDocument } from './actions.js';
 
 export type ScheduleAction = 'publish' | 'unpublish';
-export type DocumentSchedule = { action: ScheduleAction; at: Date };
+export type DocumentSchedule = {
+  action: ScheduleAction;
+  at: Date;
+  /** When the pending change was first scheduled; `null` for rows from before this was recorded. */
+  createdAt?: Date | null;
+  /** When it was last rescheduled (equals `createdAt` until then). */
+  updatedAt?: Date | null;
+};
 
 const table = (ctx: RepoContext) => `${ctx.spec.tablePrefix}document_schedules`;
 
@@ -60,14 +67,24 @@ export async function scheduleDocument(
   if (!existing) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
 
   const { where, bindings } = scope(ctx, slug, id);
+  // Rescheduling replaces the row but keeps when the pending change was first created.
+  const previous = await selectOne(
+    ctx.client,
+    `select ${ident('created_at', ctx.engine)} from ${ident(table(ctx), ctx.engine)} where ${where}`,
+    bindings,
+  );
   await exec(ctx.client, `delete from ${ident(table(ctx), ctx.engine)} where ${where}`, bindings);
 
-  const columns = ['collection', 'document_id', 'action', 'run_at'];
+  const now = new Date();
+  const createdAt = (previous && rowDate(previous.created_at)) || now;
+  const columns = ['collection', 'document_id', 'action', 'run_at', 'created_at', 'updated_at'];
   const values: (string | null)[] = [
     slug,
     id,
     schedule.action,
     sqlTimestamp(schedule.at, ctx.engine),
+    sqlTimestamp(createdAt, ctx.engine),
+    sqlTimestamp(now, ctx.engine),
   ];
   if (ctx.spec.tenancy.column) {
     columns.push(ctx.spec.tenancy.column);
@@ -79,7 +96,7 @@ export async function scheduleDocument(
     `insert into ${ident(table(ctx), ctx.engine)} (${columns.map((name) => ident(name, ctx.engine)).join(', ')}) values (${columns.map(() => '?').join(', ')})`,
     values,
   );
-  return schedule;
+  return { action: schedule.action, at: schedule.at, createdAt, updatedAt: now };
 }
 
 export async function cancelSchedule(
@@ -101,11 +118,16 @@ export async function readSchedule(
   const { where, bindings } = scope(ctx, slug, id);
   const row = await selectOne(
     ctx.client,
-    `select ${ident('action', ctx.engine)}, ${ident('run_at', ctx.engine)} from ${ident(table(ctx), ctx.engine)} where ${where}`,
+    `select ${['action', 'run_at', 'created_at', 'updated_at'].map((name) => ident(name, ctx.engine)).join(', ')} from ${ident(table(ctx), ctx.engine)} where ${where}`,
     bindings,
   );
   if (!row) return null;
-  return { action: row.action as ScheduleAction, at: new Date(String(row.run_at)) };
+  return {
+    action: row.action as ScheduleAction,
+    at: new Date(String(row.run_at)),
+    createdAt: rowDate(row.created_at),
+    updatedAt: rowDate(row.updated_at),
+  };
 }
 
 /**

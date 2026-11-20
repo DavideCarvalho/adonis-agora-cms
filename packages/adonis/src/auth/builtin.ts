@@ -118,8 +118,8 @@ async function writeCredential(
   }
   await exec(
     ctx.client,
-    `insert into ${table(ctx)} (${['user_id', 'password_hash', 'version', 'updated_at'].map((c) => ident(c, ctx.engine)).join(', ')}) values (?, ?, ?, ?)`,
-    [userId, hash, 1, now],
+    `insert into ${table(ctx)} (${['user_id', 'password_hash', 'version', 'created_at', 'updated_at'].map((c) => ident(c, ctx.engine)).join(', ')}) values (?, ?, ?, ?, ?)`,
+    [userId, hash, 1, now, now],
   );
   return 1;
 }

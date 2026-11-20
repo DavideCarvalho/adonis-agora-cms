@@ -100,6 +100,9 @@ export function schedulesTable(spec: SystemTableContext): TableSpec {
     column('document_id', spec.idKind === 'uuid' ? 'uuid' : 'integer'),
     column('action', 'string', { length: 16 }),
     column('run_at', 'timestamp', { index: true }),
+    // Nullable, no default: adding them to an existing table is instant and needs no backfill.
+    column('created_at', 'timestamp', { nullable: true }),
+    column('updated_at', 'timestamp', { nullable: true }),
   ];
 
   if (spec.tenancy.column) {
@@ -137,6 +140,7 @@ export function credentialsTable(spec: SystemTableContext): TableSpec {
       column('password_hash', 'string', { length: 255 }),
       column('version', 'integer'),
       column('updated_at', 'timestamp'),
+      column('created_at', 'timestamp', { nullable: true }),
     ],
     indexes: [],
   };

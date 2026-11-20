@@ -39,6 +39,9 @@ const token = await createApiToken(cms.repoContext(), {
 });
 ```
 
+`listApiTokens(cms.repoContext())` lists them (never the token itself) with `name`, `tenant`,
+`abilities`, `expiresAt`, `lastUsedAt` and `createdAt`.
+
 **`--as-system`** is for a trusted shell with no token. The command runs with no principal: every
 `access` rule still runs (with no user), so a collection whose rules ask for a signed-in user stays
 closed. The only thing it lifts is the production guard that refuses an anonymous write to a
