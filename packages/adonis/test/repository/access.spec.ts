@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'vitest';
 import { collection, defineConfig, fields } from '../../src/index.js';
 import { createCms } from '../../src/local_api/index.js';
+import { setByPath } from '../../src/repository/document.js';
 import { createTestCms, type TestCms } from '../../src/testing/create_test_cms.js';
 
 const kits: TestCms[] = [];
@@ -115,6 +116,71 @@ describe('access control', () => {
     const other = await admin.cms.collection('posts').create({ title: 'y', owner: 'a1' });
     await admin.cms.collection('posts').delete(other.id);
     expect(await admin.cms.collection('posts').findByID(other.id)).toBeNull();
+  });
+});
+
+describe('prototype keys in a PATCH', () => {
+  const config = defineConfig({
+    collections: [
+      collection('posts', {
+        fields: [
+          fields.text('title', { required: true }),
+          // Reads never carry a password, so the merge base has no own key to shadow the prototype.
+          fields.password('secretField', { access: { update: () => false } }),
+          fields.group('meta', { fields: [fields.text('note')] }),
+        ],
+      }),
+    ],
+  });
+
+  test('an own __proto__ key does not smuggle a field past field-level update access', async () => {
+    const { cms, kit } = await setup(config, { user: { id: 'u1' } });
+    const posts = cms.collection('posts');
+    const post = await posts.create({ title: 'doc', meta: { note: 'n' } });
+
+    // Plain JSON.parse keeps `__proto__` as an own key, unlike the Adonis body parser.
+    const patch = JSON.parse('{"title":"next","__proto__":{"secretField":"x"}}');
+    const updated = await posts.update(post.id, patch);
+
+    expect(updated.title).toBe('next');
+    expect(updated).not.toHaveProperty('secretField');
+    const row = await kit.db('cms_posts').where({ id: post.id }).first();
+    expect(row?.secret_field ?? row?.secretField ?? null).toBeNull();
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(({} as Record<string, unknown>).secretField).toBeUndefined();
+  });
+
+  test('prototype keys inside a merged group are ignored too', async () => {
+    const { cms } = await setup(config, { user: { id: 'u1' } });
+    const posts = cms.collection('posts');
+    const post = await posts.create({ title: 'doc', meta: { note: 'n' } });
+
+    const patch = JSON.parse(
+      '{"meta":{"__proto__":{"polluted":"yes"},"constructor":{"prototype":{"polluted":"yes"}}}}',
+    );
+    const updated = await posts.update(post.id, patch);
+
+    expect(updated.meta).toEqual({ note: 'n' });
+    expect(Object.getPrototypeOf(updated.meta)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
+describe('setByPath', () => {
+  test('rejects reserved segments instead of walking into a prototype', () => {
+    const target: Record<string, unknown> = {};
+    for (const path of ['__proto__.x', 'a.constructor.prototype.x', 'prototype']) {
+      expect(() => setByPath(target, path, 'v')).toThrow(/reserved segment/);
+    }
+    expect(target).toEqual({});
+    expect(({} as Record<string, unknown>).x).toBeUndefined();
+  });
+
+  test('walks own properties only', () => {
+    const target = Object.create({ meta: { inherited: true } }) as Record<string, unknown>;
+    setByPath(target, 'meta.note', 'n');
+    expect(Object.hasOwn(target, 'meta')).toBe(true);
+    expect(target.meta).toEqual({ note: 'n' });
   });
 });
 

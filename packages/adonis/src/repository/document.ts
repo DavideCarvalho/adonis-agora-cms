@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { CmsConfig, FieldConfig } from '../config/types.js';
 import { resolveLocalization } from '../config/types.js';
 import type { CmsKnex } from '../db/types.js';
+import { CmsSchemaError } from '../errors.js';
 import type { CmsEventBus } from '../integrations/durable.js';
 import type { MediaAdapter } from '../integrations/media.js';
 import type { CmsObservation } from '../integrations/telescope.js';
@@ -447,13 +448,19 @@ export function getByPath(data: Record<string, unknown>, path: string): unknown 
   }, data);
 }
 
+/** Keys that reach an object's prototype when written: never walked or written from a path or a patch. */
+export const BLOCKED_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
+
 export function setByPath(target: Record<string, unknown>, path: string, value: unknown): void {
   const segments = path.split('.');
+  if (segments.some((segment) => BLOCKED_KEYS.has(segment))) {
+    throw new CmsSchemaError(`path "${path}" has a reserved segment`, { path });
+  }
   let cursor = target;
 
   for (let index = 0; index < segments.length - 1; index += 1) {
     const segment = segments[index] ?? '';
-    const next = cursor[segment];
+    const next = Object.hasOwn(cursor, segment) ? cursor[segment] : undefined;
     if (!next || typeof next !== 'object' || Array.isArray(next)) {
       cursor[segment] = {};
     }

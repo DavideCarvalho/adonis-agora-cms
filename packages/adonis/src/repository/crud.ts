@@ -12,6 +12,7 @@ import type { TableSpec } from '../schema/types.js';
 import { latestDraftSnapshot, recordVersion } from '../versions/store.js';
 import { constraintToSql, decideAccess, existsSql, resolveEntry } from './access.js';
 import {
+  BLOCKED_KEYS,
   buildWriteRows,
   type DocumentOptions,
   documentFields,
@@ -1386,7 +1387,8 @@ function mergeDocument(
   const merged: Record<string, unknown> = { ...previous };
 
   for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) continue;
+    // An own `__proto__` key (plain `JSON.parse` keeps one) would otherwise swap the prototype.
+    if (value === undefined || BLOCKED_KEYS.has(key)) continue;
 
     const current = merged[key];
     if (isPlainObject(current) && isPlainObject(value)) {
