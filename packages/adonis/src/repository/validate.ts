@@ -59,7 +59,7 @@ function validateFields(
       continue;
     }
 
-    if (!(field.name in input)) {
+    if (!Object.hasOwn(input, field.name)) {
       const generated = generateSlug(field, input);
       if (generated !== undefined) output[field.name] = generated;
       else if (field.required && field.defaultValue === undefined) errors[fieldPath] = 'required';
