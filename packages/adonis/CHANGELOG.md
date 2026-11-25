@@ -1,5 +1,11 @@
 # @adonis-agora/cms
 
+## 0.9.1
+
+### Patch Changes
+
+- [#38](https://github.com/DavideCarvalho/adonis-agora-cms/pull/38) [`38066e1`](https://github.com/DavideCarvalho/adonis-agora-cms/commit/38066e1345e9ad39d28346bac861907dcd02c9d0) Thanks [@DavideCarvalho](https://github.com/DavideCarvalho)! - Security: the PATCH merge in `update` now ignores `__proto__`, `constructor` and `prototype` keys, so a body parsed with plain `JSON.parse` can no longer swap the merged document's prototype and slip a field (for example a password field denied by `access.update`) past field-level access. Validation only reads a document's own properties, and `setByPath` rejects those reserved path segments and walks own properties only.
+
 ## 0.9.0
 
 ### Minor Changes
