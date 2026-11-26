@@ -272,8 +272,12 @@ export async function handleCollectionVersion(
     const slug = requireParam(request.params.slug, 'slug');
     const id = requireParam(request.params.id, 'id');
     const version = Number(requireParam(request.params.version, 'version'));
-    const result = await cms.collection(slug).versions(id, { limit: 100 });
-    const record = result.docs.find((item) => item.version === version);
+    // `version()` checks the caller may read the document's history and trims the snapshot to
+    // the fields their `access.read` rules show.
+    const snapshot = request.query.snapshot === 'true';
+    const record = Number.isInteger(version)
+      ? await cms.collection(slug).version(id, version, { snapshot })
+      : null;
 
     if (!record) {
       return {
@@ -282,12 +286,7 @@ export async function handleCollectionVersion(
       };
     }
 
-    if (request.query.snapshot !== 'true') return { status: 200, body: record };
-
-    // The snapshot can hold draft content, so it follows the same rule as reading a draft.
-    await cms.collection(slug).findByID(id, { draft: true });
-    const full = await cms.collection(slug).version(id, version);
-    return { status: 200, body: full ?? record };
+    return { status: 200, body: record };
   });
 }
 
@@ -361,7 +360,9 @@ export async function handleCollectionLock(
   return run(async () => {
     const slug = requireParam(request.params.slug, 'slug');
     const id = requireParam(request.params.id, 'id');
-    const ttl = typeof request.body?.ttlSeconds === 'number' ? request.body.ttlSeconds : undefined;
+    const raw = request.body?.ttlSeconds;
+    // Anything sent is checked (a positive number up to `versions.maxLockTtl`), never ignored.
+    const ttl = raw === undefined || raw === null ? undefined : (raw as number);
     const lock = await cms.collection(slug).lock(id, ttl);
     return { status: 200, body: lock };
   });

@@ -1,6 +1,19 @@
-import { CmsConflictError, CmsForbiddenError, CmsNotFoundError } from '../errors.js';
+import { resolveVersions } from '../config/types.js';
+import {
+  CmsConflictError,
+  CmsForbiddenError,
+  CmsNotFoundError,
+  CmsValidationError,
+} from '../errors.js';
 import { decideAccess } from '../repository/access.js';
-import { findDocumentByID, type OperationOptions, updateDocument } from '../repository/crud.js';
+import {
+  assertUpdateAccess,
+  findDocumentByID,
+  loadDocument,
+  type OperationOptions,
+  stripHiddenFields,
+  updateDocument,
+} from '../repository/crud.js';
 import type { RepoContext } from '../repository/document.js';
 import { exec, ident, selectOne, sqlTimestamp } from '../repository/sql.js';
 import {
@@ -9,6 +22,7 @@ import {
   latestPublished,
   listVersions,
   recordVersion,
+  type VersionRecord,
 } from './store.js';
 
 type PublishOptions = OperationOptions & { ttlSeconds?: number };
@@ -59,10 +73,14 @@ export async function discardDraft(
 ): Promise<Record<string, unknown>> {
   const live = await findDocumentByID(ctx, slug, id, { ...options, draft: false, depth: 0 });
   if (!live) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
+  // The version and the update rule see the whole document; the caller gets their own view.
+  const full = (await loadDocument(ctx, slug, id, { depth: 0, trusted: true })) ?? live;
+  // Throwing an edit away is a write: it takes the collection's `update` rule, like the edit did.
+  await assertUpdateAccess(ctx, slug, id, full, 'discard the draft of', options.overrideAccess);
   if (await latestDraftSnapshot(ctx, slug, id)) {
     await recordVersion(ctx, slug, id, {
       status: live._status === 'published' ? 'published' : 'draft',
-      snapshot: live,
+      snapshot: full,
       autosave: false,
       locale: null,
     });
@@ -91,21 +109,98 @@ export async function restoreVersion(
   });
 }
 
+export type ReadVersionsOptions = {
+  locale?: string | null;
+  limit?: number;
+  page?: number;
+  overrideAccess?: boolean;
+};
+
 export async function readVersions(
   ctx: RepoContext,
   slug: string,
   id: string,
-  options: { locale?: string | null; limit?: number; page?: number } = {},
+  options: ReadVersionsOptions = {},
 ) {
-  return listVersions(ctx, slug, id, options);
+  const { overrideAccess, ...query } = options;
+  await assertReadable(ctx, slug, id, overrideAccess, 'history');
+  return listVersions(ctx, slug, id, query);
 }
 
-export async function readVersion(ctx: RepoContext, slug: string, id: string, version: number) {
-  return getVersion(ctx, slug, id, version);
+export type ReadVersionOptions = {
+  overrideAccess?: boolean;
+  /** `false` returns the version's details only, under the same rule as {@link readVersions}. */
+  snapshot?: boolean;
+};
+
+/** One version with its snapshot, trimmed to the fields the caller may read. */
+export async function readVersion(
+  ctx: RepoContext,
+  slug: string,
+  id: string,
+  version: number,
+  options: ReadVersionOptions = {},
+) {
+  if (options.snapshot === false) {
+    await assertReadable(ctx, slug, id, options.overrideAccess, 'history');
+    const record = await getVersion(ctx, slug, id, version);
+    if (!record) return null;
+    const { snapshot: _snapshot, ...summary } = record;
+    return summary as VersionRecord;
+  }
+  await assertReadable(ctx, slug, id, options.overrideAccess, 'snapshot');
+  return visibleSnapshot(ctx, slug, await getVersion(ctx, slug, id, version), options);
 }
 
-export async function readPublishedVersion(ctx: RepoContext, slug: string, id: string) {
-  return latestPublished(ctx, slug, id);
+export async function readPublishedVersion(
+  ctx: RepoContext,
+  slug: string,
+  id: string,
+  options: { overrideAccess?: boolean } = {},
+) {
+  await assertReadable(ctx, slug, id, options.overrideAccess, 'snapshot');
+  return visibleSnapshot(ctx, slug, await latestPublished(ctx, slug, id), options);
+}
+
+/**
+ * The history follows the document's `read` rule: whoever cannot read the document gets a 404.
+ * The list is open to anyone who can read it (an unpublished draft only to a signed-in reader); a
+ * snapshot holds draft content, so it takes the rule for reading a draft (`draft: true`).
+ */
+async function assertReadable(
+  ctx: RepoContext,
+  slug: string,
+  id: string,
+  overrideAccess: boolean | undefined,
+  what: 'history' | 'snapshot',
+): Promise<void> {
+  if (overrideAccess) return;
+  const draft = what === 'snapshot' || Boolean(ctx.user);
+  const doc = await findDocumentByID(ctx, slug, id, { depth: 0, draft });
+  if (!doc) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
+}
+
+/** Snapshots are stored whole; the reader's `field.access.read` rules apply on the way out. */
+async function visibleSnapshot(
+  ctx: RepoContext,
+  slug: string,
+  record: VersionRecord | null,
+  options: { overrideAccess?: boolean },
+): Promise<VersionRecord | null> {
+  if (!record || options.overrideAccess) return record;
+  const snapshot = record.snapshot as { doc?: unknown } | null | undefined;
+  const doc = snapshot?.doc;
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return record;
+  // A snapshot is only shown to a caller who may read drafts, so related drafts may show too.
+  const visible = await stripHiddenFields(
+    ctx,
+    slug,
+    structuredClone(doc as Record<string, unknown>),
+    {
+      relations: { drafts: true },
+    },
+  );
+  return { ...record, snapshot: { ...snapshot, doc: visible } };
 }
 
 /* -------------------------------------------------------------------- locks */
@@ -124,12 +219,19 @@ export async function lockDocument(
   ctx: RepoContext,
   slug: string,
   id: string,
-  ttlSeconds: number,
+  ttlSeconds?: number,
+  options: { overrideAccess?: boolean } = {},
 ): Promise<DocumentLock> {
+  const ttl = lockTtl(ctx, ttlSeconds);
+  // Only someone who may edit the document can claim it, and only a document that exists.
+  const doc = await loadDocument(ctx, slug, id, { depth: 0, trusted: true });
+  if (!doc) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
+  await assertUpdateAccess(ctx, slug, id, doc, 'lock', options.overrideAccess);
+
   const table = `${ctx.spec.tablePrefix}document_locks`;
   const userId = currentUserId(ctx.user);
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
+  const expiresAt = new Date(now.getTime() + ttl * 1000);
 
   await exec(
     ctx.client,
@@ -179,6 +281,16 @@ export async function unlockDocument(
 ): Promise<void> {
   const existing = await getDocumentLock(ctx, slug, id);
   if (!existing) return;
+
+  if (!options.overrideAccess) {
+    // A document deleted since keeps its lock until it expires; the owner may still release it.
+    const doc = await loadDocument(ctx, slug, id, {
+      depth: 0,
+      includeDeleted: true,
+      trusted: true,
+    });
+    if (doc) await assertUpdateAccess(ctx, slug, id, doc, 'unlock', false);
+  }
 
   const userId = currentUserId(ctx.user);
   if (!options.overrideAccess && existing.userId !== null && existing.userId !== userId) {
@@ -235,6 +347,21 @@ export async function getDocumentLock(
 }
 
 /* ------------------------------------------------------------------ helpers */
+
+/** The lock's lifetime: `versions.lockTtl` by default, at most `versions.maxLockTtl`. */
+function lockTtl(ctx: RepoContext, requested: number | undefined): number {
+  const { lockTtl: fallback, maxLockTtl } = resolveVersions(ctx.config);
+  if (requested === undefined) return fallback;
+  if (typeof requested !== 'number' || !Number.isFinite(requested) || requested <= 0) {
+    throw new CmsValidationError({ ttlSeconds: 'expected a positive number of seconds' });
+  }
+  if (requested > maxLockTtl) {
+    throw new CmsValidationError({
+      ttlSeconds: `at most ${maxLockTtl} seconds; raise \`versions.maxLockTtl\` to allow longer locks`,
+    });
+  }
+  return requested;
+}
 
 function currentUserId(user: unknown): string | null {
   if (!user || typeof user !== 'object') return null;

@@ -38,6 +38,27 @@ export type DocumentOptions = {
   select?: readonly string[] | undefined;
   /** Include soft-deleted rows (restore and admin tooling). */
   includeDeleted?: boolean | undefined;
+  /**
+   * How related documents are populated. By default the related collection's `read` rule (and
+   * draft visibility) applies; `overrideAccess` skips it, `drafts` shows unpublished ones.
+   */
+  relations?: RelationReadOptions | undefined;
+  /**
+   * A server-side load (hooks, version snapshots, access decisions): nothing is trimmed by
+   * `access.read` and related documents are not filtered by their rules (the tenant still is).
+   * What reaches a caller is trimmed on the way out instead.
+   */
+  trusted?: boolean | undefined;
+  /**
+   * Keep the root document's fields hidden by `access.read` (related documents still follow the
+   * caller's rules): for a per-document access decision, trimmed by the caller right after.
+   */
+  keepHiddenFields?: boolean | undefined;
+};
+
+export type RelationReadOptions = {
+  overrideAccess?: boolean | undefined;
+  drafts?: boolean | undefined;
 };
 
 export function documentTable(spec: SchemaSpec, slug: string): TableSpec {

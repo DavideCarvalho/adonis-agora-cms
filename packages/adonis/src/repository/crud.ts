@@ -1,4 +1,6 @@
+import { InvalidColumnFilterError } from '@adonis-agora/filter';
 import { hashPassword, verifyPassword } from '../auth/builtin.js';
+import type { AccessFn, FieldConfig } from '../config/types.js';
 import { resolveLocalization, versionsFor } from '../config/types.js';
 import {
   CmsConflictError,
@@ -19,6 +21,7 @@ import {
   documentTable,
   loadChildTree,
   passwordFields,
+  type RelationReadOptions,
   type RepoContext,
   type Row,
   rowToDocument,
@@ -117,9 +120,11 @@ export async function createDocument(
   const id = await transaction(ctx.client, ctx.engine, async (trx) => {
     const trxContext: RepoContext = { ...ctx, client: trx };
     const insertedId = await insertRows(trxContext, rows);
+    // Hooks and the version see the whole document; the caller's view is trimmed on the way out.
     const doc = await loadDocument(trxContext, slug, insertedId, {
       depth: options.depth ?? 1,
       locale: options.locale,
+      trusted: true,
     });
     await runHooks(ctx, slug, 'afterChange', payload, {
       operation: 'create',
@@ -136,10 +141,14 @@ export async function createDocument(
     return insertedId;
   });
 
-  const doc = await findDocumentByID(ctx, slug, id, {
-    ...options,
-    overrideAccess: true,
-  });
+  // The creator sees what they wrote, but related documents keep their own rules.
+  const doc = await readDocumentByID(
+    ctx,
+    slug,
+    id,
+    { ...options, overrideAccess: true },
+    options.overrideAccess,
+  );
 
   publishSideEffects(ctx, slug, 'create', id, doc ?? { id }, startedAt, options.silent);
 
@@ -171,6 +180,8 @@ export async function findDocuments(
   const includeDrafts = query.draft === true || options.draft === true;
   assertDraftAccess(ctx, versions.drafts, includeDrafts, options.overrideAccess);
 
+  // A filter or sort on a field the caller cannot read would reveal its value by elimination.
+  const hidden = options.overrideAccess ? new Set<string>() : await hiddenFields(ctx, slug);
   const where = buildWhere(
     ctx,
     table,
@@ -178,6 +189,7 @@ export async function findDocuments(
     access.constraint,
     versions.drafts && !includeDrafts,
     query.deleted === true,
+    hidden,
   );
   const totalDocs = await countRows(ctx.client, table.name, where, ctx.engine);
 
@@ -186,7 +198,7 @@ export async function findDocuments(
       ? ['id', ...query.select.map((name) => resolveColumnName(ctx, table, name))]
       : ['*'];
 
-  const sort = buildSort(ctx, table, query.sort);
+  const sort = buildSort(ctx, table, query.sort, hidden);
   const rows = await selectRows(
     ctx.client,
     `select ${columns.map((column) => (column === '*' ? '*' : ident(column, ctx.engine))).join(', ')} from ${ident(table.name, ctx.engine)}${where.sql}${sort} limit ? offset ?`,
@@ -196,6 +208,7 @@ export async function findDocuments(
   const docs = await decorateMany(ctx, slug, rows, {
     depth: query.depth ?? options.depth ?? 1,
     locale,
+    relations: relationReads(ctx, includeDrafts, options.overrideAccess),
   });
 
   if (versions.drafts && includeDrafts) await overlayPendingDrafts(ctx, slug, docs);
@@ -219,16 +232,30 @@ export async function findDocumentByID(
   id: string,
   options: OperationOptions = {},
 ): Promise<Record<string, unknown> | null> {
+  return readDocumentByID(ctx, slug, id, options, options.overrideAccess);
+}
+
+/** `relationsOverride`: whether related documents skip their own `read` rule too. */
+async function readDocumentByID(
+  ctx: RepoContext,
+  slug: string,
+  id: string,
+  options: OperationOptions,
+  relationsOverride: boolean | undefined,
+): Promise<Record<string, unknown> | null> {
   const table = documentTable(ctx.spec, slug);
   const versions = versionsFor(ctx.config, slug);
   const includeDrafts = options.draft === true;
   assertDraftAccess(ctx, versions.drafts, includeDrafts, options.overrideAccess);
 
-  // The document is loaded before the access decision so `read` can see it (Payload's `doc`).
+  // Loaded before the access decision so `read` can see it (Payload's `doc`), and whole: a rule
+  // must decide on the document, not on what the caller's field rules would show of it.
   const doc = await loadDocument(ctx, slug, id, {
     depth: options.depth ?? 1,
     locale: options.locale,
     select: options.select,
+    relations: relationReads(ctx, includeDrafts, relationsOverride),
+    keepHiddenFields: true,
   });
 
   if (!doc) return null;
@@ -239,6 +266,9 @@ export async function findDocumentByID(
     options.overrideAccess,
   );
   if (!access.allowed) return null;
+
+  // Decided: from here on the document is the caller's view of it.
+  for (const name of await hiddenFields(ctx, slug)) delete doc[name];
 
   if (versions.drafts && !includeDrafts && !options.overrideAccess && doc._status !== 'published') {
     return null;
@@ -269,7 +299,8 @@ export async function updateDocument(
 ): Promise<Record<string, unknown>> {
   const startedAt = Date.now();
   const table = documentTable(ctx.spec, slug);
-  const previous = await findDocumentByID(ctx, slug, id, { depth: 0, overrideAccess: true });
+  // The whole document: the merge base, `previousData` for hooks and `doc` for the update rule.
+  const previous = await loadDocument(ctx, slug, id, { depth: 0, trusted: true });
   if (!previous) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
 
   const access = await decideAccess(
@@ -329,7 +360,7 @@ export async function updateDocument(
       _status: 'published',
       _hasDraft: true,
     };
-    return overlaid;
+    return stripHiddenFields(ctx, slug, overlaid);
   }
 
   const status =
@@ -344,6 +375,7 @@ export async function updateDocument(
     const doc = await loadDocument(trxContext, slug, id, {
       depth: options.depth ?? 1,
       locale: options.locale,
+      trusted: true,
     });
     if (options.autosave !== true) {
       await runHooks(ctx, slug, 'afterChange', payload, {
@@ -361,7 +393,13 @@ export async function updateDocument(
     });
   });
 
-  const doc = await findDocumentByID(ctx, slug, id, { ...options, overrideAccess: true });
+  const doc = await readDocumentByID(
+    ctx,
+    slug,
+    id,
+    { ...options, overrideAccess: true },
+    options.overrideAccess,
+  );
   publishSideEffects(ctx, slug, 'update', id, doc ?? { id }, startedAt, options.silent);
   return doc ?? { id };
 }
@@ -376,7 +414,8 @@ export async function deleteDocument(
 ): Promise<void> {
   const startedAt = Date.now();
   const table = documentTable(ctx.spec, slug);
-  const doc = await findDocumentByID(ctx, slug, id, { depth: 0, overrideAccess: true });
+  // The whole document, for the delete rule and the delete hooks.
+  const doc = await loadDocument(ctx, slug, id, { depth: 0, trusted: true });
   if (!doc) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
 
   const access = await decideAccess(
@@ -386,7 +425,7 @@ export async function deleteDocument(
   );
   if (!access.allowed) throw denied(ctx, `delete "${slug}" is not allowed`);
 
-  await runHooks(ctx, slug, 'beforeDelete', doc, { operation: 'delete' });
+  await runHooks(ctx, slug, 'beforeDelete', doc, { operation: 'delete', id, doc });
 
   const soft = table.columns.some((column) => column.name === '_deleted_at');
 
@@ -396,7 +435,7 @@ export async function deleteDocument(
       `update ${ident(table.name, ctx.engine)} set ${ident('_deleted_at', ctx.engine)} = ? where ${ident('id', ctx.engine)} = ?`,
       [sqlTimestamp(new Date(), ctx.engine), id],
     );
-    await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete' });
+    await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete', id, doc });
     publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt, options.silent);
     return;
   }
@@ -411,7 +450,7 @@ export async function deleteDocument(
     );
   });
 
-  await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete' });
+  await runHooks(ctx, slug, 'afterDelete', doc, { operation: 'delete', id, doc });
   publishSideEffects(ctx, slug, 'delete', id, undefined, startedAt, options.silent);
 }
 
@@ -465,9 +504,16 @@ export async function restoreDocument(
     throw new CmsNotFoundError(`"${slug}" does not use soft deletes`);
   }
 
+  // The update rule decides on the whole (deleted) document, like it does for an edit.
+  const whole = await loadDocument(ctx, slug, id, {
+    depth: 0,
+    includeDeleted: true,
+    trusted: true,
+  });
+  if (!whole) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
   const access = await decideAccess(
     collectionAccess(ctx, slug)?.update,
-    accessArgs(ctx, { id }),
+    accessArgs(ctx, { id, doc: whole }),
     options.overrideAccess,
   );
   if (!access.allowed) throw denied(ctx, `restore "${slug}" is not allowed`);
@@ -563,8 +609,9 @@ async function decorateRows(
 
   if ((options.depth ?? 1) > 0) await populateJoins(ctx, slug, docs);
 
-  for (const doc of docs) {
-    await stripFieldsByAccess(ctx, slug, doc);
+  if (docs.length > 0 && !options.trusted && !options.keepHiddenFields) {
+    const hidden = await hiddenFields(ctx, slug);
+    for (const doc of docs) for (const name of hidden) delete doc[name];
   }
 
   return docs;
@@ -580,7 +627,7 @@ async function populateRelations(
     (column) => column.references && column.path && !column.locale,
   );
 
-  await populateUploads(ctx, table, docs);
+  await populateUploads(ctx, table, docs, options);
 
   for (const column of relationColumns) {
     const field = column.path ?? '';
@@ -593,26 +640,22 @@ async function populateRelations(
     ] as string[];
     if (ids.length === 0) continue;
 
-    const rows = await selectRows(
-      ctx.client,
-      `select * from ${ident(targetTable.name, ctx.engine)} where ${ident('id', ctx.engine)} in (${placeholders(ids.length)})`,
-      ids,
-    );
+    const rows = await readableRelationRows(ctx, targetSlug, ids, '*', relationReadsFor(options));
+    const hidden = options.trusted ? new Set<string>() : await hiddenFields(ctx, targetSlug);
 
     const byId = new Map(rows.map((row) => [String(row.id), row]));
     for (const doc of docs) {
       const id = getRelationId(doc, field);
       if (!id) continue;
       const targetRow = byId.get(id);
+      // Missing, or not readable by the caller: the id stays, as for a deleted document.
       if (!targetRow) continue;
-      setByPath(
-        doc,
-        field,
-        rowToDocument(ctx, targetTable, targetRow, new Map(), {
-          depth: 0,
-          locale: options.locale,
-        }),
-      );
+      const target = rowToDocument(ctx, targetTable, targetRow, new Map(), {
+        depth: 0,
+        locale: options.locale,
+      });
+      for (const name of hidden) delete target[name];
+      setByPath(doc, field, target);
     }
   }
 }
@@ -658,22 +701,167 @@ async function populateNestedRelations(
       if (ids.length === 0) continue;
 
       const targetTable = documentTable(ctx.spec, targetSlug);
-      const rows = await selectRows(
-        ctx.client,
-        `select * from ${ident(targetTable.name, ctx.engine)} where ${ident('id', ctx.engine)} in (${placeholders(ids.length)})`,
-        ids,
-      );
+      const rows = await readableRelationRows(ctx, targetSlug, ids, '*', relationReadsFor(options));
+      const hidden = options.trusted ? new Set<string>() : await hiddenFields(ctx, targetSlug);
       const byId = new Map(rows.map((row) => [String(row.id), row]));
 
       for (const holder of holders) {
         const id = toRelationId(holder[field]);
         const targetRow = id ? byId.get(id) : undefined;
         if (!targetRow) continue;
-        holder[field] = rowToDocument(ctx, targetTable, targetRow, new Map(), {
+        const target = rowToDocument(ctx, targetTable, targetRow, new Map(), {
           depth: 0,
           locale: options.locale,
         });
+        for (const name of hidden) delete target[name];
+        holder[field] = target;
       }
+    }
+  }
+}
+
+/** A trusted load sees every related document of its tenant; any other follows `relations`. */
+function relationReadsFor(options: DocumentOptions): RelationReadOptions | undefined {
+  return options.trusted ? { overrideAccess: true, drafts: true } : options.relations;
+}
+
+/** Related reads for a request: drafts only for a signed-in caller who asked for them. */
+function relationReads(
+  ctx: RepoContext,
+  includeDrafts: boolean,
+  overrideAccess: boolean | undefined,
+): RelationReadOptions {
+  return {
+    overrideAccess: overrideAccess === true,
+    drafts: includeDrafts && (overrideAccess === true || Boolean(ctx.user)),
+  };
+}
+
+/**
+ * The rows among `ids` of `targetSlug` the caller may read, in one query: the related collection's
+ * `read` rule (a `where` it returns joins the query), its drafts, soft deletes and the tenant.
+ * `overrideAccess` skips the rule and the drafts filter, never the tenant.
+ */
+async function readableRelationRows(
+  ctx: RepoContext,
+  targetSlug: string,
+  ids: readonly string[],
+  columns: '*' | 'id',
+  relations: RelationReadOptions = {},
+): Promise<Row[]> {
+  if (ids.length === 0) return [];
+  const table = documentTable(ctx.spec, targetSlug);
+  const conditions = [`${ident('id', ctx.engine)} in (${placeholders(ids.length)})`];
+  const bindings: unknown[] = [...ids];
+
+  const tenancy = ctx.spec.tenancy.column;
+  if (tenancy && table.columns.some((column) => column.name === tenancy)) {
+    conditions.push(tenantCondition(ctx, tenancy));
+    if (ctx.tenant !== null) bindings.push(ctx.tenant);
+  }
+  if (table.columns.some((column) => column.name === '_deleted_at')) {
+    conditions.push(`${ident('_deleted_at', ctx.engine)} is null`);
+  }
+
+  if (!relations.overrideAccess) {
+    const access = await decideAccess(collectionAccess(ctx, targetSlug)?.read, accessArgs(ctx));
+    if (!access.allowed) return [];
+    if (access.constraint) {
+      const constraint = constraintToSql(access.constraint, ctx.spec, ctx.engine, table.name);
+      conditions.push(`(${constraint.sql})`);
+      bindings.push(...constraint.bindings);
+    }
+    if (versionsFor(ctx.config, targetSlug).drafts && !relations.drafts) {
+      conditions.push(`${ident('_status', ctx.engine)} = ?`);
+      bindings.push('published');
+    }
+  }
+
+  return selectRows(
+    ctx.client,
+    `select ${columns === '*' ? '*' : ident('id', ctx.engine)} from ${ident(table.name, ctx.engine)} where ${conditions.join(' and ')}`,
+    bindings,
+  );
+}
+
+/**
+ * Related documents stored inside a document read some other way than a fresh load (a version
+ * snapshot, a pending draft) were populated for whoever wrote them. This applies the reader's rules
+ * again: one query per related collection, a document they cannot read goes back to its id, and
+ * the fields they cannot see are removed.
+ */
+async function secureStoredRelations(
+  ctx: RepoContext,
+  slug: string,
+  doc: Record<string, unknown>,
+  relations: RelationReadOptions,
+): Promise<void> {
+  const root = documentTable(ctx.spec, slug);
+  const tables = [
+    root,
+    ...ctx.spec.tables.filter((item) => item.kind === 'child' && item.rootTable === root.name),
+  ];
+  const slots = new Map<
+    string,
+    { holder: Record<string, unknown>; key: string; upload?: boolean }[]
+  >();
+
+  for (const table of tables) {
+    for (const column of table.columns) {
+      if (!column.references || !column.path || column.locale) continue;
+      const targetSlug = ctx.spec.tables.find(
+        (item) => item.name === column.references?.table,
+      )?.slug;
+      if (!targetSlug) continue;
+      const segments = column.path.split('.');
+      const key = segments.at(-1) as string;
+      for (const holder of collectRelationHolders([doc], segments)) {
+        const value = holder[key];
+        if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+        const list = slots.get(targetSlug) ?? [];
+        list.push({ holder, key });
+        slots.set(targetSlug, list);
+      }
+    }
+  }
+
+  // Resolved uploads into a collection of this CMS follow that collection's `read` rule too.
+  for (const field of documentFields(ctx.config, slug)) {
+    if (field.type !== 'upload' || !isCollection(ctx, field.relationTo)) continue;
+    const value = doc[field.name];
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const list = slots.get(field.relationTo) ?? [];
+    list.push({ holder: doc, key: field.name, upload: true });
+    slots.set(field.relationTo, list);
+  }
+
+  for (const [targetSlug, list] of slots) {
+    const ids = [
+      ...new Set(
+        list
+          .map(({ holder, key }) => toRelationId(holder[key]))
+          .filter((value): value is string => typeof value === 'string'),
+      ),
+    ];
+    const readable = new Set(
+      (await readableRelationRows(ctx, targetSlug, ids, 'id', relations)).map((row) =>
+        String(row.id),
+      ),
+    );
+    const hidden = await hiddenFields(ctx, targetSlug);
+    const passwords = passwordFields(documentFields(ctx.config, targetSlug));
+    for (const { holder, key, upload } of list) {
+      const target = holder[key] as Record<string, unknown>;
+      const id = toRelationId(target);
+      if (!id || !readable.has(id)) {
+        // The shapes a missing one has: a bare id for a relation, `{ id }` for an upload.
+        holder[key] = id === undefined ? null : upload ? { id } : id;
+        continue;
+      }
+      if (upload) continue;
+      const visible = { ...target };
+      for (const name of [...hidden, ...passwords]) delete visible[name];
+      holder[key] = visible;
     }
   }
 }
@@ -718,10 +906,17 @@ function toRelationId(value: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * `upload` fields, resolved by the media adapter. When `relationTo` is a collection of this CMS,
+ * that collection's rules decide first, like for a relation (one query per field): an upload the
+ * caller cannot read is never resolved and comes back as `{ id }`, the shape of a missing one. An
+ * external library gets the caller (`user`, `tenant`) to apply its own rules.
+ */
 async function populateUploads(
   ctx: RepoContext,
   table: TableSpec,
   docs: Record<string, unknown>[],
+  options: DocumentOptions = {},
 ): Promise<void> {
   if (!ctx.media) return;
 
@@ -730,18 +925,39 @@ async function populateUploads(
   );
 
   for (const field of uploadFields) {
-    const ids = docs
-      .map((doc) => doc[field.name])
-      .filter((value): value is string => typeof value === 'string' && value.length > 0);
+    if (field.type !== 'upload') continue;
+    const ids = [
+      ...new Set(
+        docs
+          .map((doc) => doc[field.name])
+          .filter((value): value is string => typeof value === 'string' && value.length > 0),
+      ),
+    ];
     if (ids.length === 0) continue;
 
-    const resolved = await ctx.media.resolveMany(ids);
+    const readable = isCollection(ctx, field.relationTo)
+      ? new Set(
+          (
+            await readableRelationRows(ctx, field.relationTo, ids, 'id', relationReadsFor(options))
+          ).map((row) => String(row.id)),
+        )
+      : null;
+    const allowed = readable ? ids.filter((id) => readable.has(id)) : ids;
+
+    const resolved =
+      allowed.length > 0
+        ? await ctx.media.resolveMany(allowed, { user: ctx.user, tenant: ctx.tenant })
+        : new Map();
     for (const doc of docs) {
       const id = doc[field.name];
       if (typeof id !== 'string') continue;
       doc[field.name] = resolved.get(id) ?? { id };
     }
   }
+}
+
+function isCollection(ctx: RepoContext, slug: string): boolean {
+  return ctx.spec.tables.some((table) => table.kind === 'collection' && table.slug === slug);
 }
 
 function getRelationId(doc: Record<string, unknown>, field: string): string | undefined {
@@ -969,6 +1185,8 @@ export function buildWhere(
   constraint: Parameters<typeof constraintToSql>[0] | undefined,
   publishedOnly: boolean | undefined,
   includeDeleted = false,
+  /** Fields the caller may not read (`field.access.read`): filtering on them is refused. */
+  hidden: ReadonlySet<string> = new Set(),
 ): { sql: string; bindings: unknown[] } {
   const parts: { sql: string; bindings: unknown[] }[] = [];
 
@@ -989,7 +1207,7 @@ export function buildWhere(
 
   if (query.where) {
     for (const [field, value] of Object.entries(query.where)) {
-      parts.push(whereCondition(ctx, table, field, value));
+      parts.push(whereCondition(ctx, table, field, value, hidden));
     }
   }
 
@@ -1010,14 +1228,15 @@ function whereCondition(
   table: TableSpec,
   field: string,
   value: unknown,
+  hidden: ReadonlySet<string>,
 ): { sql: string; bindings: unknown[] } {
-  if (field === 'and' || field === 'or') return combineGroup(ctx, table, field, value);
+  if (field === 'and' || field === 'or') return combineGroup(ctx, table, field, value, hidden);
   // The workflow column is not a config field, but the panel filters its list by it.
   if (field === '_status') {
     const status = isOperatorObject(value) ? (value as { equals?: unknown }).equals : value;
     return { sql: `${ident('_status', ctx.engine)} = ?`, bindings: [String(status)] };
   }
-  return fieldCondition(ctx, table, field, value);
+  return fieldCondition(ctx, table, field, value, hidden);
 }
 
 function combineGroup(
@@ -1025,13 +1244,14 @@ function combineGroup(
   table: TableSpec,
   field: 'and' | 'or',
   value: unknown,
+  hidden: ReadonlySet<string>,
 ): { sql: string; bindings: unknown[] } {
   if (!Array.isArray(value)) return { sql: '1 = 1', bindings: [] };
 
   const parts = value.map((item) => {
     const object = item as Record<string, unknown>;
     const conditions = Object.entries(object).map(([key, nested]) =>
-      whereCondition(ctx, table, key, nested),
+      whereCondition(ctx, table, key, nested, hidden),
     );
     return {
       sql: conditions.map((part) => `(${part.sql})`).join(' and '),
@@ -1051,7 +1271,9 @@ function fieldCondition(
   table: TableSpec,
   field: string,
   value: unknown,
+  hidden: ReadonlySet<string>,
 ): { sql: string; bindings: unknown[] } {
+  assertReadable(field, hidden, 'filter');
   const entry = resolveEntry(ctx.spec, field, table.name);
   // A filter on the hash would read it one character at a time.
   if (!entry || passwordFields(documentFields(ctx.config, table.slug)).includes(field)) {
@@ -1194,7 +1416,15 @@ function wrapEntry(
   return { sql: existsSql(entry, ctx.engine, table.name, condition), bindings };
 }
 
-function buildSort(ctx: RepoContext, table: TableSpec, sort: string | undefined): string {
+/** Raw columns a sort may name besides the document's fields (the panel sorts by `_status`). */
+const SYSTEM_SORT_COLUMNS = ['_status', 'created_at', 'updated_at'];
+
+function buildSort(
+  ctx: RepoContext,
+  table: TableSpec,
+  sort: string | undefined,
+  hidden: ReadonlySet<string>,
+): string {
   if (!sort) return ` order by ${ident('created_at', ctx.engine)} desc`;
 
   const parts = sort
@@ -1204,15 +1434,47 @@ function buildSort(ctx: RepoContext, table: TableSpec, sort: string | undefined)
   const clauses = parts.map((item) => {
     const descending = item.startsWith('-');
     const field = descending ? item.slice(1) : item;
-    const entry = resolveEntry(ctx.spec, field, table.name);
     if (passwordFields(documentFields(ctx.config, table.slug)).includes(field)) {
       throw new CmsValidationError({ [field]: 'cannot sort by a password' });
     }
-    const column = entry?.column ?? field;
+    assertReadable(field, hidden, 'sort');
+    const column = sortColumn(ctx, table, field);
     return `${ident(column, ctx.engine)} ${descending ? 'desc' : 'asc'}`;
   });
 
   return clauses.length > 0 ? ` order by ${clauses.join(', ')}` : '';
+}
+
+/**
+ * The root-table column a sort field orders by. Anything else is refused: a name that is not a
+ * field would otherwise reach the SQL as a raw column, past every field rule.
+ */
+function sortColumn(ctx: RepoContext, table: TableSpec, field: string): string {
+  const entry = resolveEntry(ctx.spec, field, table.name);
+  if (entry && entry.chain.length === 0) return entry.column;
+  if (
+    SYSTEM_SORT_COLUMNS.includes(field) &&
+    table.columns.some((column) => column.name === field)
+  ) {
+    return field;
+  }
+  if (entry) {
+    throw new InvalidColumnFilterError(
+      `Cannot sort "${table.slug}" by "${field}": it lives inside an array or blocks field. Sort by a top-level field.`,
+    );
+  }
+  throw new InvalidColumnFilterError(
+    `Cannot sort "${table.slug}" by "${field}": no such field. Sort by one of its fields, \`id\`, \`createdAt\` or \`updatedAt\`.`,
+  );
+}
+
+/** `field.access.read` covers querying too: a hidden field cannot be filtered or sorted by. */
+function assertReadable(field: string, hidden: ReadonlySet<string>, use: 'filter' | 'sort'): void {
+  const root = field.split('.')[0] ?? field;
+  if (!hidden.has(root)) return;
+  throw new InvalidColumnFilterError(
+    `Cannot ${use} by "${field}": its \`access.read\` rule hides it from the current user.`,
+  );
 }
 
 function resolveColumnName(ctx: RepoContext, table: TableSpec, field: string): string {
@@ -1225,6 +1487,26 @@ function resolveColumnName(ctx: RepoContext, table: TableSpec, field: string): s
 /** 401 when there is no principal, 403 when there is one and it is denied. */
 function denied(ctx: RepoContext, message: string): CmsError {
   return ctx.user ? new CmsForbiddenError(message) : new CmsUnauthorizedError(message);
+}
+
+/**
+ * The collection's `update` rule, for writes that do not go through {@link updateDocument} (discard
+ * a draft, take or release the editing lock). Throws 401/403 like an update would.
+ */
+export async function assertUpdateAccess(
+  ctx: RepoContext,
+  slug: string,
+  id: string,
+  doc: Record<string, unknown>,
+  action: string,
+  overrideAccess?: boolean,
+): Promise<void> {
+  const access = await decideAccess(
+    collectionAccess(ctx, slug)?.update,
+    accessArgs(ctx, { id, doc }),
+    overrideAccess,
+  );
+  if (!access.allowed) throw denied(ctx, `${action} "${slug}" ${id} is not allowed`);
 }
 
 function assertDraftAccess(
@@ -1263,17 +1545,61 @@ function accessArgs(
   };
 }
 
-async function stripFieldsByAccess(
+/**
+ * Names of the document's fields the caller may not read, by `field.access.read`. Fields inside a
+ * row, collapsible or tabs sit at the top of the document, so they are walked too, and a rule on
+ * the structural field covers every field in it.
+ */
+export async function hiddenFields(ctx: RepoContext, slug: string): Promise<Set<string>> {
+  const hidden = new Set<string>();
+  const decisions = new Map<AccessFn, boolean>();
+  const allowed = async (rule: AccessFn) => {
+    let decision = decisions.get(rule);
+    if (decision === undefined) {
+      decision = (await decideAccess(rule, accessArgs(ctx))).allowed;
+      decisions.set(rule, decision);
+    }
+    return decision;
+  };
+
+  const walk = async (fields: readonly FieldConfig[], inherited: readonly AccessFn[]) => {
+    for (const field of fields) {
+      const rules = field.access?.read ? [...inherited, field.access.read] : inherited;
+      if (field.type === 'row' || field.type === 'collapsible') {
+        await walk(field.fields, rules);
+        continue;
+      }
+      if (field.type === 'tabs') {
+        for (const tab of field.tabs) await walk(tab.fields, rules);
+        continue;
+      }
+      for (const rule of rules) {
+        if (!(await allowed(rule))) {
+          hidden.add(field.name);
+          break;
+        }
+      }
+    }
+  };
+
+  await walk(documentFields(ctx.config, slug), []);
+  return hidden;
+}
+
+/**
+ * Removes what the caller may not see from a document read some other way than `find` (a version
+ * snapshot, a pending draft): fields hidden by `access.read`, and password hashes.
+ */
+export async function stripHiddenFields(
   ctx: RepoContext,
   slug: string,
   doc: Record<string, unknown>,
-): Promise<void> {
-  const fields = documentFields(ctx.config, slug);
-  for (const field of fields) {
-    if (!field.access?.read) continue;
-    const decision = await decideAccess(field.access.read, accessArgs(ctx));
-    if (!decision.allowed) delete doc[field.name];
-  }
+  options: { hidden?: ReadonlySet<string>; relations?: RelationReadOptions } = {},
+): Promise<Record<string, unknown>> {
+  for (const name of options.hidden ?? (await hiddenFields(ctx, slug))) delete doc[name];
+  for (const name of passwordFields(documentFields(ctx.config, slug))) delete doc[name];
+  await secureStoredRelations(ctx, slug, doc, options.relations ?? {});
+  return doc;
 }
 
 /** Top-level `join` fields; each is a normal read, so the other collection's access applies. */
@@ -1289,6 +1615,12 @@ async function populateJoins(
     docs.flatMap((doc) =>
       joins.map(async (field) => {
         if (field.type !== 'join') return;
+        // The join filters the other collection by its relationship; hidden from the reader, it
+        // cannot be filtered on, so the join stays empty rather than failing the whole read.
+        if ((await hiddenFields(ctx, field.collection)).has(field.on.split('.')[0] ?? field.on)) {
+          doc[field.name] = { docs: [], totalDocs: 0 };
+          return;
+        }
         const found = await findDocuments(
           ctx,
           field.collection,
@@ -1327,14 +1659,19 @@ async function overlayPendingDrafts(
   slug: string,
   docs: Record<string, unknown>[],
 ): Promise<void> {
+  const hidden = await hiddenFields(ctx, slug);
   await Promise.all(
     docs.map(async (doc) => {
       if (doc._status !== 'published') return;
       const pending = await latestDraftSnapshot(ctx, slug, String(doc.id));
       if (!pending) return;
       const { id, createdAt, updatedAt } = doc;
-      for (const key of Object.keys(pending)) doc[key] = pending[key];
+      for (const key of Object.keys(pending)) {
+        if (!BLOCKED_KEYS.has(key)) doc[key] = pending[key];
+      }
       Object.assign(doc, { id, createdAt, updatedAt, _status: 'published', _hasDraft: true });
+      // The pending edit is stored whole, so the reader's field rules apply to it again.
+      await stripHiddenFields(ctx, slug, doc, { hidden, relations: { drafts: true } });
     }),
   );
 }
@@ -1348,6 +1685,8 @@ async function runHooks(
   data: Record<string, unknown>,
   extra: {
     operation: 'create' | 'update' | 'delete';
+    /** Delete hooks: `DeleteHookArgs` promises the id and the document. */
+    id?: string;
     doc?: Record<string, unknown>;
     previousData?: Record<string, unknown>;
   },
@@ -1366,6 +1705,7 @@ async function runHooks(
       req: ctx.req,
       user: ctx.user,
       locale: ctx.locale,
+      ...(extra.id !== undefined ? { id: extra.id } : {}),
       ...(extra.doc ? { doc: extra.doc } : {}),
       ...(extra.previousData ? { previousData: extra.previousData } : {}),
     });

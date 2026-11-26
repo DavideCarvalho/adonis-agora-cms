@@ -1,7 +1,6 @@
-import { CmsForbiddenError, CmsNotFoundError } from '../errors.js';
-import { decideAccess } from '../repository/access.js';
+import { CmsNotFoundError } from '../errors.js';
 import type { OperationOptions } from '../repository/crud.js';
-import { findDocumentByID } from '../repository/crud.js';
+import { assertUpdateAccess, findDocumentByID, loadDocument } from '../repository/crud.js';
 import type { RepoContext } from '../repository/document.js';
 import { exec, ident, rowDate, selectOne, selectRows, sqlTimestamp } from '../repository/sql.js';
 import { publishDocument, unpublishDocument } from './actions.js';
@@ -38,20 +37,22 @@ function scope(ctx: RepoContext, slug: string, id: string) {
   return { where: conditions.join(' and '), bindings };
 }
 
-/** Whoever may update a document may decide when it goes live. */
+/**
+ * Whoever may update a document may decide when it goes live: the `update` rule, with the request,
+ * the id and the whole document, like an edit.
+ */
 async function assertCanSchedule(
   ctx: RepoContext,
   slug: string,
+  id: string,
   options: OperationOptions,
+  { includeDeleted = false } = {},
 ): Promise<void> {
   const collection = ctx.config.collections?.find((item) => item.slug === slug);
   if (!collection) throw new CmsNotFoundError(`collection "${slug}" not found`);
-  const access = await decideAccess(
-    collection.access?.update,
-    { req: null, user: ctx.user ?? null, tenant: ctx.tenant },
-    options.overrideAccess,
-  );
-  if (!access.allowed) throw new CmsForbiddenError(`cannot schedule "${slug}"`);
+  const doc = await loadDocument(ctx, slug, id, { depth: 0, trusted: true, includeDeleted });
+  if (!doc) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
+  await assertUpdateAccess(ctx, slug, id, doc, 'schedule', options.overrideAccess);
 }
 
 /** One pending change per document: scheduling again replaces it. */
@@ -62,9 +63,7 @@ export async function scheduleDocument(
   schedule: DocumentSchedule,
   options: OperationOptions = {},
 ): Promise<DocumentSchedule> {
-  await assertCanSchedule(ctx, slug, options);
-  const existing = await findDocumentByID(ctx, slug, id, { overrideAccess: true });
-  if (!existing) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
+  await assertCanSchedule(ctx, slug, id, options);
 
   const { where, bindings } = scope(ctx, slug, id);
   // Rescheduling replaces the row but keeps when the pending change was first created.
@@ -105,7 +104,8 @@ export async function cancelSchedule(
   id: string,
   options: OperationOptions = {},
 ): Promise<void> {
-  await assertCanSchedule(ctx, slug, options);
+  // A document deleted since can still have its pending change cancelled.
+  await assertCanSchedule(ctx, slug, id, options, { includeDeleted: true });
   const { where, bindings } = scope(ctx, slug, id);
   await exec(ctx.client, `delete from ${ident(table(ctx), ctx.engine)} where ${where}`, bindings);
 }
@@ -114,7 +114,13 @@ export async function readSchedule(
   ctx: RepoContext,
   slug: string,
   id: string,
+  options: { overrideAccess?: boolean } = {},
 ): Promise<DocumentSchedule | null> {
+  // Like the history: whoever cannot read the document does not learn what is planned for it.
+  if (!options.overrideAccess) {
+    const doc = await findDocumentByID(ctx, slug, id, { depth: 0, draft: Boolean(ctx.user) });
+    if (!doc) throw new CmsNotFoundError(`"${slug}" ${id} not found`);
+  }
   const { where, bindings } = scope(ctx, slug, id);
   const row = await selectOne(
     ctx.client,

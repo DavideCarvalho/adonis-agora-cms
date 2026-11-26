@@ -9,6 +9,12 @@ import type { Cms } from '../local_api/index.js';
 import type { RepoContext } from '../repository/document.js';
 import { exec, ident, selectOne, sqlTimestamp } from '../repository/sql.js';
 import type { CmsRouter } from '../rest/routes.js';
+import {
+  isAttemptStore,
+  type LoginAttemptStore,
+  MemoryAttemptStore,
+  withFallback,
+} from './attempt_store.js';
 
 const scryptAsync = promisify(scrypt) as (
   password: string,
@@ -19,8 +25,11 @@ const scryptAsync = promisify(scrypt) as (
 const COOKIE = 'cms_session';
 const MIN_PASSWORD = 8;
 const RESET_TTL_MS = 60 * 60 * 1000;
+/** Failed logins allowed per e-mail from one address, per window. */
 const MAX_ATTEMPTS = 10;
-const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+/** Failed logins allowed from one address across every e-mail, per window (password spraying). */
+const MAX_ATTEMPTS_PER_IP = 50;
+const ATTEMPT_WINDOW_SECONDS = 15 * 60;
 
 export type CmsMail = {
   send(message: { to: string; subject: string; text: string }): Promise<unknown>;
@@ -35,11 +44,29 @@ export type BuiltinAuthOptions = {
   ttlSeconds?: number;
   /** Delivers password reset links. Without it, the panel offers no reset. */
   mail?: CmsMail;
+  /**
+   * Login throttling. Defaults: 10 failures per e-mail and address, 50 failures per address across
+   * all e-mails, in a 15 minute window. Counted in `@adonisjs/limiter` or `@adonisjs/redis` when the
+   * app has one (detected), otherwise in memory per process.
+   */
+  loginAttempts?: LoginAttemptLimits;
+};
+
+export type LoginAttemptLimits = {
+  /** Failed logins for one e-mail from one address. Default 10. */
+  perAccount?: number;
+  /** Failed logins from one address, whatever the e-mail. Default 50. */
+  perIp?: number;
+  /** How long a failure counts, in seconds. Default 900. */
+  windowSeconds?: number;
+  /** Where failures are counted. Default: detected shared store, else memory. */
+  store?: LoginAttemptStore;
 };
 
 export type BuiltinAuth = CmsAuthAdapter & {
   builtin: Required<Pick<BuiltinAuthOptions, 'secret' | 'collection' | 'ttlSeconds'>> & {
     mail: CmsMail | undefined;
+    loginAttempts?: LoginAttemptLimits;
   };
 };
 
@@ -153,11 +180,27 @@ export function cmsAuth(options: BuiltinAuthOptions): BuiltinAuth {
       'auth.builtin needs a secret of at least 32 characters',
     );
   }
+  const { store, ...limits } = options.loginAttempts ?? {};
+  if (store !== undefined && !isAttemptStore(store)) {
+    throw new CmsConfigError(
+      'integrations.auth',
+      'auth.builtin loginAttempts.store must have count(key, windowMs), increment(key, windowMs) and clear(key, windowMs)',
+    );
+  }
+  for (const [name, value] of Object.entries(limits)) {
+    if (value !== undefined && !(Number.isInteger(value) && value > 0)) {
+      throw new CmsConfigError(
+        'integrations.auth',
+        `auth.builtin loginAttempts.${name} must be a positive integer, got ${String(value)}`,
+      );
+    }
+  }
   const settings = {
     secret: options.secret,
     collection: options.collection ?? 'users',
     ttlSeconds: options.ttlSeconds ?? 7 * 24 * 60 * 60,
     mail: options.mail,
+    ...(options.loginAttempts ? { loginAttempts: options.loginAttempts } : {}),
   };
 
   return {
@@ -248,7 +291,12 @@ export function registerAuthRoutes(
   router: CmsRouter,
   cms: Cms,
   auth: BuiltinAuth,
-  options: { prefix: string; adminPath: string },
+  options: {
+    prefix: string;
+    adminPath: string;
+    /** A shared store the provider found in the container; `loginAttempts.store` wins over it. */
+    attemptStore?: LoginAttemptStore;
+  },
 ): void {
   activeCms = cms;
   const { secret, collection: slug, ttlSeconds, mail } = auth.builtin;
@@ -258,7 +306,17 @@ export function registerAuthRoutes(
       find(query: unknown, options?: unknown): Promise<{ docs: Record<string, unknown>[] }>;
       create(data: unknown, options?: unknown): Promise<Record<string, unknown>>;
     };
-  const attempts = new Map<string, { count: number; until: number }>();
+  const limits = auth.builtin.loginAttempts ?? {};
+  const windowMs = (limits.windowSeconds ?? ATTEMPT_WINDOW_SECONDS) * 1000;
+  const perAccount = limits.perAccount ?? MAX_ATTEMPTS;
+  const perIp = limits.perIp ?? MAX_ATTEMPTS_PER_IP;
+  const shared = limits.store ?? options.attemptStore;
+  // A shared store that is down must neither lock everyone out nor stop counting.
+  const store = shared
+    ? withFallback(shared, (error) =>
+        console.error('[cms] login attempt store failed, counting in memory meanwhile', error),
+      )
+    : new MemoryAttemptStore();
 
   const startSession = (ctx: AuthContext, userId: string, version: number) => {
     const token = sign(
@@ -314,9 +372,14 @@ export function registerAuthRoutes(
     const email = text(body(ctx).email).trim().toLowerCase();
     const password = text(body(ctx).password);
 
-    const key = `${ctx.request.ip?.() ?? ''}|${email}`;
-    const seen = attempts.get(key);
-    if (seen && seen.until > Date.now() && seen.count >= MAX_ATTEMPTS) {
+    const ip = ctx.request.ip?.() ?? '';
+    const ipKey = `ip:${ip}`;
+    const accountKey = `account:${ip}|${email}`;
+    const [ipFailures, accountFailures] = await Promise.all([
+      store.count(ipKey, windowMs),
+      store.count(accountKey, windowMs),
+    ]);
+    if (ipFailures >= perIp || accountFailures >= perAccount) {
       return failure(ctx, 429, 'CMS_RATE_LIMITED', 'too many attempts, try again later');
     }
 
@@ -324,14 +387,12 @@ export function registerAuthRoutes(
     const credential = user ? await readCredential(repo(), String(user.id)) : null;
     const valid = await verifyPassword(password, credential?.password_hash ?? (await DUMMY_HASH));
     if (!user || !credential || !valid) {
-      attempts.set(key, {
-        count: seen && seen.until > Date.now() ? seen.count + 1 : 1,
-        until: Date.now() + ATTEMPT_WINDOW_MS,
-      });
+      await Promise.all([store.increment(accountKey, windowMs), store.increment(ipKey, windowMs)]);
       return failure(ctx, 401, 'CMS_INVALID_LOGIN', 'wrong e-mail or password');
     }
 
-    attempts.delete(key);
+    // Only this account's count resets: signing into your own account must not clear the address's.
+    await store.clear(accountKey, windowMs);
     startSession(ctx, String(user.id), Number(credential.version));
     return ctx.response.status(200).json({ user });
   });

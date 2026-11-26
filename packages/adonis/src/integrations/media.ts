@@ -1,6 +1,8 @@
 import type { CmsUploadHandler } from '../config/types.js';
 import type { CmsUpload } from '../types/document.js';
 
+export type MediaReadContext = { user: unknown; tenant: string | null };
+
 export type MediaAsset = {
   id: string;
   url: string;
@@ -18,17 +20,21 @@ export type MediaAsset = {
  * `{ id, url, mime, width, height }` on read. Without an adapter the id is returned as-is.
  */
 export type MediaAdapter = {
-  resolveMany(ids: readonly string[]): Promise<Map<string, CmsUpload>>;
+  /**
+   * `context` is who is reading, so a library with its own ownership rules can apply them: an id
+   * it leaves out of the map comes back as `{ id }`.
+   */
+  resolveMany(ids: readonly string[], context?: MediaReadContext): Promise<Map<string, CmsUpload>>;
 };
 
 export function createMediaAdapter(
-  resolver: (ids: readonly string[]) => Promise<readonly MediaAsset[]>,
+  resolver: (ids: readonly string[], context?: MediaReadContext) => Promise<readonly MediaAsset[]>,
 ): MediaAdapter {
   return {
-    async resolveMany(ids) {
+    async resolveMany(ids, context) {
       const unique = [...new Set(ids)].filter(Boolean);
       if (unique.length === 0) return new Map();
-      const assets = await resolver(unique);
+      const assets = await resolver(unique, context);
 
       return new Map(
         assets.map((asset) => [

@@ -32,6 +32,24 @@ Scheduled publishing runs on a timer in each web process. It is safe to leave, b
 instance prefer a single runner: set `schedulerInterval: false` and either schedule `cms.runDueSchedules()` or
 use `CmsRunDueSchedules` with `@adonis-agora/durable`.
 
+### Login throttling with `auth.builtin`
+
+Failed logins are limited per e-mail and address (10) and per address across all e-mails (50), for 15
+minutes. With `@adonisjs/limiter` or `@adonisjs/redis` installed the count is shared by every instance
+with no configuration. Without either it lives in each process, and production logs that once at boot.
+Change the limits, or bring your own store, with `loginAttempts`:
+
+```ts
+auth.builtin({
+  secret: env.get('CMS_SECRET'),
+  loginAttempts: { perAccount: 5, perIp: 30, windowSeconds: 600, store: myStore },
+});
+```
+
+A store has `count(key, windowMs)`, `increment(key, windowMs)` and `clear(key, windowMs)`; `redisAttemptStore(redis)` and
+`limiterAttemptStore(limiter)` are exported. If the shared store fails, counting falls back to memory
+and the error is logged.
+
 ## Removing a field
 
 In development the app keeps running and warns you, since applying it would delete data. Removing a field

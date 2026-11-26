@@ -357,6 +357,11 @@ export type VersionsConfig = {
   retention?: number | null;
   /** Advisory document lock TTL in seconds (app-level only). */
   lockTtl?: number;
+  /**
+   * The longest lock a caller may ask for, in seconds (app-level only). Default 3600. A longer
+   * `ttlSeconds` is refused, so nobody can hold a document for days.
+   */
+  maxLockTtl?: number;
 };
 
 export type CollectionAdmin = {
@@ -613,6 +618,8 @@ export type ResolvedVersions = {
   /** `null` keeps full history. */
   retention: number | null;
   lockTtl: number;
+  /** Never below `lockTtl`, so the default lock always fits. */
+  maxLockTtl: number;
 };
 
 export type ResolvedLocalization = {
@@ -653,6 +660,7 @@ export function resolveVersions(
     autosave: merged.autosave ?? false,
     retention: merged.retention ?? null,
     lockTtl: config.versions?.lockTtl ?? 300,
+    maxLockTtl: Math.max(config.versions?.maxLockTtl ?? 3600, config.versions?.lockTtl ?? 300),
   };
 }
 
