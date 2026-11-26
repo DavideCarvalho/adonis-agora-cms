@@ -49,6 +49,12 @@ access: {
 
 `doc` is empty on a list, so return `true` there or use a constraint.
 
+`doc` is always the whole stored document, fields hidden from the caller by `access.read` included, so a
+rule can decide on an `owner` field nobody but admins may see. The caller only gets their trimmed view
+afterwards. The same `doc` reaches `update` and `delete`, and the `update` rule also decides discarding a
+draft, locking, scheduling and restoring a soft-deleted document. Reading a document's version history or
+its schedule takes its `read` rule.
+
 ## Only some documents
 
 Return a constraint instead of a boolean, and it becomes part of the query:
@@ -70,6 +76,23 @@ fields.select('role', {
   access: { update: requiresRole('admin') },
 });
 ```
+
+A field the caller cannot read is left out of every read, version snapshots included, and it cannot be
+used in a `where` or a `sort`: that answers a 400 naming the field, since filtering on it would reveal its
+value.
+
+## Related documents
+
+A populated relation follows the related collection's own rules, not the parent's. A related document the
+caller cannot read (its `read` rule, a `where` it returns, a draft outside a draft read, a soft-deleted or
+other-tenant document) stays a bare id, exactly like one that was deleted, and its hidden fields are left
+out. The same applies to the relations stored in a version snapshot. `{ overrideAccess: true }` skips the
+related rules too.
+
+An `upload` whose `relationTo` is a collection of this CMS follows that collection's rules the same way:
+one the caller cannot read is never handed to the media adapter and comes back as `{ id }`, the shape of a
+missing file. An external media library receives the reader as `resolveMany(ids, { user, tenant })`, so it
+can apply its own ownership rules.
 
 ## With a library
 

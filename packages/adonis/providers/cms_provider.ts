@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import type { ApplicationService } from '@adonisjs/core/types';
 import { setCms } from '../services/main.js';
 import { resolveApiToken } from '../src/auth/api_tokens.js';
+import { detectAttemptStore } from '../src/auth/attempt_store.js';
 import { type BuiltinAuth, registerAuthRoutes } from '../src/auth/builtin.js';
 import type { CmsConfig, CmsUploadHandler, UploadsConfig } from '../src/config/types.js';
 import { resolveDbConfig, resolveTenancy } from '../src/config/types.js';
@@ -41,6 +42,12 @@ type UploadRouteContext = {
   response: {
     status(code: number): { json(payload: unknown): unknown };
   };
+};
+
+/** Container access the login-attempt detection needs. */
+type BindingContainer = {
+  hasBinding(name: string): boolean;
+  make(name: string): Promise<unknown>;
 };
 
 function matchesMime(mimeType: string, accepted: readonly string[]): boolean {
@@ -147,6 +154,7 @@ export default class CmsProvider {
       ).singleton(CMS_CONSOLE_BINDING, () => cmsConsole);
       const auth = config.integrations?.auth as BuiltinAuth | undefined;
       if (auth?.builtin) {
+        const attemptStore = await this.loginAttemptStore(auth);
         registerAuthRoutes(
           (await this.app.container.make('router')) as CmsRouter,
           cms as never,
@@ -154,6 +162,7 @@ export default class CmsProvider {
           {
             prefix: config.rest?.prefix ?? '/api/cms',
             adminPath: config.admin?.path ?? '/admin',
+            ...(attemptStore ? { attemptStore } : {}),
           },
         );
       }
@@ -335,6 +344,24 @@ export default class CmsProvider {
     };
   }
 
+  /**
+   * Where the built-in login counts failures: the app's `@adonisjs/limiter` or `@adonisjs/redis`
+   * when it has one, so the limits hold across processes. Otherwise memory, which production is
+   * told about once.
+   */
+  private async loginAttemptStore(auth: BuiltinAuth) {
+    if (auth.builtin.loginAttempts?.store) return undefined;
+    const container = this.app.container as unknown as BindingContainer;
+    const detected = await detectAttemptStore(container);
+    if (detected) return detected.store;
+    if (this.app.inProduction) {
+      const logger = (await this.app.container.make('logger')) as { warn(message: string): void };
+      logger.warn(
+        'cms: login attempt limits are counted in memory, per process. With more than one process each counts on its own. Install @adonisjs/limiter or @adonisjs/redis (picked up automatically) or pass `loginAttempts.store` to the builtin auth to share them.',
+      );
+    }
+    return undefined;
+  }
   private async registerRoutes(
     config: CmsConfig,
     cms: ReturnType<typeof createCms>,

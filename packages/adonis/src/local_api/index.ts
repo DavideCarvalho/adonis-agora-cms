@@ -1,5 +1,5 @@
 import type { CmsConfig } from '../config/types.js';
-import { resolveLocalization, resolveVersions } from '../config/types.js';
+import { resolveLocalization } from '../config/types.js';
 import { detectEngine } from '../db/sync.js';
 import type { CmsKnex } from '../db/types.js';
 import type { CmsEventBus } from '../integrations/durable.js';
@@ -31,6 +31,7 @@ import {
   discardDraft,
   lockDocument,
   publishDocument,
+  type ReadVersionOptions,
   readVersion,
   readVersions,
   restoreVersion,
@@ -92,11 +93,16 @@ export type CmsCollectionApi<C, S extends string> = {
   checkPassword(id: string, field: string, password: string): Promise<boolean>;
   publish(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   unpublish(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
+  /** Needs read access to the document; `overrideAccess` skips it. */
   versions(
     id: string,
-    options?: { locale?: string | null; limit?: number; page?: number },
+    options?: { locale?: string | null; limit?: number; page?: number; overrideAccess?: boolean },
   ): Promise<{ docs: VersionRecord[]; totalDocs: number }>;
-  version(id: string, version: number): Promise<VersionRecord | null>;
+  /**
+   * With its snapshot, which needs draft read access and leaves out fields the caller's
+   * `access.read` rules hide. `{ snapshot: false }` returns the details only.
+   */
+  version(id: string, version: number, options?: ReadVersionOptions): Promise<VersionRecord | null>;
   discardDraft(id: string, options?: OperationOptions): Promise<CmsDocument<C, S>>;
   schedule(
     id: string,
@@ -104,13 +110,22 @@ export type CmsCollectionApi<C, S extends string> = {
     options?: OperationOptions,
   ): Promise<DocumentSchedule>;
   unschedule(id: string, options?: OperationOptions): Promise<void>;
-  scheduled(id: string): Promise<DocumentSchedule | null>;
+  /** Needs read access to the document; `overrideAccess` skips it. */
+  scheduled(id: string, options?: { overrideAccess?: boolean }): Promise<DocumentSchedule | null>;
   restoreVersion(
     id: string,
     version: number,
     options?: OperationOptions,
   ): Promise<CmsDocument<C, S>>;
-  lock(id: string, ttlSeconds?: number): Promise<DocumentLock>;
+  /**
+   * Needs `update` access. `ttlSeconds` defaults to `versions.lockTtl` and may not exceed
+   * `versions.maxLockTtl`.
+   */
+  lock(
+    id: string,
+    ttlSeconds?: number,
+    options?: { overrideAccess?: boolean },
+  ): Promise<DocumentLock>;
   unlock(id: string, options?: { overrideAccess?: boolean }): Promise<void>;
 };
 
@@ -261,8 +276,8 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
             return (await discardDraft(ctx, slug, id, operation)) as CmsDocument<C, S>;
           },
 
-          async version(id, version) {
-            return readVersion(ctx, slug, id, version);
+          async version(id, version, options) {
+            return readVersion(ctx, slug, id, version, options);
           },
 
           async schedule(id, schedule, operation) {
@@ -273,17 +288,16 @@ export function createCms<C extends CmsConfig>(options: CreateCmsOptions): Cms<C
             await cancelSchedule(ctx, slug, id, operation);
           },
 
-          async scheduled(id) {
-            return readSchedule(ctx, slug, id);
+          async scheduled(id, options) {
+            return readSchedule(ctx, slug, id, options);
           },
 
           async restoreVersion(id, version, operation) {
             return (await restoreVersion(ctx, slug, id, version, operation)) as CmsDocument<C, S>;
           },
 
-          async lock(id, ttlSeconds) {
-            const { lockTtl } = resolveVersions(ctx.config);
-            return lockDocument(ctx, slug, id, ttlSeconds ?? lockTtl);
+          async lock(id, ttlSeconds, options) {
+            return lockDocument(ctx, slug, id, ttlSeconds, options);
           },
 
           async unlock(id, options) {

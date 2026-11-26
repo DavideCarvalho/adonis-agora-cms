@@ -15,6 +15,7 @@ export default defineConfig({
     retention: null, // null = full history
     autosave: false, // per collection, or { interval: 2000 }
     lockTtl: 300,
+    maxLockTtl: 3600, // the longest lock a caller may ask for
   },
 });
 ```
@@ -52,6 +53,9 @@ const restored = await posts.restoreVersion(post.id, 1);
 Restore never rewrites history: it loads the snapshot, runs `beforeValidate`/`beforeChange`
 again (the schema may have changed) and writes it as the **next** version.
 
+Reading the history needs read access to the document; a snapshot needs draft access, and fields
+hidden by `access.read` are left out of it.
+
 Snapshots include the document, its child tables (arrays, blocks, relation lists) and the
 `schemaHash` they were taken against.
 
@@ -85,6 +89,9 @@ Advisory, not a database lock: it tells the panel who is editing, and it never b
 await posts.lock(post.id); // { userId: 'u1', expiresAt }
 await posts.unlock(post.id); // owner only
 ```
+
+Taking or releasing a lock needs the collection's `update` access, like discarding a draft. A
+`ttlSeconds` above `versions.maxLockTtl` (default 3600) is refused with a 422.
 
 A second user gets `CmsConflictError` (409) with the holder and expiry. Expired locks are
 cleared on the next acquisition.

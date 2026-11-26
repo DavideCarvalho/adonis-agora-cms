@@ -101,6 +101,10 @@ access: {
 beforeValidate → field validate → beforeChange → [trx] write → afterChange → commit
 ```
 
+Hooks run server-side and see the whole document: `previousData`, `doc` in `afterChange` and the
+delete hooks (which get `id` and `doc`) include fields the current user's `access.read` hides. Version
+history stores the whole document too. Only what goes back to the caller is trimmed.
+
 `afterChange` runs **inside** the transaction: if it throws, the document and its children roll
 back. External side effects (webhooks, emails) belong in a queue (`@adonis-agora/durable`), not
 in `afterChange`.
