@@ -5,6 +5,7 @@ import {
   limiterAttemptStore,
   MemoryAttemptStore,
   redisAttemptStore,
+  withFallback,
 } from '../../src/auth/attempt_store.js';
 import { type BuiltinAuth, cmsAuth, registerAuthRoutes } from '../../src/auth/builtin.js';
 
@@ -167,6 +168,55 @@ describe('shared login attempt stores', () => {
     } finally {
       console.error = original;
     }
+  });
+
+  it('a store that never answers falls back to memory after the timeout', async () => {
+    let calls = 0;
+    const hanging: LoginAttemptStore = {
+      count: () => {
+        calls++;
+        return new Promise<number>(() => undefined);
+      },
+      increment: () => {
+        calls++;
+        return new Promise<number>(() => undefined);
+      },
+      clear: () => {
+        calls++;
+        return new Promise<void>(() => undefined);
+      },
+    };
+    const errors: unknown[] = [];
+    const store = withFallback(hanging, (error) => errors.push(error), undefined, {
+      timeoutMs: 20,
+      retryMs: 60_000,
+    });
+    expect(await store.increment('k', 60_000)).toBe(1);
+    expect(errors).toHaveLength(1);
+    // Skipped while it is down: no further call waits for the timeout.
+    const started = Date.now();
+    expect(await store.increment('k', 60_000)).toBe(2);
+    expect(await store.count('k', 60_000)).toBe(2);
+    expect(Date.now() - started).toBeLessThan(20);
+    expect(calls).toBe(1);
+  });
+
+  it('tries the shared store again once the retry delay has passed', async () => {
+    let down = true;
+    const shared = new MemoryAttemptStore();
+    const flaky: LoginAttemptStore = {
+      count: (key, windowMs) =>
+        down ? Promise.reject(new Error('down')) : shared.count(key, windowMs),
+      increment: (key, windowMs) =>
+        down ? Promise.reject(new Error('down')) : shared.increment(key, windowMs),
+      clear: (key, windowMs) =>
+        down ? Promise.reject(new Error('down')) : shared.clear(key, windowMs),
+    };
+    const store = withFallback(flaky, () => undefined, undefined, { retryMs: 0 });
+    expect(await store.increment('k', 60_000)).toBe(1);
+    down = false;
+    expect(await store.increment('k', 60_000)).toBe(1);
+    expect(await shared.count('k')).toBe(1);
   });
 
   it('counts through @adonisjs/limiter without letting it block on its own', async () => {
