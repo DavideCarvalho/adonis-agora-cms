@@ -181,20 +181,45 @@ export async function detectAttemptStore(
   return null;
 }
 
+/** How long a shared store may take to answer before the attempt is counted in memory. */
+const SHARED_TIMEOUT_MS = 1_000;
+/** After a failure or a timeout, how long the shared store is skipped before it is tried again. */
+const SHARED_RETRY_MS = 10_000;
+
 /**
  * Wraps a shared store so an outage never locks everyone out or lets everyone through: while it
  * fails, counting falls back to this process's memory, and the error is logged once a minute.
+ *
+ * A store that never answers counts as failing too. A Redis client whose server is unreachable
+ * queues commands while it reconnects instead of rejecting them, which without a timeout would
+ * hang every login. A call gets `timeoutMs` to answer, and after a failure the shared store is
+ * skipped for `retryMs` so logins during an outage do not each wait for the timeout.
  */
 export function withFallback(
   store: LoginAttemptStore,
   onError: (error: unknown) => void,
   fallback: LoginAttemptStore = new MemoryAttemptStore(),
+  { timeoutMs = SHARED_TIMEOUT_MS, retryMs = SHARED_RETRY_MS } = {},
 ): LoginAttemptStore {
   let lastReport = 0;
+  let skipUntil = 0;
+  const withTimeout = <T>(promise: Promise<T>): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`login attempt store did not answer within ${timeoutMs}ms`)),
+        timeoutMs,
+      );
+      timer.unref?.();
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  };
   const guard = async <T>(shared: () => Promise<T>, local: () => Promise<T>): Promise<T> => {
+    if (Date.now() < skipUntil) return local();
     try {
-      return await shared();
+      return await withTimeout(shared());
     } catch (error) {
+      skipUntil = Date.now() + retryMs;
       if (Date.now() - lastReport > 60_000) {
         lastReport = Date.now();
         onError(error);
