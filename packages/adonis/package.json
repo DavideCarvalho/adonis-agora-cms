@@ -8,7 +8,7 @@
     "url": "git+https://github.com/DavideCarvalho/adonis-agora-cms.git",
     "directory": "packages/adonis"
   },
-  "author": "Davi Carvalho <davi@goflip.ai>",
+  "author": "Davi Carvalho <davi_carvalho96@hotmail.com>",
   "type": "module",
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
