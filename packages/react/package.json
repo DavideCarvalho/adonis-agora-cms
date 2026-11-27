@@ -8,6 +8,7 @@
     "directory": "packages/react"
   },
   "license": "MIT",
+  "author": "Davi Carvalho <davi_carvalho96@hotmail.com>",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
